@@ -16,3 +16,4 @@ dist/
 # IDE
 .idea/
 .vscode/
+.worktrees
