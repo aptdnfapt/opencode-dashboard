@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Database
+*.db
+
+# Build
+dist/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
