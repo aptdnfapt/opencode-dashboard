@@ -6,7 +6,7 @@
 
 **Architecture:** Plugin (existing) sends events to backend (Bun + Hono + SQLite) via POST; backend stores data and pushes updates via WebSocket; frontend (Vite + React + shadcn/ui) displays sessions list with real-time updates, analytics dashboard with 4 chart types, and settings page with theme switcher.
 
-**Tech Stack:** Backend: Bun, Hono, SQLite, better-sqlite3, WebSocket; Frontend: Vite, React, TypeScript, shadcn/ui, recharts, Zustand, date-fns
+**Tech Stack:** Backend: Bun, Hono, SQLite, better-sqlite3, WebSocket, bun test; Frontend: Vite, React, TypeScript, shadcn/ui, recharts, Zustand, date-fns, Vitest, @testing-library/react, @testing-library/jest-dom, @testing-library/user-event
 
 ---
 
@@ -84,22 +84,93 @@ BACKEND_PASSWORD=your_password_here
 DATABASE_URL=./database.db
 ```
 
-**Step 5: Install dependencies**
+**Step 5: Create backend package.json with test setup**
+
+```json
+{
+  "name": "opencode-dashboard-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "start": "bun run src/index.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch"
+  },
+  "dependencies": {
+    "hono": "^4.0.0",
+    "better-sqlite3": "^9.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@types/better-sqlite3": "^7.6.0"
+  }
+}
+```
+
+**Step 6: Install dependencies**
 
 Run: `cd backend && bun install`
 Expected: Dependencies installed successfully
 
-**Step 6: Test backend starts**
+**Step 7: TDD - Write failing test for API root endpoint**
 
-Run: `bun run dev`
-Expected: Server running on port 3000
+Create `backend/src/index.test.ts`:
 
-**Step 7: Commit**
+```typescript
+import { describe, it, expect } from 'bun:test'
+import app from './index'
 
-```bash
-git add backend/package.json backend/tsconfig.json backend/src/index.ts .env.example
-git commit -m "feat: initialize backend project with Hono"
+describe('API Root', () => {
+  it('returns API name for GET /', async () => {
+    const res = await app.request('/')
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(text).toBe('OpenCode Dashboard API')
+  })
+
+  it('returns 404 for unknown routes', async () => {
+    const res = await app.request('/unknown')
+    expect(res.status).toBe(404)
+  })
+})
 ```
+
+**Step 8: RED - Verify test fails**
+
+Run: `bun test src/index.test.ts`
+Expected: FAIL with "OpenCode Dashboard API" not returned
+
+**Step 9: GREEN - Create minimal index.ts to pass test**
+
+```typescript
+// backend/src/index.ts
+import { Hono } from 'hono'
+import { cors } from 'hono/cors'
+
+const app = new Hono()
+
+app.use('*', cors())
+
+app.get('/', (c) => c.text('OpenCode Dashboard API'))
+
+app.notFound((c) => c.text('Not Found', 404))
+
+export default {
+  port: 3000,
+  fetch: app.fetch
+}
+```
+
+**Step 10: Verify GREEN - Watch test pass**
+
+Run: `bun test src/index.test.ts`
+Expected: PASS (all 2 tests)
+
+**Step 10: Verify GREEN - Watch test pass**
+
+Run: `bun test src/index.test.ts`
+Expected: PASS
 
 ---
 
@@ -107,9 +178,102 @@ git commit -m "feat: initialize backend project with Hono"
 
 **Files:**
 - Create: `backend/src/db.ts`
+- Create: `backend/src/db.test.ts`
 - Modify: `backend/src/index.ts`
 
-**Step 1: Create database schema**
+**Step 1: TDD - Write failing tests for database operations**
+
+Create `backend/src/db.test.ts`:
+
+```typescript
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
+import Database from 'better-sqlite3'
+import { unlinkSync, existsSync } from 'fs'
+
+const TEST_DB = ':memory:'
+
+describe('Database Schema', () => {
+  let db: Database.Database
+
+  beforeEach(() => {
+    // Import and setup test database
+    db = new Database(TEST_DB)
+    // Will be replaced by actual db.ts import once implemented
+  })
+
+  afterEach(() => {
+    db.close()
+  })
+
+  it('creates sessions table with correct schema', () => {
+    const tableInfo = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='sessions'")
+      .get() as { sql: string }
+
+    expect(tableInfo).toBeDefined()
+    expect(tableInfo.sql).toContain('created_at')
+    expect(tableInfo.sql).toContain('token_total')
+    expect(tableInfo.sql).toContain('needs_attention')
+  })
+
+  it('creates timeline_events table with foreign key', () => {
+    const tableInfo = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='timeline_events'")
+      .get() as { sql: string }
+
+    expect(tableInfo).toBeDefined()
+    expect(tableInfo.sql).toContain('session_id')
+    expect(tableInfo.sql).toContain('event_type')
+    expect(tableInfo.sql).toContain('timestamp')
+  })
+
+  it('creates token_usage table with all required fields', () => {
+    const tableInfo = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='token_usage'")
+      .get() as { sql: string }
+
+    expect(tableInfo).toBeDefined()
+    expect(tableInfo.sql).toContain('tokens_in')
+    expect(tableInfo.sql).toContain('tokens_out')
+    expect(tableInfo.sql).toContain('model_id')
+  })
+
+  it('creates instances table', () => {
+    const tableInfo = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='instances'")
+      .get() as { sql: string }
+
+    expect(tableInfo).toBeDefined()
+    expect(tableInfo.sql).toContain('hostname')
+    expect(tableInfo.sql).toContain('last_seen')
+    expect(tableInfo.sql).toContain('sessions_count')
+  })
+
+  it('creates indexes for performance', () => {
+    const indexes = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='index'")
+      .all() as { name: string }[]
+
+    const indexNames = indexes.map((i) => i.name)
+    expect(indexNames).toContain('idx_timeline_session')
+    expect(indexNames).toContain('idx_token_usage_session')
+    expect(indexNames).toContain('idx_token_usage_model')
+    expect(indexNames).toContain('idx_sessions_status')
+  })
+
+  it('enables WAL mode for concurrent access', () => {
+    const walResult = db.pragma('journal_mode', { simple: true })
+    expect(walResult).toBe('wal')
+  })
+})
+```
+
+**Step 2: RED - Verify tests fail**
+
+Run: `bun test src/db.test.ts`
+Expected: FAIL (db.ts not implemented yet)
+
+**Step 3: GREEN - Create database schema**
 
 ```typescript
 // backend/src/db.ts
@@ -187,6 +351,11 @@ db.exec(`
 
 export default db
 ```
+
+**Step 4: Verify GREEN - Watch tests pass**
+
+Run: `bun test src/db.test.ts`
+Expected: PASS (all 6 tests)
 
 **Step 2: Update index.ts to initialize database**
 
@@ -876,7 +1045,10 @@ git commit -m "feat: add API endpoints for sessions, analytics, and instances"
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "react": "^18.3.0",
@@ -890,26 +1062,37 @@ git commit -m "feat: add API endpoints for sessions, analytics, and instances"
     "lucide-react": "^0.344.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.0",
+    "@testing-library/react": "^14.2.0",
+    "@testing-library/user-event": "^14.5.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.0",
+    "jsdom": "^24.0.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.0",
-    "vite": "^5.1.0"
+    "vite": "^5.1.0",
+    "vitest": "^1.3.0"
   }
 }
 ```
 
-**Step 2: Create vite.config.ts**
+**Step 2: Create vite.config.ts with test setup**
 
 ```typescript
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   server: {
     port: 5173,
     proxy: {
@@ -918,8 +1101,22 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+    css: true,
   }
 })
+```
+
+**Step 3: TDD - Create test setup file**
+
+Create `frontend/src/test/setup.ts`:
+
+```typescript
+import '@testing-library/jest-dom'
 ```
 
 **Step 3: Create tsconfig.json**
@@ -3043,3 +3240,31 @@ git commit -m "feat: OpenCode Dashboard complete - sessions, analytics, settings
 ---
 
 **Implementation complete! The dashboard is ready to receive events from the plugin and display them in real-time.**
+
+---
+
+## TDD Workflow Notes for All Subagents
+
+**CRITICAL:** Every implementation task MUST follow TDD:
+
+1. **RED** - Write failing test first
+2. **Watch it fail** - Verify test fails for correct reason
+3. **GREEN** - Write minimal code to make test pass
+4. **Watch it pass** - Verify test passes cleanly
+5. **REFACTOR** - Clean up without breaking tests
+6. **Repeat** - Next test for next feature
+
+**Rules:**
+- NO production code without failing test first
+- If test passes immediately, you wrote wrong test
+- If code before test, DELETE and start over
+- Watch tests fail - this proves they actually test something
+- One behavior per test - no "and" in test names
+- Tests use real code, mock only if absolutely necessary
+
+**Test Run Commands:**
+- Backend: `bun test`
+- Frontend: `npm run test`
+- Watch mode: `bun test --watch` or `npm run test -- --watch`
+
+**No Exceptions:** Skip TDD only for generated files, configuration, or throwaway prototypes. Ask first.
