@@ -1,19 +1,19 @@
 // frontend/src/pages/sessions-page.tsx
 // Main sessions list page with real-time updates
 import { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { SessionCard } from '@/components/sessions/session-card'
 import { SessionFilters } from '@/components/sessions/session-filters'
-import { SessionDetail } from '@/components/sessions/session-detail'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Activity, Wifi, WifiOff, Power } from 'lucide-react'
 import type { Session } from '@/store'
 
 export function SessionsPage() {
-  const { selectSession, setSessions, addSession, updateSession, getFilteredSessions, wsConnected, setWsConnected, setTimeline } = useStore()
+  const navigate = useNavigate()
+  const { selectSession, setSessions, addSession, updateSession, getFilteredSessions, wsConnected, setWsConnected } = useStore()
   const sessions = getFilteredSessions()
-  const selectedSession = useStore((s) => s.selectedSession)
 
   const [loading, setLoading] = useState(true)
   const [instances, setInstances] = useState<string[]>([])
@@ -29,7 +29,7 @@ export function SessionsPage() {
         ])
         const sessionsData = await sessionsRes.json()
         const instancesData = await instancesRes.json()
-        
+
         setSessions(sessionsData)
         setInstances(instancesData.map((i: any) => i.hostname))
       } catch (err) {
@@ -59,8 +59,20 @@ export function SessionsPage() {
     audio.play().catch(() => {})
   }, [])
 
-  // Handle WebSocket messages
+  // Handle WebSocket messages - using refs to avoid stale closure
+  const handlersRef = useRef({
+    addSession,
+    updateSession,
+    flashSession,
+    playSound,
+  })
+
+  useEffect(() => {
+    handlersRef.current = { addSession, updateSession, flashSession, playSound }
+  }, [addSession, updateSession, flashSession, playSound])
+
   const handleWSMessage = useCallback((msg: any) => {
+    const { addSession, updateSession, flashSession, playSound } = handlersRef.current
     switch (msg.type) {
       case 'session.created':
         addSession(msg.data)
@@ -82,23 +94,13 @@ export function SessionsPage() {
         playSound()
         break
     }
-  }, [addSession, updateSession, flashSession, playSound])
+  }, [])
 
-  // Handle session click - select and fetch timeline
-  const handleSessionClick = useCallback(async (session: Session) => {
+  // Handle session click - navigate to detail page
+  const handleSessionClick = useCallback((session: Session) => {
     selectSession(session)
-
-    // Fetch timeline for this session
-    try {
-      const res = await fetch(`/api/sessions/${session.id}`)
-      const data = await res.json()
-      if (data.timeline) {
-        setTimeline(session.id, data.timeline)
-      }
-    } catch (err) {
-      console.error('Failed to fetch timeline:', err)
-    }
-  }, [selectSession, setTimeline])
+    navigate(`/session/${session.id}`)
+  }, [navigate, selectSession])
 
   // WebSocket connection
   const password = localStorage.getItem('dashboard_password') || ''
@@ -123,7 +125,7 @@ export function SessionsPage() {
               <p className="text-xs text-muted-foreground">{sessions.length} total sessions</p>
             </div>
           </div>
-          
+
           {/* Stats pills */}
           <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-3 text-sm">
@@ -131,14 +133,14 @@ export function SessionsPage() {
                 <Activity className="size-3.5 text-green-500" />
                 <span className="font-medium text-green-500">{activeCount} active</span>
               </div>
-              
+
               {attentionCount > 0 && (
                 <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 animate-pulse">
                   <Power className="size-3.5 text-orange-500" />
                   <span className="font-medium text-orange-500">{attentionCount} needs attention</span>
                 </div>
               )}
-              
+
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20">
                 <span className="font-medium text-primary">{(totalTokens / 1000).toFixed(1)}k tokens</span>
               </div>
@@ -193,9 +195,9 @@ export function SessionsPage() {
           </div>
         )}
       </main>
-
-      {/* Detail modal */}
-      <SessionDetail />
     </div>
   )
 }
+
+// Import useRef at top
+import { useRef } from 'react'

@@ -98,6 +98,87 @@ export function createApiHandler(app: Hono, db: Database) {
     return c.json(daily)
   })
 
+  // GET /api/analytics/usage - model usage by period (day/week/month)
+  app.get('/api/analytics/usage', (c: Context) => {
+    const period = c.req.query('period') || 'day'
+    const limit = parseInt(c.req.query('limit') || '30')
+
+    let dateFormat: string
+    let orderDir: string
+
+    switch (period) {
+      case 'week':
+        dateFormat = "DATE('week' = 'mon', timestamp/1000, 'unixepoch', 'start of week')"
+        break
+      case 'month':
+        dateFormat = "DATE(timestamp/1000, 'unixepoch', 'start of month')"
+        break
+      default:
+        dateFormat = "DATE(timestamp/1000, 'unixepoch')"
+    }
+
+    // Get all models first
+    const models = db.prepare(`
+      SELECT DISTINCT model_id FROM token_usage WHERE model_id IS NOT NULL
+    `).all() as { model_id: string }[]
+
+    if (models.length === 0) {
+      return c.json([])
+    }
+
+    // Build dynamic SQL based on models
+    const modelColumns = models.map((_, i) =>
+      `COALESCE(SUM(CASE WHEN model_id = ? THEN tokens_in + tokens_out ELSE 0 END), 0) as model_${i}`
+    ).join(', ')
+
+    const modelParams = models.map(m => m.model_id)
+
+    const sql = `
+      SELECT
+        ${dateFormat} as period,
+        SUM(tokens_in + tokens_out) as total_tokens,
+        SUM(cost) as total_cost,
+        ${modelColumns}
+      FROM token_usage
+      WHERE model_id IS NOT NULL
+      GROUP BY period
+      ORDER BY period ${orderDir || 'DESC'}
+      LIMIT ?
+    `
+
+    const usage = db.prepare(sql).all(...modelParams, limit) as Record<string, unknown>[]
+
+    // Return clean format with model data as object
+    return c.json(usage.map(row => {
+      const { period, total_tokens, total_cost, ...modelData } = row
+      return {
+        period,
+        total_tokens,
+        total_cost,
+        models: Object.fromEntries(
+          Object.entries(modelData).map(([key, val], i) => [models[i].model_id, val])
+        )
+      }
+    }))
+  })
+
+  // GET /api/analytics/trend - quarterly usage trend (day by day)
+  app.get('/api/analytics/trend', (c: Context) => {
+    const days = parseInt(c.req.query('days') || '90')
+
+    const trend = db.prepare(`
+      SELECT DATE(timestamp/1000, 'unixepoch') as date,
+        SUM(tokens_in + tokens_out) as total_tokens,
+        SUM(cost) as total_cost
+      FROM token_usage
+      GROUP BY date
+      ORDER BY date ASC
+      LIMIT ?
+    `).all(days)
+
+    return c.json(trend)
+  })
+
   // GET /api/instances - list all VPS instances
   app.get('/api/instances', (c: Context) => {
     const instances = db.prepare('SELECT * FROM instances ORDER BY hostname').all()

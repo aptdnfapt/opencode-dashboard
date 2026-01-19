@@ -1,20 +1,28 @@
 import { useState } from 'react'
+import { Routes, Route, useNavigate } from 'react-router-dom'
 import { Activity, TrendingUp, Sun, Globe } from 'lucide-react'
 import { SessionsPage } from './pages/sessions-page'
 import { AnalyticsPage } from './pages/analytics-page'
 import { SettingsPage } from './pages/settings-page'
-import { SessionDetail } from './components/sessions/session-detail'
+import { SessionDetailPage } from './pages/session-detail-page'
+import { useStore } from './store'
 
 type Page = 'sessions' | 'analytics' | 'settings'
 
 const navItems = [
-  { id: 'sessions' as Page, label: 'Sessions', icon: Activity },
-  { id: 'analytics' as Page, label: 'Analytics', icon: TrendingUp },
-  { id: 'settings' as Page, label: 'Settings', icon: Sun },
+  { id: 'sessions' as Page, label: 'Sessions', icon: Activity, path: '/' },
+  { id: 'analytics' as Page, label: 'Analytics', icon: TrendingUp, path: '/analytics' },
+  { id: 'settings' as Page, label: 'Settings', icon: Sun, path: '/settings' },
 ]
 
 export default function App() {
+  const navigate = useNavigate()
   const [currentPage, setCurrentPage] = useState<Page>('sessions')
+
+  const handleNavClick = (path: string, page: Page) => {
+    setCurrentPage(page)
+    navigate(path)
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -35,7 +43,7 @@ export default function App() {
               {navItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => setCurrentPage(item.id)}
+                  onClick={() => handleNavClick(item.path, item.id)}
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     currentPage === item.id
                       ? 'bg-primary text-primary-foreground'
@@ -53,13 +61,13 @@ export default function App() {
 
       {/* Page content */}
       <main>
-        {currentPage === 'sessions' && <SessionsPage />}
-        {currentPage === 'analytics' && <AnalyticsPage />}
-        {currentPage === 'settings' && <SettingsPage />}
+        <Routes>
+          <Route path="/" element={<SessionsPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/session/:sessionId" element={<SessionDetailPage />} />
+        </Routes>
       </main>
-
-      {/* SessionDetail modal overlay */}
-      <SessionDetail />
     </div>
   )
 }

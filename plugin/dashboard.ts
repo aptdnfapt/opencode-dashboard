@@ -74,7 +74,6 @@ function loadConfig(directory: string): DashboardConfig {
     hostname: config.hostname || getHostname()
   }
 }
-export const DEFAULT_BACKEND_URL = "http://localhost:3000"
 
 // ============================================
 // Plugin export

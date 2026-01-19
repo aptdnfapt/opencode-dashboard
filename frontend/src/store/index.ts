@@ -24,6 +24,15 @@ export interface TimelineEvent {
   tool_name?: string
 }
 
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+  tokens?: number
+  cost?: number
+}
+
 interface Filters {
   hostname: string | null
   status: string | null
@@ -35,6 +44,7 @@ interface DashboardStore {
   sessions: Session[]
   selectedSession: Session | null
   timeline: Map<string, TimelineEvent[]>
+  messages: Map<string, ChatMessage[]>
   filters: Filters
   theme: 'light' | 'dark' | 'system'
   wsConnected: boolean
@@ -45,6 +55,8 @@ interface DashboardStore {
   updateSession: (session: Partial<Session> & { id: string }) => void
   selectSession: (session: Session | null) => void
   setTimeline: (sessionId: string, events: TimelineEvent[]) => void
+  setMessages: (sessionId: string, msgs: ChatMessage[]) => void
+  addMessage: (sessionId: string, msg: ChatMessage) => void
   setFilters: (filters: Partial<Filters>) => void
   setTheme: (theme: 'light' | 'dark' | 'system') => void
   setWsConnected: (connected: boolean) => void
@@ -55,6 +67,7 @@ export const useStore = create<DashboardStore>((set, get) => ({
   sessions: [],
   selectedSession: null,
   timeline: new Map(),
+  messages: new Map(),
   filters: { hostname: null, status: null, search: '' },
   theme: 'system',
   wsConnected: false,
@@ -77,6 +90,19 @@ export const useStore = create<DashboardStore>((set, get) => ({
     const timeline = new Map(s.timeline)
     timeline.set(sessionId, events)
     return { timeline }
+  }),
+
+  setMessages: (sessionId, msgs) => set((s) => {
+    const messages = new Map(s.messages)
+    messages.set(sessionId, msgs)
+    return { messages }
+  }),
+
+  addMessage: (sessionId, msg) => set((s) => {
+    const messages = new Map(s.messages)
+    const current = messages.get(sessionId) || []
+    messages.set(sessionId, [...current, msg])
+    return { messages }
   }),
 
   setFilters: (filters) => set((s) => ({
