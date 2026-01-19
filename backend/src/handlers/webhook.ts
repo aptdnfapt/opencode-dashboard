@@ -2,6 +2,7 @@
 // Webhook handler - receives events from OpenCode plugin
 import type { Hono } from 'hono'
 import type { Database } from 'bun:sqlite'
+import { wsManager } from '../websocket/server'
 
 interface PluginEvent {
   type: string
@@ -35,6 +36,8 @@ export function createWebhookHandler(app: Hono, db: Database) {
             INSERT INTO instances (hostname, last_seen) VALUES (?, ?)
             ON CONFLICT(hostname) DO UPDATE SET last_seen = ?
           `).run(event.hostname, now, now)
+
+          wsManager.broadcastSessionCreated({ id: event.sessionId, title: event.title, hostname: event.hostname })
           break
 
         case 'session.updated':
@@ -58,10 +61,14 @@ export function createWebhookHandler(app: Hono, db: Database) {
           db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?')
             .run(event.timestamp, event.sessionId)
 
+          wsManager.broadcastTimeline(event.sessionId!, event.eventType!, event.summary || '')
+
           // Set needs_attention on permission events
           if (event.eventType === 'permission') {
             db.prepare('UPDATE sessions SET needs_attention = 1 WHERE id = ?')
               .run(event.sessionId)
+
+            wsManager.broadcastAttention(event.sessionId!, true)
           }
 
           // Clear needs_attention on user message
