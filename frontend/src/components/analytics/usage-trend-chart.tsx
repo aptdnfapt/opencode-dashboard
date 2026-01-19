@@ -88,7 +88,7 @@ export function UsageTrendChart({ data, loading }: UsageTrendChartProps) {
     return (
       <div className="rounded-xl border border-border bg-card p-6">
         <div className="h-8 w-48 animate-pulse bg-muted rounded mb-4" />
-        <div className="h-64 bg-muted/50 rounded" />
+        <div className="h-64 bg-muted rounded" />
       </div>
     )
   }

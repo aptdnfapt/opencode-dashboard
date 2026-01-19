@@ -9,7 +9,7 @@ export function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-sm shadow-sm">
+      <header className="sticky top-0 z-40 border-b border-border bg-card shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
           <Sun className="size-6 text-primary" />
           <h1 className="text-xl font-semibold">Settings</h1>

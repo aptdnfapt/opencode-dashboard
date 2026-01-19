@@ -27,7 +27,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-sm">
+      <nav className="sticky top-0 z-50 border-b border-border bg-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center gap-4 h-16">
             {/* Logo */}

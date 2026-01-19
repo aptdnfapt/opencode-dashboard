@@ -15,7 +15,7 @@ export function SessionFilters({ instances }: SessionFiltersProps) {
   const hasFilters = filters.hostname || filters.status || filters.search
 
   return (
-    <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border border-border bg-card/50 backdrop-blur-sm mb-6 shadow-sm">
+    <div className="flex flex-wrap items-center gap-3 p-4 rounded-xl border border-border bg-card mb-6 shadow-sm">
       {/* Search */}
       <div className="relative flex-1 min-w-[200px]">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -23,7 +23,7 @@ export function SessionFilters({ instances }: SessionFiltersProps) {
           placeholder="Search sessions..."
           value={filters.search}
           onChange={(e) => setFilters({ search: e.target.value })}
-          className="pl-9 bg-background/50"
+          className="pl-9 bg-background"
         />
       </div>
 

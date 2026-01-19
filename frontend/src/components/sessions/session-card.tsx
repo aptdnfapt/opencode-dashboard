@@ -26,9 +26,9 @@ export function SessionCard({ session, onClick, justUpdated }: SessionCardProps)
       onClick={onClick}
       className={cn(
         'group cursor-pointer rounded-xl border border-border bg-card p-4 transition-all',
-        'hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5',
-        justUpdated && 'ring-2 ring-primary/50 ring-offset-2 ring-offset-background animate-in fade-in',
-        needsAttention && 'border-orange-500/50 shadow-orange-500/20 shadow-lg'
+        'hover:border-primary hover:shadow-md hover:-translate-y-0.5',
+        justUpdated && 'ring-2 ring-primary ring-offset-2 ring-offset-background animate-in fade-in',
+        needsAttention && 'border-orange-500 shadow-orange-500/20 shadow-lg'
       )}
       role="article"
     >
@@ -63,7 +63,7 @@ export function SessionCard({ session, onClick, justUpdated }: SessionCardProps)
       </div>
 
       {/* Footer: Tokens + Cost */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground border-t border-border/50 pt-3">
+      <div className="flex items-center gap-4 text-xs text-muted-foreground border-t border-border pt-3">
         <div className="flex items-center gap-1.5">
           <Coins className="size-3.5" />
           <span className="font-medium text-foreground">{session.token_total.toLocaleString()}</span>
@@ -74,13 +74,7 @@ export function SessionCard({ session, onClick, justUpdated }: SessionCardProps)
         </div>
       </div>
 
-      {/* Subtle glow effect on hover */}
-      <div className={cn(
-        'absolute inset-0 rounded-xl opacity-0 transition-opacity pointer-events-none',
-        'bg-gradient-to-br from-primary/5 to-transparent',
-        'group-hover:opacity-100',
-        needsAttention && 'bg-orange-500/5'
-      )} />
+
     </article>
   )
 }

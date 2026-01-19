@@ -43,11 +43,19 @@ export function createWebhookHandler(app: Hono, db: Database) {
         case 'session.updated':
           db.prepare('UPDATE sessions SET title = ?, directory = ?, updated_at = ? WHERE id = ?')
             .run(event.title, event.instance || null, event.timestamp, event.sessionId)
+          wsManager.broadcastSessionUpdated({ id: event.sessionId, title: event.title })
           break
 
         case 'session.idle':
           db.prepare('UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?')
             .run('idle', event.timestamp, event.sessionId)
+          wsManager.broadcastIdle(event.sessionId!)
+          break
+
+        case 'session.error':
+          db.prepare('UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?')
+            .run('error', event.timestamp, event.sessionId)
+          wsManager.broadcastError(event.sessionId!, (event as any).error || 'Unknown error')
           break
 
         case 'timeline':

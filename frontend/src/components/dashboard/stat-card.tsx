@@ -34,7 +34,7 @@ export function StatCard({ title, value, icon, subtitle, className }: StatCardPr
             <p className="text-xs text-muted-foreground">{subtitle}</p>
           )}
         </div>
-        <div className="flex size-14 items-center justify-center rounded-xl bg-muted/50 border border-border/50">
+        <div className="flex size-14 items-center justify-center rounded-xl bg-muted border border-border">
           <Icon className="size-6 text-primary" />
         </div>
       </div>

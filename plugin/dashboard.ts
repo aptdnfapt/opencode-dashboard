@@ -133,6 +133,44 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
           break
         }
           
+        // Handle new session.status event (replaces deprecated session.idle)
+        case "session.status": {
+          const sessionId = props?.sessionID
+          const status = props?.status
+          if (sessionId && status) {
+            if (status.type === "idle") {
+              // Send pending message first
+              const msg = pendingMessages.get(sessionId)
+              if (msg) {
+                send({
+                  type: "timeline",
+                  eventType: "message",
+                  sessionId,
+                  summary: msg
+                })
+                pendingMessages.delete(sessionId)
+              }
+              send({
+                type: "timeline",
+                eventType: "idle",
+                sessionId,
+                summary: "Session idle"
+              })
+              send({ type: "session.idle", sessionId })
+            } else if (status.type === "busy") {
+              // Session became active again
+              send({
+                type: "timeline",
+                eventType: "busy",
+                sessionId,
+                summary: "Session active"
+              })
+            }
+          }
+          break
+        }
+          
+        // Keep deprecated session.idle for backward compatibility
         case "session.idle": {
           const sessionId = props?.sessionID
           if (sessionId) {

@@ -1,6 +1,6 @@
 // frontend/src/pages/sessions-page.tsx
 // Main sessions list page with real-time updates
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { useWebSocket } from '@/hooks/useWebSocket'
@@ -91,6 +91,11 @@ export function SessionsPage() {
         break
       case 'idle':
         updateSession({ id: msg.data.sessionId, status: 'idle' })
+        flashSession(msg.data.sessionId)
+        break
+      case 'error':
+        updateSession({ id: msg.data.sessionId, status: 'error' })
+        flashSession(msg.data.sessionId)
         playSound()
         break
     }
@@ -114,10 +119,10 @@ export function SessionsPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-sm shadow-sm">
+      <header className="sticky top-0 z-40 border-b border-border bg-card shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
+            <div className="p-2 rounded-lg bg-muted">
               <Activity className="size-5 text-primary" />
             </div>
             <div>
@@ -129,19 +134,19 @@ export function SessionsPage() {
           {/* Stats pills */}
           <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-3 text-sm">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/20">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900 border border-green-300 dark:border-green-700">
                 <Activity className="size-3.5 text-green-500" />
                 <span className="font-medium text-green-500">{activeCount} active</span>
               </div>
 
               {attentionCount > 0 && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 animate-pulse">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-100 dark:bg-orange-900 border border-orange-300 dark:border-orange-700 animate-pulse">
                   <Power className="size-3.5 text-orange-500" />
                   <span className="font-medium text-orange-500">{attentionCount} needs attention</span>
                 </div>
               )}
 
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted border border-border">
                 <span className="font-medium text-primary">{(totalTokens / 1000).toFixed(1)}k tokens</span>
               </div>
             </div>
@@ -176,7 +181,7 @@ export function SessionsPage() {
           </div>
         ) : sessions.length === 0 ? (
           <div className="text-center py-20">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted/50 mb-4">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-muted mb-4">
               <Activity className="size-10 text-muted-foreground" />
             </div>
             <h2 className="text-lg font-semibold mb-2">No sessions found</h2>
@@ -198,6 +203,3 @@ export function SessionsPage() {
     </div>
   )
 }
-
-// Import useRef at top
-import { useRef } from 'react'

@@ -48,7 +48,7 @@ export function SessionDetail() {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/80"
         onClick={() => selectSession(null)}
       />
 
@@ -77,7 +77,7 @@ export function SessionDetail() {
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(85vh-120px)]">
           {/* Session info */}
-          <div className="grid grid-cols-2 gap-4 mb-6 p-4 rounded-lg bg-muted/50">
+          <div className="grid grid-cols-2 gap-4 mb-6 p-4 rounded-lg bg-muted">
             <div>
               <p className="text-xs text-muted-foreground mb-1">Started</p>
               <p className="text-sm font-medium">{new Date(selectedSession.created_at).toLocaleString()}</p>
@@ -105,7 +105,7 @@ export function SessionDetail() {
                 events.map((event) => (
                   <div
                     key={event.id}
-                    className="flex gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                    className="flex gap-3 p-3 rounded-lg border border-border hover:bg-muted transition-colors"
                   >
                     <div className="mt-1 flex-shrink-0">
                       {eventIcons[event.event_type] || <MessageSquare className="size-4 text-muted-foreground" />}

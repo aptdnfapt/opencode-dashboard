@@ -92,7 +92,7 @@ export function ModelDistributionChart({ data, loading }: ModelDistributionChart
     return (
       <div className="rounded-xl border border-border bg-card p-6">
         <div className="h-8 w-48 animate-pulse bg-muted rounded mb-4" />
-        <div className="h-64 bg-muted/50 rounded" />
+        <div className="h-64 bg-muted rounded" />
       </div>
     )
   }
@@ -140,7 +140,7 @@ export function ModelDistributionChart({ data, loading }: ModelDistributionChart
 
           <div className="flex-1 grid grid-cols-2 gap-3 w-full">
             {chartData.map((item) => (
-              <div key={item.name} className="flex items-center gap-3 p-2 rounded-lg bg-muted/50">
+              <div key={item.name} className="flex items-center gap-3 p-2 rounded-lg bg-muted">
                 <div
                   className="w-3 h-3 rounded-full shrink-0"
                   style={{ backgroundColor: item.color }}

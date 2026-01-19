@@ -2,7 +2,7 @@
 // WebSocket manager - handles client connections and broadcasting
 
 interface BroadcastMessage {
-  type: 'session.created' | 'session.updated' | 'timeline' | 'attention' | 'idle'
+  type: 'session.created' | 'session.updated' | 'timeline' | 'attention' | 'idle' | 'error'
   data: Record<string, unknown>
 }
 
@@ -37,12 +37,24 @@ export class WebSocketManager {
     this.broadcast({ type: 'session.created', data: session })
   }
 
+  broadcastSessionUpdated(session: Record<string, unknown>): void {
+    this.broadcast({ type: 'session.updated', data: session })
+  }
+
   broadcastTimeline(sessionId: string, eventType: string, summary: string): void {
     this.broadcast({ type: 'timeline', data: { sessionId, eventType, summary } })
   }
 
   broadcastAttention(sessionId: string, needsAttention: boolean): void {
     this.broadcast({ type: 'attention', data: { sessionId, needsAttention } })
+  }
+
+  broadcastIdle(sessionId: string): void {
+    this.broadcast({ type: 'idle', data: { sessionId } })
+  }
+
+  broadcastError(sessionId: string, error: string): void {
+    this.broadcast({ type: 'error', data: { sessionId, error } })
   }
 }
 
