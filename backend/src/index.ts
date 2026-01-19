@@ -4,19 +4,50 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import db from './db'
 import { createWebhookHandler } from './handlers/webhook'
+import { createApiHandler } from './handlers/api'
+import { wsManager } from './websocket/server'
 
 const app = new Hono()
 
-// Enable CORS for frontend
 app.use('*', cors())
-
-// Root endpoint - health check
 app.get('/', (c) => c.text('OpenCode Dashboard API'))
+app.get('/health', (c) => c.json({ status: 'ok', clients: wsManager.clientCount }))
+app.notFound((c) => c.text('Not Found', 404))
 
 // Register handlers
 createWebhookHandler(app, db)
+createApiHandler(app, db)
 
-// 404 handler
-app.notFound((c) => c.text('Not Found', 404))
+const port = parseInt(process.env.BACKEND_PORT || '3000')
 
-export default app
+// Start HTTP server
+export default {
+  port,
+  fetch: app.fetch
+}
+
+// Start WebSocket server on port+1
+Bun.serve({
+  port: port + 1,
+  fetch(req, server) {
+    if (server.upgrade(req)) return
+    return new Response('Upgrade required', { status: 426 })
+  },
+  websocket: {
+    open(ws) { wsManager.register(ws) },
+    close(ws) { wsManager.unregister(ws) },
+    message(ws, msg) {
+      // Handle auth if needed
+      const data = JSON.parse(msg.toString())
+      if (data.type === 'auth') {
+        const valid = !process.env.BACKEND_PASSWORD || data.password === process.env.BACKEND_PASSWORD
+        ws.send(JSON.stringify({ type: 'auth', success: valid }))
+        if (!valid) ws.close()
+      }
+    }
+  }
+})
+
+console.log(`API running on http://localhost:${port}`)
+console.log(`WebSocket running on ws://localhost:${port + 1}`)
+
