@@ -20,34 +20,37 @@ createApiHandler(app, db)
 
 const port = parseInt(process.env.BACKEND_PORT || '3000')
 
-// Start HTTP server
+// Export for testing
 export default {
   port,
   fetch: app.fetch
 }
 
-// Start WebSocket server on port+1
-Bun.serve({
-  port: port + 1,
-  fetch(req, server) {
-    if (server.upgrade(req)) return
-    return new Response('Upgrade required', { status: 426 })
-  },
-  websocket: {
-    open(ws) { wsManager.register(ws) },
-    close(ws) { wsManager.unregister(ws) },
-    message(ws, msg) {
-      // Handle auth if needed
-      const data = JSON.parse(msg.toString())
-      if (data.type === 'auth') {
-        const valid = !process.env.BACKEND_PASSWORD || data.password === process.env.BACKEND_PASSWORD
-        ws.send(JSON.stringify({ type: 'auth', success: valid }))
-        if (!valid) ws.close()
+// Start servers only when run directly (not imported)
+if (import.meta.main) {
+  // Start WebSocket server on port+1
+  Bun.serve({
+    hostname: '0.0.0.0',
+    port: port + 1,
+    fetch(req, server) {
+      if (server.upgrade(req)) return
+      return new Response('Upgrade required', { status: 426 })
+    },
+    websocket: {
+      open(ws) { wsManager.register(ws) },
+      close(ws) { wsManager.unregister(ws) },
+      message(ws, msg) {
+        const data = JSON.parse(msg.toString())
+        if (data.type === 'auth') {
+          const valid = !process.env.BACKEND_PASSWORD || data.password === process.env.BACKEND_PASSWORD
+          ws.send(JSON.stringify({ type: 'auth', success: valid }))
+          if (!valid) ws.close()
+        }
       }
     }
-  }
-})
+  })
 
-console.log(`API running on http://localhost:${port}`)
-console.log(`WebSocket running on ws://localhost:${port + 1}`)
+  console.log(`API running on http://localhost:${port}`)
+  console.log(`WebSocket running on ws://localhost:${port + 1}`)
+}
 
