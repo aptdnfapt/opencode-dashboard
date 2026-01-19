@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // frontend/src/components/sessions/session-card.test.tsx
 // Tests SessionCard component
 import { describe, it, expect, vi } from 'vitest'

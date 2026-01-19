@@ -1,12 +1,12 @@
 // frontend/src/components/sessions/session-detail.tsx
 // Modal showing session timeline and details
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { X, MessageSquare, Terminal, AlertCircle, Lock, Clock, Coins } from 'lucide-react'
 import { useStore, type TimelineEvent } from '@/store'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { cn, formatRelativeTime } from '@/lib/utils'
+import { formatRelativeTime } from '@/lib/utils'
 
 const eventIcons: Record<string, React.ReactNode> = {
   user: <MessageSquare className="size-4 text-blue-500" />,
@@ -17,21 +17,37 @@ const eventIcons: Record<string, React.ReactNode> = {
 }
 
 export function SessionDetail() {
-  const { selectedSession, selectSession } = useStore()
+  const { selectedSession, selectSession, timeline } = useStore()
   const [loading, setLoading] = useState(false)
 
-  if (!selectedSession) return null
+  // Get timeline from store - useMemo for stability
+  const events: TimelineEvent[] = useMemo(() => {
+    if (!selectedSession) return []
+    return timeline.get(selectedSession.id) || []
+  }, [selectedSession, timeline])
 
-  // Mock timeline for now
-  const events: TimelineEvent[] = [
-    { id: 1, session_id: selectedSession.id, timestamp: Date.now() - 60000, event_type: 'user', summary: 'Fix the authentication bug', tool_name: '' },
-    { id: 2, session_id: selectedSession.id, timestamp: Date.now() - 55000, event_type: 'tool', summary: 'Read file', tool_name: 'Read' },
-  ]
+  // Fetch timeline from API if not in store
+  useEffect(() => {
+    if (!selectedSession || timeline.has(selectedSession.id)) return
+    setLoading(true)
+    fetch(`/api/sessions/${selectedSession.id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.timeline) {
+          useStore.getState().setTimeline(selectedSession.id, data.timeline)
+        }
+      })
+      .catch(err => console.error('Failed to fetch timeline:', err))
+      .finally(() => setLoading(false))
+  }, [selectedSession, timeline])
+
+  // Early return after all hooks
+  if (!selectedSession) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={() => selectSession(null)}
       />
@@ -87,8 +103,8 @@ export function SessionDetail() {
                 <p className="text-sm text-muted-foreground text-center py-8">No events yet</p>
               ) : (
                 events.map((event) => (
-                  <div 
-                    key={event.id} 
+                  <div
+                    key={event.id}
                     className="flex gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
                   >
                     <div className="mt-1 flex-shrink-0">

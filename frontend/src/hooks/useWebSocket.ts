@@ -1,6 +1,6 @@
 // frontend/src/hooks/useWebSocket.ts
 // WebSocket hook for real-time updates
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 
 interface WSMessage {
   type: 'auth' | 'session.created' | 'session.updated' | 'timeline' | 'attention' | 'idle'
@@ -15,6 +15,7 @@ export function useWebSocket(
 ) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<ReturnType<typeof setTimeout>>()
+  const connectRef = useRef<(() => void) | null>(null)
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
@@ -47,12 +48,20 @@ export function useWebSocket(
     ws.onclose = () => {
       console.log('WebSocket disconnected')
       onConnectionChange?.(false)
-      // Reconnect after 5s
-      reconnectRef.current = setTimeout(connect, 5000)
+      // Reconnect after 5s using the ref
+      if (connectRef.current) {
+        reconnectRef.current = setTimeout(connectRef.current, 5000)
+      }
     }
 
     wsRef.current = ws
   }, [password, onMessage, onConnectionChange])
+
+  // Store connect in ref so it can be referenced in onclose callback
+  // Use useLayoutEffect to avoid render phase updates
+  useLayoutEffect(() => {
+    connectRef.current = connect
+  }, [connect])
 
   useEffect(() => {
     connect()

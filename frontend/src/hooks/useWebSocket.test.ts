@@ -1,6 +1,7 @@
+// @vitest-environment jsdom
 // frontend/src/hooks/useWebSocket.test.ts
 // Tests WebSocket hook message handling
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useWebSocket } from './useWebSocket'
 
@@ -13,7 +14,7 @@ class MockWebSocket {
   readyState = 1
   send = vi.fn()
   close = vi.fn()
-  timeoutHandle: ReturnType<typeof setTimeout> | null = null
+  timeoutHandle: ReturnType<typeof setTimeout> | undefined
 
   constructor() {
     MockWebSocket.instances.push(this)
@@ -25,7 +26,7 @@ class MockWebSocket {
   // Cleanup on unmount
   static cleanup() {
     MockWebSocket.instances.forEach(ws => {
-      clearTimeout(ws.timeoutHandle)
+      if (ws.timeoutHandle) clearTimeout(ws.timeoutHandle)
     })
     MockWebSocket.instances = []
   }

@@ -5,13 +5,15 @@ import { useStore } from '@/store'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { SessionCard } from '@/components/sessions/session-card'
 import { SessionFilters } from '@/components/sessions/session-filters'
+import { SessionDetail } from '@/components/sessions/session-detail'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Activity, Wifi, WifiOff, Power } from 'lucide-react'
 import type { Session } from '@/store'
 
 export function SessionsPage() {
-  const { setSessions, addSession, updateSession, getFilteredSessions, wsConnected, setWsConnected } = useStore()
+  const { selectSession, setSessions, addSession, updateSession, getFilteredSessions, wsConnected, setWsConnected, setTimeline } = useStore()
   const sessions = getFilteredSessions()
+  const selectedSession = useStore((s) => s.selectedSession)
 
   const [loading, setLoading] = useState(true)
   const [instances, setInstances] = useState<string[]>([])
@@ -81,6 +83,22 @@ export function SessionsPage() {
         break
     }
   }, [addSession, updateSession, flashSession, playSound])
+
+  // Handle session click - select and fetch timeline
+  const handleSessionClick = useCallback(async (session: Session) => {
+    selectSession(session)
+
+    // Fetch timeline for this session
+    try {
+      const res = await fetch(`/api/sessions/${session.id}`)
+      const data = await res.json()
+      if (data.timeline) {
+        setTimeline(session.id, data.timeline)
+      }
+    } catch (err) {
+      console.error('Failed to fetch timeline:', err)
+    }
+  }, [selectSession, setTimeline])
 
   // WebSocket connection
   const password = localStorage.getItem('dashboard_password') || ''
@@ -168,13 +186,16 @@ export function SessionsPage() {
               <SessionCard
                 key={session.id}
                 session={session}
-                onClick={() => console.log('Selected:', session.id)}
+                onClick={() => handleSessionClick(session)}
                 justUpdated={recentUpdates.has(session.id)}
               />
             ))}
           </div>
         )}
       </main>
+
+      {/* Detail modal */}
+      <SessionDetail />
     </div>
   )
 }

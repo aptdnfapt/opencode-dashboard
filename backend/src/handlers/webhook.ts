@@ -27,9 +27,9 @@ export function createWebhookHandler(app: Hono, db: Database) {
       switch (event.type) {
         case 'session.created':
           db.prepare(`
-            INSERT OR REPLACE INTO sessions (id, title, hostname, status, created_at, updated_at)
-            VALUES (?, ?, ?, 'active', ?, ?)
-          `).run(event.sessionId, event.title || 'Untitled', event.hostname, event.timestamp, event.timestamp)
+            INSERT OR REPLACE INTO sessions (id, title, hostname, directory, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'active', ?, ?)
+          `).run(event.sessionId, event.title || 'Untitled', event.hostname, event.instance || null, event.timestamp, event.timestamp)
 
           // Upsert instance
           db.prepare(`
@@ -41,8 +41,8 @@ export function createWebhookHandler(app: Hono, db: Database) {
           break
 
         case 'session.updated':
-          db.prepare('UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?')
-            .run(event.title, event.timestamp, event.sessionId)
+          db.prepare('UPDATE sessions SET title = ?, directory = ?, updated_at = ? WHERE id = ?')
+            .run(event.title, event.instance || null, event.timestamp, event.sessionId)
           break
 
         case 'session.idle':

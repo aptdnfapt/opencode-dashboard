@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // Tests StatCard renders title, value, and icon correctly
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'

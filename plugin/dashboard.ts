@@ -69,11 +69,12 @@ function loadConfig(directory: string): DashboardConfig {
   
   // 3. Apply defaults
   return {
-    url: config.url || "http://localhost:3399",
+    url: config.url || "http://localhost:3000",
     apiKey: config.apiKey,
     hostname: config.hostname || getHostname()
   }
 }
+export const DEFAULT_BACKEND_URL = "http://localhost:3000"
 
 // ============================================
 // Plugin export

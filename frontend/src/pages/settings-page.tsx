@@ -1,11 +1,11 @@
 // frontend/src/pages/settings-page.tsx
 // Settings page
-import { useState } from 'react'
 import { Sun, Moon, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useTheme } from '@/lib/theme-provider'
 
 export function SettingsPage() {
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system')
+  const { theme, setTheme, resolvedTheme } = useTheme()
 
   return (
     <div className="min-h-screen bg-background">
@@ -22,22 +22,22 @@ export function SettingsPage() {
           <h2 className="text-lg font-semibold mb-4">Theme</h2>
           <p className="text-sm text-muted-foreground mb-4">Choose your preferred theme</p>
           <div className="flex gap-3">
-            <Button 
-              variant={theme === 'light' ? 'default' : 'outline'} 
+            <Button
+              variant={theme === 'light' ? 'default' : 'outline'}
               onClick={() => setTheme('light')}
             >
               <Sun className="size-4 mr-2" />
               Light
             </Button>
-            <Button 
-              variant={theme === 'dark' ? 'default' : 'outline'} 
+            <Button
+              variant={theme === 'dark' ? 'default' : 'outline'}
               onClick={() => setTheme('dark')}
             >
               <Moon className="size-4 mr-2" />
               Dark
             </Button>
-            <Button 
-              variant={theme === 'system' ? 'default' : 'outline'} 
+            <Button
+              variant={theme === 'system' ? 'default' : 'outline'}
               onClick={() => setTheme('system')}
             >
               <Monitor className="size-4 mr-2" />
@@ -47,7 +47,7 @@ export function SettingsPage() {
         </div>
 
         <div className="text-sm text-muted-foreground">
-          Current theme: <span className="font-medium">{theme}</span>
+          Active theme: <span className="font-medium capitalize">{resolvedTheme}</span>
         </div>
       </main>
     </div>
