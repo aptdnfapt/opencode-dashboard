@@ -3,6 +3,9 @@ node_modules/
 
 # Database
 *.db
+*.db-shm
+*.db-wal
+backend/data/
 
 # Build
 dist/
