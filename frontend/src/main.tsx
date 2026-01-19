@@ -1,12 +1,4 @@
-import { ThemeProvider } from 'next-themes'
 import App from './App'
+import './index.css'
 
-function Root() {
-  return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <App />
-    </ThemeProvider>
-  )
-}
-
-export default Root
+export default App
