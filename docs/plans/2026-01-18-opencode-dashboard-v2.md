@@ -7,13 +7,23 @@
 **Architecture:** Plugin (existing) sends events to backend (Bun + Hono + SQLite) via POST; backend stores data and pushes updates via WebSocket; frontend (Vite + React + square-ui) displays sessions list with real-time updates, analytics dashboard with 4 chart types, and settings page with theme switcher.
 
 **Tech Stack:**
-- Backend: Bun, Hono, SQLite, better-sqlite3, WebSocket, bun:test
-- Frontend: Vite, React, TypeScript, **square-ui** (from ln-dev7/square-ui), recharts, Zustand, date-fns, Vitest, @testing-library/react
+- Backend: Bun, Hono, SQLite (bun:sqlite), WebSocket, bun:test
+- Frontend: Bun, Vite, React, TypeScript, **square-ui** (from ln-dev7/square-ui), recharts, Zustand, date-fns, Vitest, @testing-library/react
 
-**UI Library:** https://github.com/ln-dev7/square-ui
-- Use dashboard-1 template components: `StatCard`, `ChartCard`, `DashboardSidebar`
-- Use base UI: `button`, `input`, `table`, `sheet`, `tooltip`, `calendar`, `dropdown-menu`
-- Use `ThemeProvider` + `ThemeToggle` for dark/light mode
+**UI Libraries:**
+- **Primary:** https://github.com/ln-dev7/square-ui
+  - Use dashboard-1 template components: `StatCard`, `ChartCard`, `DashboardSidebar`
+  - Use base UI: `button`, `input`, `table`, `sheet`, `tooltip`, `calendar`, `dropdown-menu`
+  - Use `ThemeProvider` + `ThemeToggle` for dark/light mode
+  
+- **Animations/Glows:** https://github.com/karthikmudunuri/eldoraui
+  - Use `AnimatedBadge` for attention-grabbing "needs_attention" states with pulsing effects
+  - Use `TextShimmer` for important UI elements that need to draw attention
+  - Install via: `bunx shadcn@latest add @eldoraui/animated-badge @eldoraui/text-shimmer`
+  
+**Documentation Lookup:**
+- Use `zread` CLI tool to check Eldora UI docs: `zread search-doc karthikmudunuri/eldoraui "<component-name>"`
+- Example: `zread search-doc karthikmudunuri/eldoraui animated-badge` to see component usage
 
 ---
 
@@ -33,10 +43,11 @@ Design principles:
 - Status colors must pop but not be garish
 
 Visual hierarchy:
-- Headers: `text-2xl font-semibold`
+- Headers: `text-2xl font-semibold` (use `TextShimmer` for important sections)
 - Subheaders: `text-lg font-medium`
 - Body: `text-sm text-muted-foreground`
 - Badges: small, rounded-full, color-coded
+- Attention indicators: Use `AnimatedBadge` from Eldora UI for pulsing glow effects
 
 ---
 
@@ -56,7 +67,7 @@ COMMIT → git add && git commit
 
 Test commands:
 - Backend: `bun test`
-- Frontend: `npm run test`
+- Frontend: `bun test` (uses vitest)
 
 ---
 
@@ -83,11 +94,9 @@ Test commands:
     "test:watch": "bun test --watch"
   },
   "dependencies": {
-    "hono": "^4.0.0",
-    "better-sqlite3": "^9.0.0"
+    "hono": "^4.0.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.0",
     "typescript": "^5.3.0"
   }
 }
@@ -200,11 +209,11 @@ Create `backend/src/db/schema.test.ts`:
 ```typescript
 // Tests database schema creation and table structure
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
-import Database from 'better-sqlite3'
+import { Database } from 'bun:sqlite'
 import { initSchema } from './schema'
 
 describe('Database Schema', () => {
-  let db: Database.Database
+  let db: Database
 
   beforeEach(() => {
     db = new Database(':memory:')
@@ -278,9 +287,9 @@ Expected: FAIL - Cannot find module './schema'
 ```typescript
 // backend/src/db/schema.ts
 // Database schema initialization - creates all tables and indexes
-import type Database from 'better-sqlite3'
+import type { Database } from 'bun:sqlite'
 
-export function initSchema(db: Database.Database): void {
+export function initSchema(db: Database): void {
   // Enable WAL mode for better concurrent access
   db.pragma('journal_mode = WAL')
 
@@ -359,7 +368,7 @@ Expected: PASS (5 tests)
 ```typescript
 // backend/src/db/index.ts
 // Database singleton - initializes once on import
-import Database from 'better-sqlite3'
+import { Database } from 'bun:sqlite'
 import { initSchema } from './schema'
 import { mkdirSync } from 'fs'
 import { dirname } from 'path'
@@ -399,12 +408,12 @@ Create `backend/src/handlers/webhook.test.ts`:
 // Tests webhook endpoint receives and stores plugin events
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { Hono } from 'hono'
-import Database from 'better-sqlite3'
+import { Database } from 'bun:sqlite'
 import { initSchema } from '../db/schema'
 import { createWebhookHandler } from './webhook'
 
 describe('Webhook Handler', () => {
-  let db: Database.Database
+  let db: Database
   let app: Hono
 
   beforeEach(() => {
@@ -516,7 +525,7 @@ Expected: FAIL - Cannot find module './webhook'
 // backend/src/handlers/webhook.ts
 // Webhook handler - receives events from OpenCode plugin
 import type { Hono } from 'hono'
-import type Database from 'better-sqlite3'
+import type { Database } from 'bun:sqlite'
 
 interface PluginEvent {
   type: string
@@ -532,7 +541,7 @@ interface PluginEvent {
   timestamp: number
 }
 
-export function createWebhookHandler(app: Hono, db: Database.Database) {
+export function createWebhookHandler(app: Hono, db: Database) {
   app.post('/events', async (c) => {
     const event: PluginEvent = await c.req.json()
     const now = Date.now()
@@ -798,12 +807,12 @@ Create `backend/src/handlers/api.test.ts`:
 // Tests API endpoints for sessions and analytics
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { Hono } from 'hono'
-import Database from 'better-sqlite3'
+import { Database } from 'bun:sqlite'
 import { initSchema } from '../db/schema'
 import { createApiHandler } from './api'
 
 describe('API Endpoints', () => {
-  let db: Database.Database
+  let db: Database
   let app: Hono
 
   beforeEach(() => {
@@ -895,9 +904,9 @@ Expected: FAIL - Cannot find module './api'
 // backend/src/handlers/api.ts
 // REST API endpoints for frontend data fetching
 import type { Hono, Context } from 'hono'
-import type Database from 'better-sqlite3'
+import type { Database } from 'bun:sqlite'
 
-export function createApiHandler(app: Hono, db: Database.Database) {
+export function createApiHandler(app: Hono, db: Database) {
   // GET /api/sessions - list sessions with optional filters
   app.get('/api/sessions', (c: Context) => {
     const { hostname, status, search, date } = c.req.query()
@@ -1100,7 +1109,7 @@ git commit -m "feat(backend): add REST API endpoints for sessions and analytics"
     "test": "vitest",
     "test:watch": "vitest --watch"
   },
-  "dependencies": {
+    "dependencies": {
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-router-dom": "^6.22.0",
@@ -1117,7 +1126,10 @@ git commit -m "feat(backend): add REST API endpoints for sessions and analytics"
     "@radix-ui/react-separator": "^1.0.3",
     "@radix-ui/react-slot": "^1.0.2",
     "class-variance-authority": "^0.7.0",
-    "next-themes": "^0.2.1"
+    "next-themes": "^0.2.1",
+    "motion": "^11.0.0",
+    "@eldoraui/animated-badge": "latest",
+    "@eldoraui/text-shimmer": "latest"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.4.0",
@@ -1127,12 +1139,12 @@ git commit -m "feat(backend): add REST API endpoints for sessions and analytics"
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.0",
-    "jsdom": "^24.0.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.0",
     "vite": "^5.1.0",
-    "vitest": "^1.3.0"
+    "vitest": "^1.3.0",
+    "jsdom": "^24.0.0"
   }
 }
 ```
@@ -1324,7 +1336,7 @@ import '@testing-library/jest-dom'
 
 **Step 10: Install and verify**
 
-Run: `cd frontend && npm install && npm run dev`
+Run: `cd frontend && bun install && bun run dev`
 Expected: Vite starts on http://localhost:5173
 
 **Step 11: Commit**
@@ -1650,7 +1662,7 @@ describe('StatCard', () => {
 
 **Step 4: VERIFY RED**
 
-Run: `cd frontend && npm test src/components/dashboard/stat-card.test.tsx`
+Run: `cd frontend && bun test` src/components/dashboard/stat-card.test.tsx`
 Expected: FAIL - Cannot find module './stat-card'
 
 **Step 5: GREEN - Create stat-card.tsx (square-ui pattern)**
@@ -1703,7 +1715,7 @@ export function StatCard({ title, value, icon, subtitle, className }: StatCardPr
 
 **Step 6: VERIFY GREEN**
 
-Run: `cd frontend && npm test src/components/dashboard/stat-card.test.tsx`
+Run: `cd frontend && bun test` src/components/dashboard/stat-card.test.tsx`
 Expected: PASS (3 tests)
 
 **Step 7: Commit**
@@ -1715,11 +1727,66 @@ git commit -m "feat(frontend): add Card, Badge, StatCard components"
 
 ---
 
-## Task 9: Zustand Store
+## Task 9: Install Eldora UI Components
+
+**Files:**
+- Modify: `frontend/package.json` (already updated with deps)
+- Run: shadcn install commands
+
+**Step 1: Initialize shadcn CLI**
+
+```bash
+cd frontend
+bunx shadcn@latest init
+```
+
+**Step 2: Install Eldora UI AnimatedBadge**
+
+```bash
+bunx shadcn@latest add @eldoraui/animated-badge
+```
+
+Expected: Creates `frontend/src/components/eldoraui/animated-badge.tsx`
+
+**Step 3: Install Eldora UI TextShimmer (optional for attention-grabbing headers)**
+
+```bash
+bunx shadcn@latest add @eldoraui/text-shimmer
+```
+
+Expected: Creates `frontend/src/components/eldoraui/text-shimmer.tsx`
+
+**Step 4: Document lookup for Eldora UI components**
+
+Use `zread` CLI to check component documentation:
+
+```bash
+# Check AnimatedBadge usage and examples
+zread search-doc karthikmudunuri/eldoraui animated-badge
+
+# Check TextShimmer usage and examples
+zread search-doc karthikmudunuri/eldoraui text-shimmer
+
+# View all animation components available
+zread search-doc karthikmudunuri/eldoraui animation
+```
+
+**Step 5: Commit**
+
+```bash
+git add frontend/
+git commit -m "feat(frontend): install Eldora UI AnimatedBadge and TextShimmer components"
+```
+
+---
+
+## Task 10: Zustand Store
 
 **Files:**
 - Create: `frontend/src/store/index.ts`
 - Create: `frontend/src/store/index.test.ts`
+
+**Note:** Task numbers have shifted due to Eldora UI installation (Task 9)
 
 **Step 1: RED - Write failing test for store**
 
@@ -1794,7 +1861,7 @@ describe('Dashboard Store', () => {
 
 **Step 2: VERIFY RED**
 
-Run: `cd frontend && npm test src/store/index.test.ts`
+Run: `cd frontend && bun test` src/store/index.test.ts`
 Expected: FAIL - Cannot find module './index'
 
 **Step 3: GREEN - Create store**
@@ -1903,7 +1970,7 @@ export const useStore = create<DashboardStore>((set, get) => ({
 
 **Step 4: VERIFY GREEN**
 
-Run: `cd frontend && npm test src/store/index.test.ts`
+Run: `cd frontend && bun test` src/store/index.test.ts`
 Expected: PASS (5 tests)
 
 **Step 5: Commit**
@@ -1915,7 +1982,7 @@ git commit -m "feat(frontend): add Zustand store with filters and selectors"
 
 ---
 
-## Task 10: WebSocket Hook
+## Task 11: WebSocket Hook
 
 **Files:**
 - Create: `frontend/src/hooks/useWebSocket.ts`
@@ -1980,7 +2047,7 @@ describe('useWebSocket', () => {
 
 **Step 2: VERIFY RED**
 
-Run: `cd frontend && npm test src/hooks/useWebSocket.test.ts`
+Run: `cd frontend && bun test` src/hooks/useWebSocket.test.ts`
 Expected: FAIL - Cannot find module './useWebSocket'
 
 **Step 3: GREEN - Create useWebSocket.ts**
@@ -2056,7 +2123,7 @@ export function useWebSocket(
 
 **Step 4: VERIFY GREEN**
 
-Run: `cd frontend && npm test src/hooks/useWebSocket.test.ts`
+Run: `cd frontend && bun test` src/hooks/useWebSocket.test.ts`
 Expected: PASS (2 tests)
 
 **Step 5: Commit**
@@ -2068,7 +2135,7 @@ git commit -m "feat(frontend): add useWebSocket hook with auto-reconnect"
 
 ---
 
-## Task 11: SessionCard Component
+## Task 12: SessionCard Component
 
 **Files:**
 - Create: `frontend/src/components/sessions/session-card.tsx`
@@ -2143,16 +2210,24 @@ describe('SessionCard', () => {
 
 **Step 2: VERIFY RED**
 
-Run: `cd frontend && npm test src/components/sessions/session-card.test.tsx`
+Run: `cd frontend && bun test` src/components/sessions/session-card.test.tsx`
 Expected: FAIL - Cannot find module './session-card'
 
 **Step 3: GREEN - Create session-card.tsx**
+
+**Documentation Check Before Implementation:**
+```bash
+# Use zread to verify Eldora UI AnimatedBadge API
+zread search-doc karthikmudunuri/eldoraui animated-badge
+```
+Review component props: `text`, `color`, `href`, `className`
 
 ```typescript
 // frontend/src/components/sessions/session-card.tsx
 // Session card - displays session info with status and metrics
 import { Activity, Clock, Server, AlertTriangle, Coins } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import AnimatedBadge from '@eldoraui/animated-badge'
 import { cn, formatRelativeTime } from '@/lib/utils'
 import type { Session } from '@/store'
 
@@ -2182,15 +2257,17 @@ export function SessionCard({ session, onClick, justUpdated }: SessionCardProps)
         needsAttention && 'border-orange-500/50 shadow-orange-500/10 shadow-lg'
       )}
     >
-      {/* Header: Title + Attention Badge */}
+      {/* Header: Title + Eldora UI AnimatedBadge for attention */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <h3 className="font-medium text-foreground line-clamp-1 group-hover:text-primary transition-colors">
           {session.title}
         </h3>
         {needsAttention && (
-          <Badge variant="attention" className="shrink-0">
-            Needs Attention
-          </Badge>
+          <AnimatedBadge 
+            text="Needs Attention"
+            color="#f97316"
+            className="shrink-0"
+          />
         )}
       </div>
 
@@ -2227,7 +2304,7 @@ export function SessionCard({ session, onClick, justUpdated }: SessionCardProps)
 
 **Step 4: VERIFY GREEN**
 
-Run: `cd frontend && npm test src/components/sessions/session-card.test.tsx`
+Run: `cd frontend && bun test` src/components/sessions/session-card.test.tsx`
 Expected: PASS (6 tests)
 
 **Step 5: Commit**
@@ -2290,7 +2367,7 @@ describe('SessionFilters', () => {
 
 **Step 2: VERIFY RED**
 
-Run: `cd frontend && npm test src/components/sessions/session-filters.test.tsx`
+Run: `cd frontend && bun test` src/components/sessions/session-filters.test.tsx`
 Expected: FAIL - Cannot find module './session-filters'
 
 **Step 3: GREEN - Create session-filters.tsx**
@@ -2365,7 +2442,7 @@ export function SessionFilters({ instances }: SessionFiltersProps) {
 
 **Step 4: VERIFY GREEN**
 
-Run: `cd frontend && npm test src/components/sessions/session-filters.test.tsx`
+Run: `cd frontend && bun test` src/components/sessions/session-filters.test.tsx`
 Expected: PASS (4 tests)
 
 **Step 5: Commit**
@@ -2435,7 +2512,7 @@ describe('SessionsPage', () => {
 
 **Step 2: VERIFY RED**
 
-Run: `cd frontend && npm test src/pages/sessions-page.test.tsx`
+Run: `cd frontend && bun test` src/pages/sessions-page.test.tsx`
 Expected: FAIL - Cannot find module './sessions-page'
 
 **Step 3: GREEN - Create sessions-page.tsx**
@@ -2587,7 +2664,7 @@ export function SessionsPage() {
 
 **Step 4: VERIFY GREEN**
 
-Run: `cd frontend && npm test src/pages/sessions-page.test.tsx`
+Run: `cd frontend && bun test` src/pages/sessions-page.test.tsx`
 Expected: PASS (3 tests)
 
 **Step 5: Commit**
@@ -2673,7 +2750,7 @@ describe('SessionDetail', () => {
 
 **Step 2: VERIFY RED**
 
-Run: `cd frontend && npm test src/components/sessions/session-detail.test.tsx`
+Run: `cd frontend && bun test` src/components/sessions/session-detail.test.tsx`
 Expected: FAIL - Cannot find module './session-detail'
 
 **Step 3: GREEN - Create session-detail.tsx**
@@ -2801,7 +2878,7 @@ export function SessionDetail() {
 
 **Step 4: VERIFY GREEN**
 
-Run: `cd frontend && npm test src/components/sessions/session-detail.test.tsx`
+Run: `cd frontend && bun test` src/components/sessions/session-detail.test.tsx`
 Expected: PASS (4 tests)
 
 **Step 5: Commit**
@@ -3218,7 +3295,7 @@ describe('AnalyticsPage', () => {
 
 **Step 2: VERIFY RED**
 
-Run: `cd frontend && npm test src/pages/analytics-page.test.tsx`
+Run: `cd frontend && bun test` src/pages/analytics-page.test.tsx`
 Expected: FAIL - Cannot find module './analytics-page'
 
 **Step 3: GREEN - Create analytics-page.tsx**
@@ -3389,7 +3466,7 @@ export function AnalyticsPage() {
 
 **Step 4: VERIFY GREEN**
 
-Run: `cd frontend && npm test src/pages/analytics-page.test.tsx`
+Run: `cd frontend && bun test` src/pages/analytics-page.test.tsx`
 Expected: PASS (3 tests)
 
 **Step 5: Commit**
@@ -3574,7 +3651,7 @@ describe('SettingsPage', () => {
 
 **Step 4: VERIFY RED**
 
-Run: `cd frontend && npm test src/pages/settings-page.test.tsx`
+Run: `cd frontend && bun test` src/pages/settings-page.test.tsx`
 Expected: FAIL - Cannot find module './settings-page'
 
 **Step 5: GREEN - Create settings-page.tsx**
@@ -3717,7 +3794,7 @@ export function SettingsPage() {
 
 **Step 6: VERIFY GREEN**
 
-Run: `cd frontend && npm test src/pages/settings-page.test.tsx`
+Run: `cd frontend && bun test` src/pages/settings-page.test.tsx`
 Expected: PASS (3 tests)
 
 **Step 7: Commit**
@@ -4030,8 +4107,8 @@ Real-time dashboard for monitoring OpenCode sessions across multiple VPS instanc
 
 ## Tech Stack
 
-**Backend:** Bun, Hono, SQLite, better-sqlite3, WebSocket
-**Frontend:** Vite, React, TypeScript, square-ui, recharts, Zustand
+**Backend:** Bun, Hono, SQLite (bun:sqlite), WebSocket
+**Frontend:** Bun, Vite, React, TypeScript, square-ui, Eldora UI, recharts, Zustand
 
 ## Quick Start
 
@@ -4051,8 +4128,8 @@ WebSocket runs on `ws://localhost:3001`
 
 ```bash
 cd frontend
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 Frontend runs on `http://localhost:5173`
@@ -4092,24 +4169,62 @@ hostname = "vps-name"
 ```bash
 # Run all tests
 cd backend && bun test
-cd frontend && npm test
+cd frontend && bun test
 
 # Watch mode
 cd backend && bun test --watch
-cd frontend && npm run test:watch
+cd frontend && bun run test:watch
 ```
 
 ## License
 
 MIT
-```
 
 **Step 2: Create .gitignore**
 
 ```gitignore
-# Dependencies
+# Bun lockfile
+bun.lockb
+
+# Dependencies (if any npm packages)
 node_modules/
-.bun/
+package-lock.json
+yarn.lock
+.pnpm-debug.log*
+
+# Vite cache
+.vite
+
+# Build output
+dist/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database
+data/
+*.db
+*.sqlite
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+bun-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+```
 
 # Build output
 dist/
@@ -4166,15 +4281,15 @@ git commit -m "docs: add README, gitignore, and env example"
 cd backend && bun test
 # Expected: All tests PASS
 
-# Frontend tests  
-cd frontend && npm test
+# Frontend tests
+cd frontend && bun test
 # Expected: All tests PASS
 ```
 
 **Manual testing checklist:**
 
 - [ ] Backend starts: `cd backend && bun run dev`
-- [ ] Frontend starts: `cd frontend && npm run dev`
+- [ ] Frontend starts: `cd frontend && bun run dev`
 - [ ] Password prompt appears on first visit
 - [ ] Sessions page loads and displays sessions
 - [ ] Filters work (hostname, status, search)
@@ -4192,7 +4307,7 @@ cd frontend && npm test
 **Build verification:**
 
 ```bash
-cd frontend && npm run build
+cd frontend && bun run build
 # Expected: No TypeScript errors, build completes
 ```
 
