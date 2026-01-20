@@ -219,9 +219,331 @@ export function createApiHandler(app: Hono, db: Database) {
     return c.json(result)
   })
 
+  // GET /api/analytics/hosts - token usage by hostname (summary)
+  app.get('/api/analytics/hosts', (c: Context) => {
+    const hosts = db.prepare(`
+      SELECT 
+        s.hostname,
+        COUNT(DISTINCT s.id) as session_count,
+        SUM(s.token_total) as total_tokens,
+        SUM(s.cost_total) as total_cost
+      FROM sessions s
+      WHERE s.hostname IS NOT NULL AND s.hostname != ''
+      GROUP BY s.hostname
+      ORDER BY total_tokens DESC
+    `).all()
+    return c.json(hosts)
+  })
+
+  // GET /api/analytics/host-usage - token usage by period with host breakdown (like /usage but for hosts)
+  app.get('/api/analytics/host-usage', (c: Context) => {
+    const range = c.req.query('range') || '7d'
+    
+    const now = Date.now()
+    let startTime: number
+    let groupBy: string
+    
+    switch (range) {
+      case '24h':
+        startTime = now - 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d %H:00', created_at/1000, 'unixepoch')"
+        break
+      case '30d':
+        startTime = now - 30 * 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d', created_at/1000, 'unixepoch')"
+        break
+      default:
+        startTime = now - 7 * 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d', created_at/1000, 'unixepoch')"
+    }
+
+    const rows = db.prepare(`
+      SELECT 
+        ${groupBy} as period,
+        hostname,
+        SUM(token_total) as tokens
+      FROM sessions
+      WHERE created_at >= ? AND hostname IS NOT NULL AND hostname != ''
+      GROUP BY period, hostname
+      ORDER BY period ASC
+    `).all(startTime) as { period: string; hostname: string; tokens: number }[]
+
+    // Pivot by period
+    const periodMap = new Map<string, { period: string; total: number; hosts: Record<string, number> }>()
+    
+    for (const row of rows) {
+      if (!periodMap.has(row.period)) {
+        periodMap.set(row.period, { period: row.period, total: 0, hosts: {} })
+      }
+      const entry = periodMap.get(row.period)!
+      entry.hosts[row.hostname] = row.tokens || 0
+      entry.total += row.tokens || 0
+    }
+
+    return c.json(Array.from(periodMap.values()))
+  })
+
   // GET /api/instances - list all VPS instances
   app.get('/api/instances', (c: Context) => {
     const instances = db.prepare('SELECT * FROM instances ORDER BY hostname').all()
     return c.json(instances)
+  })
+
+  // GET /api/analytics/summary-extended - totals including input/output breakdown
+  app.get('/api/analytics/summary-extended', (c: Context) => {
+    const result = db.prepare(`
+      SELECT
+        COUNT(*) as total_requests,
+        SUM(tokens_in) as total_input,
+        SUM(tokens_out) as total_output,
+        SUM(tokens_in + tokens_out) as total_tokens,
+        SUM(cost) as total_cost
+      FROM token_usage
+    `).get() as Record<string, number>
+    
+    return c.json({
+      total_requests: result?.total_requests || 0,
+      total_input: result?.total_input || 0,
+      total_output: result?.total_output || 0,
+      total_tokens: result?.total_tokens || 0,
+      total_cost: result?.total_cost || 0
+    })
+  })
+
+  // GET /api/analytics/cost-by-model - cost breakdown by model (for donut chart)
+  app.get('/api/analytics/cost-by-model', (c: Context) => {
+    const models = db.prepare(`
+      SELECT 
+        model_id as label,
+        SUM(cost) as value,
+        SUM(tokens_in + tokens_out) as tokens,
+        COUNT(*) as requests
+      FROM token_usage
+      WHERE model_id IS NOT NULL
+      GROUP BY model_id
+      ORDER BY value DESC
+    `).all()
+    return c.json(models)
+  })
+
+  // GET /api/analytics/cost-by-agent - cost breakdown by agent mode (for bar chart)
+  app.get('/api/analytics/cost-by-agent', (c: Context) => {
+    const agents = db.prepare(`
+      SELECT 
+        agent as label,
+        SUM(cost) as value,
+        SUM(tokens_in + tokens_out) as tokens,
+        COUNT(*) as requests
+      FROM token_usage
+      WHERE agent IS NOT NULL
+      GROUP BY agent
+      ORDER BY value DESC
+    `).all()
+    return c.json(agents)
+  })
+
+  // GET /api/analytics/token-flow - input vs output tokens over time
+  app.get('/api/analytics/token-flow', (c: Context) => {
+    const range = c.req.query('range') || '7d'
+    const now = Date.now()
+    let startTime: number
+    let groupBy: string
+    let periodType: 'hour' | 'day' | 'month'
+    
+    switch (range) {
+      case '24h':
+        startTime = now - 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d %H:00', timestamp/1000, 'unixepoch')"
+        periodType = 'hour'
+        break
+      case '30d':
+        startTime = now - 30 * 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d', timestamp/1000, 'unixepoch')"
+        periodType = 'day'
+        break
+      case '1y':
+        startTime = now - 365 * 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m', timestamp/1000, 'unixepoch')"
+        periodType = 'month'
+        break
+      default:
+        startTime = now - 7 * 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d', timestamp/1000, 'unixepoch')"
+        periodType = 'day'
+    }
+
+    const rows = db.prepare(`
+      SELECT 
+        ${groupBy} as period,
+        SUM(tokens_in) as input,
+        SUM(tokens_out) as output
+      FROM token_usage
+      WHERE timestamp >= ?
+      GROUP BY period
+      ORDER BY period ASC
+    `).all(startTime) as { period: string; input: number; output: number }[]
+
+    // Fill gaps with zeros (use UTC to match SQLite)
+    const dataMap = new Map(rows.map(r => [r.period, r]))
+    const result: { period: string; input: number; output: number }[] = []
+    const start = new Date(startTime)
+    const end = new Date(now)
+
+    if (periodType === 'hour') {
+      start.setUTCMinutes(0, 0, 0)
+      for (let d = new Date(start); d <= end; d.setUTCHours(d.getUTCHours() + 1)) {
+        const period = d.toISOString().slice(0, 13).replace('T', ' ') + ':00'
+        const existing = dataMap.get(period)
+        result.push({ period, input: existing?.input || 0, output: existing?.output || 0 })
+      }
+    } else if (periodType === 'day') {
+      start.setUTCHours(0, 0, 0, 0)
+      for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        const period = d.toISOString().slice(0, 10)
+        const existing = dataMap.get(period)
+        result.push({ period, input: existing?.input || 0, output: existing?.output || 0 })
+      }
+    } else { // month
+      start.setUTCDate(1)
+      for (let d = new Date(start); d <= end; d.setUTCMonth(d.getUTCMonth() + 1)) {
+        const period = d.toISOString().slice(0, 7)
+        const existing = dataMap.get(period)
+        result.push({ period, input: existing?.input || 0, output: existing?.output || 0 })
+      }
+    }
+
+    return c.json(result)
+  })
+
+  // GET /api/analytics/file-stats - lines of code by language (for bar chart)
+  app.get('/api/analytics/file-stats', (c: Context) => {
+    const stats = db.prepare(`
+      SELECT 
+        file_extension as extension,
+        SUM(lines_added) as lines_added,
+        SUM(lines_removed) as lines_removed,
+        COUNT(*) as edit_count
+      FROM file_edits
+      WHERE file_extension IS NOT NULL
+      GROUP BY file_extension
+      ORDER BY lines_added DESC
+      LIMIT 15
+    `).all()
+    return c.json(stats)
+  })
+
+  // GET /api/analytics/heatmap - daily token usage for GitHub-style calendar
+  app.get('/api/analytics/heatmap', (c: Context) => {
+    const days = parseInt(c.req.query('days') || '365')
+    const startTime = Date.now() - days * 24 * 60 * 60 * 1000
+
+    const data = db.prepare(`
+      SELECT 
+        strftime('%Y-%m-%d', timestamp/1000, 'unixepoch') as date,
+        SUM(tokens_in + tokens_out) as tokens,
+        SUM(cost) as cost,
+        COUNT(*) as requests
+      FROM token_usage
+      WHERE timestamp >= ?
+      GROUP BY date
+      ORDER BY date ASC
+    `).all(startTime)
+
+    return c.json(data)
+  })
+
+  // GET /api/analytics/model-performance - avg duration by model over time
+  app.get('/api/analytics/model-performance', (c: Context) => {
+    const range = c.req.query('range') || '7d'
+    const models = c.req.query('models')?.split(',') || []
+    
+    const now = Date.now()
+    let startTime: number
+    let groupBy: string
+    let periodType: 'hour' | 'day'
+    
+    switch (range) {
+      case '24h':
+        startTime = now - 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d %H:00', timestamp/1000, 'unixepoch')"
+        periodType = 'hour'
+        break
+      case '30d':
+        startTime = now - 30 * 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d', timestamp/1000, 'unixepoch')"
+        periodType = 'day'
+        break
+      default:
+        startTime = now - 7 * 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d', timestamp/1000, 'unixepoch')"
+        periodType = 'day'
+    }
+
+    let sql = `
+      SELECT 
+        ${groupBy} as period,
+        model_id,
+        AVG(duration_ms) as avg_duration,
+        COUNT(*) as requests
+      FROM token_usage
+      WHERE timestamp >= ? AND duration_ms IS NOT NULL AND model_id IS NOT NULL
+    `
+    const params: unknown[] = [startTime]
+
+    if (models.length > 0) {
+      sql += ` AND model_id IN (${models.map(() => '?').join(',')})`
+      params.push(...models)
+    }
+
+    sql += ` GROUP BY period, model_id ORDER BY period ASC`
+
+    const rows = db.prepare(sql).all(...params) as { 
+      period: string; model_id: string; avg_duration: number; requests: number 
+    }[]
+
+    // Pivot: { period, models: { model_id: avg_duration } }
+    const periodMap = new Map<string, { period: string; models: Record<string, number> }>()
+    
+    for (const row of rows) {
+      if (!periodMap.has(row.period)) {
+        periodMap.set(row.period, { period: row.period, models: {} })
+      }
+      periodMap.get(row.period)!.models[row.model_id] = Math.round(row.avg_duration)
+    }
+
+    // Fill gaps - generate all periods in range (use UTC to match SQLite)
+    const result: { period: string; models: Record<string, number> }[] = []
+    const start = new Date(startTime)
+    const end = new Date(now)
+
+    if (periodType === 'hour') {
+      start.setUTCMinutes(0, 0, 0)
+      for (let d = new Date(start); d <= end; d.setUTCHours(d.getUTCHours() + 1)) {
+        const period = d.toISOString().slice(0, 13).replace('T', ' ') + ':00'
+        const existing = periodMap.get(period)
+        result.push({ period, models: existing?.models || {} })
+      }
+    } else {
+      start.setUTCHours(0, 0, 0, 0)
+      for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        const period = d.toISOString().slice(0, 10)
+        const existing = periodMap.get(period)
+        result.push({ period, models: existing?.models || {} })
+      }
+    }
+
+    return c.json(result)
+  })
+
+  // GET /api/analytics/model-list - list of models with duration data (for filter dropdown)
+  app.get('/api/analytics/model-list', (c: Context) => {
+    const models = db.prepare(`
+      SELECT DISTINCT model_id
+      FROM token_usage
+      WHERE model_id IS NOT NULL AND duration_ms IS NOT NULL
+      ORDER BY model_id
+    `).all() as { model_id: string }[]
+    
+    return c.json(models.map(m => m.model_id))
   })
 }

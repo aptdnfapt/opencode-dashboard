@@ -14,13 +14,42 @@ interface PluginEvent {
   tool?: string
   tokensIn?: number
   tokensOut?: number
+  cacheRead?: number
+  cacheWrite?: number
+  reasoning?: number
   cost?: number
   providerId?: string
   modelId?: string
+  agent?: string
+  durationMs?: number
+  // file.edit fields
+  filePath?: string
+  fileExtension?: string
+  operation?: string
+  linesAdded?: number
+  linesRemoved?: number
   timestamp: number
 }
 
 export function createWebhookHandler(app: Hono, db: Database) {
+  // Ensure session exists - auto-create if missing (for resumed old sessions)
+  function ensureSession(sessionId: string, hostname?: string, timestamp?: number) {
+    const exists = db.prepare('SELECT 1 FROM sessions WHERE id = ?').get(sessionId)
+    if (!exists) {
+      db.prepare(`
+        INSERT INTO sessions (id, title, hostname, status, created_at, updated_at)
+        VALUES (?, ?, ?, 'active', ?, ?)
+      `).run(sessionId, 'Resumed Session', hostname || 'unknown', timestamp || Date.now(), timestamp || Date.now())
+      
+      if (hostname) {
+        db.prepare(`
+          INSERT INTO instances (hostname, last_seen) VALUES (?, ?)
+          ON CONFLICT(hostname) DO UPDATE SET last_seen = ?
+        `).run(hostname, Date.now(), Date.now())
+      }
+    }
+  }
+
   app.post('/events', async (c) => {
     const event: PluginEvent = await c.req.json()
     const now = Date.now()
@@ -61,6 +90,9 @@ export function createWebhookHandler(app: Hono, db: Database) {
           break
 
         case 'timeline':
+          // Auto-create session if missing (resumed old session)
+          ensureSession(event.sessionId!, event.hostname, event.timestamp)
+          
           // Insert timeline event
           db.prepare(`
             INSERT INTO timeline_events (session_id, timestamp, event_type, summary, tool_name)
@@ -89,17 +121,28 @@ export function createWebhookHandler(app: Hono, db: Database) {
           break
 
         case 'tokens':
-          // Insert token record with model info
+          // Auto-create session if missing (resumed old session)
+          ensureSession(event.sessionId!, event.hostname, event.timestamp)
+          
+          // Insert token record with all fields
           db.prepare(`
-            INSERT INTO token_usage (session_id, provider_id, model_id, tokens_in, tokens_out, cost, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO token_usage (
+              session_id, provider_id, model_id, agent,
+              tokens_in, tokens_out, tokens_cache_read, tokens_cache_write, tokens_reasoning,
+              cost, duration_ms, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             event.sessionId, 
-            (event as any).providerId || null,
-            (event as any).modelId || null,
-            event.tokensIn, 
-            event.tokensOut, 
-            event.cost, 
+            event.providerId || null,
+            event.modelId || null,
+            event.agent || null,
+            event.tokensIn || 0, 
+            event.tokensOut || 0,
+            event.cacheRead || 0,
+            event.cacheWrite || 0,
+            event.reasoning || 0,
+            event.cost || 0,
+            event.durationMs || null,
             event.timestamp
           )
 
@@ -109,6 +152,25 @@ export function createWebhookHandler(app: Hono, db: Database) {
             UPDATE sessions SET token_total = token_total + ?, cost_total = cost_total + ?, updated_at = ?
             WHERE id = ?
           `).run(totalTokens, event.cost || 0, event.timestamp, event.sessionId)
+          break
+
+        case 'file.edit':
+          // Auto-create session if missing
+          ensureSession(event.sessionId!, event.hostname, event.timestamp)
+          
+          // Insert file edit record
+          db.prepare(`
+            INSERT INTO file_edits (session_id, file_path, file_extension, operation, lines_added, lines_removed, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            event.sessionId,
+            event.filePath || '',
+            event.fileExtension || null,
+            event.operation || 'unknown',
+            event.linesAdded || 0,
+            event.linesRemoved || 0,
+            event.timestamp
+          )
           break
       }
 

@@ -16,6 +16,7 @@ export function useWebSocket(
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<ReturnType<typeof setTimeout>>()
   const onMessageRef = useRef(onMessage)
+  const connectRef = useRef<() => void>()
 
   // Keep callback ref fresh
   useEffect(() => {
@@ -53,7 +54,8 @@ export function useWebSocket(
     ws.onclose = () => {
       console.log('WebSocket disconnected')
       onConnectionChange?.(false)
-      reconnectRef.current = setTimeout(connect, 5000)
+      // Reconnect after delay using ref to avoid circular dependency
+      reconnectRef.current = setTimeout(() => connectRef.current?.(), 5000)
     }
 
     ws.onerror = (err) => {
@@ -62,6 +64,11 @@ export function useWebSocket(
 
     wsRef.current = ws
   }, [password, onConnectionChange])
+
+  // Keep connect ref updated
+  useEffect(() => {
+    connectRef.current = connect
+  }, [connect])
 
   useEffect(() => {
     connect()

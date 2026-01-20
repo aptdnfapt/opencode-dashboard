@@ -4,6 +4,20 @@ import { join } from "path"
 import { homedir, hostname as getHostname } from "os"
 
 // ============================================
+// Helper functions
+// ============================================
+function getFileExtension(filePath: string): string | null {
+  const fileName = filePath.split("/").pop() || ""
+  const match = fileName.match(/\.([^.]+)$/)
+  return match ? match[1].toLowerCase() : null
+}
+
+function countLines(text: string | undefined): number {
+  if (!text) return 0
+  return text.split("\n").length
+}
+
+// ============================================
 // Config types
 // ============================================
 interface DashboardConfig {
@@ -85,6 +99,9 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
   // Store last message per session - only send on idle
   const pendingMessages = new Map<string, string>()
   
+  // Track message start times for duration calculation
+  const messageStartTimes = new Map<string, number>()
+  
   // Send event to backend
   function send(payload: any) {
     const headers: Record<string, string> = { "Content-Type": "application/json" }
@@ -133,7 +150,7 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
           break
         }
           
-        // Handle new session.status event (replaces deprecated session.idle)
+        // Handle session.status - only send pending message, don't spam timeline
         case "session.status": {
           const sessionId = props?.sessionID
           const status = props?.status
@@ -150,49 +167,17 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
                 })
                 pendingMessages.delete(sessionId)
               }
-              send({
-                type: "timeline",
-                eventType: "idle",
-                sessionId,
-                summary: "Session idle"
-              })
+              // Just update session status in DB, no timeline entry
               send({ type: "session.idle", sessionId })
-            } else if (status.type === "busy") {
-              // Session became active again
-              send({
-                type: "timeline",
-                eventType: "busy",
-                sessionId,
-                summary: "Session active"
-              })
             }
+            // Don't send busy/idle to timeline - too noisy
           }
           break
         }
           
-        // Keep deprecated session.idle for backward compatibility
+        // Deprecated session.idle - ignore, handled by session.status
         case "session.idle": {
-          const sessionId = props?.sessionID
-          if (sessionId) {
-            // Send pending message first
-            const msg = pendingMessages.get(sessionId)
-            if (msg) {
-              send({
-                type: "timeline",
-                eventType: "message",
-                sessionId,
-                summary: msg
-              })
-              pendingMessages.delete(sessionId)
-            }
-            send({
-              type: "timeline",
-              eventType: "idle",
-              sessionId,
-              summary: "Session idle"
-            })
-            send({ type: "session.idle", sessionId })
-          }
+          // Skip - session.status handles this now
           break
         }
           
@@ -233,25 +218,53 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
         }
         
         case "message.updated": {
+          // Only count tokens when message is FINISHED (has finish field)
+          // message.updated fires on every streaming update - we only want final count
           const msg = props?.info
-          if (msg?.role === "assistant" && msg?.tokens) {
+          if (msg?.role === "assistant" && msg?.tokens && msg?.finish) {
+            // Calculate duration from step-start to now
+            const startTime = messageStartTimes.get(msg.id)
+            const durationMs = startTime ? Date.now() - startTime : null
+            if (startTime) {
+              messageStartTimes.delete(msg.id)
+            }
+            
+            // For Anthropic: actual input = input + cache_read (cache_read IS the cached input)
+            // For OpenAI: input already contains full count
+            const rawInput = msg.tokens.input || 0
+            const cacheRead = msg.tokens.cache?.read || 0
+            const cacheWrite = msg.tokens.cache?.write || 0
+            // Total input = raw input + cache read (Anthropic puts cached tokens in cache.read)
+            const totalInput = rawInput + cacheRead
+            
             send({
               type: "tokens",
               sessionId: msg.sessionID,
               messageId: msg.id,
               providerId: msg.providerID,
               modelId: msg.modelID,
-              tokensIn: msg.tokens.input || 0,
+              agent: msg.mode || "unknown",  // agent mode: code, ask, plan, etc.
+              tokensIn: totalInput,
               tokensOut: msg.tokens.output || 0,
-              cost: msg.cost || 0
+              cacheRead: cacheRead,
+              cacheWrite: cacheWrite,
+              reasoning: msg.tokens.reasoning || 0,
+              cost: msg.cost || 0,
+              durationMs  // time from step-start to finish
             })
           }
           break
         }
           
         case "message.part.updated": {
-          // Just store message, don't send until idle
           const part = props?.part
+          
+          // Track when assistant message starts (step-start) for duration calc
+          if (part?.type === "step-start" && part?.messageID) {
+            messageStartTimes.set(part.messageID, Date.now())
+          }
+          
+          // Store message text, don't send until idle
           if (part?.type === "text" && part?.text) {
             const text = part.text.trim()
             if (text.length > 0 && part.sessionID) {
@@ -302,6 +315,34 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
         tool: input.tool,
         summary: detail
       })
+      
+      // Track lines of code for edit/write operations
+      if (input.tool === "edit" || input.tool === "write") {
+        const filePath = args.filePath || ""
+        const fileExtension = getFileExtension(filePath)
+        
+        let linesAdded = 0
+        let linesRemoved = 0
+        
+        if (input.tool === "edit") {
+          // Edit: count old vs new lines
+          linesRemoved = countLines(args.oldString)
+          linesAdded = countLines(args.newString)
+        } else if (input.tool === "write") {
+          // Write: all lines are "added"
+          linesAdded = countLines(args.content)
+        }
+        
+        send({
+          type: "file.edit",
+          sessionId: input.sessionID,
+          filePath,
+          fileExtension,
+          operation: input.tool,
+          linesAdded,
+          linesRemoved
+        })
+      }
     }
   }
 }
