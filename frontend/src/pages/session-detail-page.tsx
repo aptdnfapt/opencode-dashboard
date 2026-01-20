@@ -191,39 +191,48 @@ export function SessionDetailPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="shrink-0 h-auto min-h-14 border-b border-border bg-card/80 backdrop-blur-sm overflow-hidden">
-        <div className="h-full px-6 py-2 flex items-center gap-4 flex-wrap">
-          <button
-            onClick={handleBack}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-            Back
-          </button>
+      {/* Header - mobile-first responsive design */}
+      <header className="shrink-0 border-b border-border bg-card/80 backdrop-blur-sm">
+        <div className="px-4 py-2 sm:px-6 sm:py-2.5 lg:px-6 lg:py-2">
+          {/* Top row: Back button + Title + Status (visible on all screens) */}
+          <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
+            <button
+              onClick={handleBack}
+              className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground hover:text-foreground shrink-0"
+            >
+              <ArrowLeft className="size-3.5 sm:size-4" />
+              <span className="hidden sm:inline">Back</span>
+            </button>
 
-          <div className="h-4 w-px bg-border" />
+            <div className="h-3.5 w-px bg-border shrink-0" />
 
-          <h1 className="text-sm font-medium truncate flex-1">{session.title}</h1>
+            <h1 className="text-xs sm:text-sm font-medium truncate flex-1 min-w-0">
+              {session.title}
+            </h1>
 
-          <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-            <div className={`flex items-center gap-1.5 ${statusColors[session.status] || ''}`}>
-              <Circle className="size-2 fill-current" />
-              <span className="capitalize">{session.status}</span>
+            <div className={`flex items-center gap-1.5 text-[10px] sm:text-xs lg:text-xs shrink-0 ${statusColors[session.status] || ''}`}>
+              <Circle className="size-1.5 sm:size-2 lg:size-2 fill-current" />
+              <span className="capitalize hidden sm:inline lg:inline">{session.status}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Server className="size-3" />
-              <span>{session.hostname}</span>
+          </div>
+
+          {/* Bottom row: Metadata (stacked on mobile, horizontal on larger screens) */}
+          <div className="mt-2 flex items-center gap-3 sm:gap-4 lg:gap-4 text-[10px] sm:text-xs lg:text-xs text-muted-foreground flex-wrap">
+            <div className="flex items-center gap-1">
+              <Server className="size-2.5 sm:size-3" />
+              <span className="hidden sm:inline">{session.hostname}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Clock className="size-3" />
-              <span>{formatDate(session.created_at)}</span>
+            <div className="flex items-center gap-1">
+              <Clock className="size-2.5 sm:size-3" />
+              <span className="hidden lg:inline">{formatDate(session.created_at)}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <Coins className="size-3" />
+            <div className="flex items-center gap-1">
+              <Coins className="size-2.5 sm:size-3" />
               <span>{(session.token_total / 1000).toFixed(1)}k</span>
             </div>
-            <span className="font-medium text-foreground">${session.cost_total.toFixed(2)}</span>
+            <div className="flex items-center gap-1">
+              <span className="font-medium text-foreground">${session.cost_total.toFixed(2)}</span>
+            </div>
           </div>
         </div>
       </header>

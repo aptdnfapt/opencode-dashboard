@@ -166,3 +166,68 @@ Modern best practices for responsive dashboard headers include:
 
 ### Result
 Mobile users now have full access to all three key session statistics (active sessions, attention needed count, total sessions) and WebSocket connection status. The layout gracefully adapts from a compact single-line format on mobile phones to a spacious header on large desktops. The `flex-wrap` pattern ensures elements rearrange properly on very small screens, and responsive sizing keeps everything readable without overflow. Sticky positioning keeps the header visible during scroll on all device sizes. This brings the sessions dashboard in line with 2025 mobile-first design standards, matching the pattern established in Iteration #2 for the Analytics page.
+
+## Iteration #4
+
+**Target:** Session Detail Page Responsive Header (Metadata Progressive Disclosure)
+
+**Files Updated:**
+- `frontend/src/pages/session-detail-page.tsx` - Complete header refactor for mobile-first design
+
+**Summary:**
+
+### Research Findings
+Through research on modern 2025 responsive design best practices (NextNative, Toptal, Lightning Ventures guides) and analysis of production-grade codebases (multiple GitHub repositories), I identified the Session Detail Page header as a critical UI/UX issue. The header displayed 6+ metadata items in a single row with fixed sizing, causing severe wrapping and clutter on mobile devices.
+
+Modern best practices for responsive detail page headers include:
+- **Mobile-first progressive disclosure:** Show essential info first, secondary info on larger screens
+- **Two-row layout strategy:** Top row for navigation + title + status, bottom row for metadata
+- **Content prioritization:** Keep cost always visible (primary metric), hide secondary info on mobile
+- **Responsive typography:** Scale fonts from 10px on mobile to 12px on desktop
+- **Touch-friendly spacing:** Ensure tap targets and spacing are adequate for touch
+- **Flexible breakpoints:** Use content-driven breakpoints (sm: 640px, lg: 1024px)
+- **Text hiding strategy:** Use `hidden sm:inline` to progressively reveal labels
+
+### Implementation Details
+
+**Mobile (< 640px):**
+- Two-row layout: Navigation + Title + Status (top), Key metrics (bottom)
+- Minimal padding: `px-4 py-2`
+- Compact text: `text-xs` for title, `text-[10px]` for metadata
+- Compact icons: `size-3.5` (back), `size-1.5` (status), `size-2.5` (metadata)
+- Hide "Back" text - show icon only (`hidden sm:inline`)
+- Hide "Status" text - show icon only on mobile
+- Hide hostname on mobile - show from sm breakpoint (`hidden sm:inline`)
+- Hide created date on mobile - show only on lg breakpoint (`hidden lg:inline`)
+- Always show: Title, Token count, Cost (primary metrics)
+
+**Small (sm: >= 640px to < 1024px):**
+- Show "Back" text in addition to icon
+- Show hostname in metadata row
+- Keep created date hidden (revealed on lg)
+- Maintain compact two-row layout
+- Slightly larger padding: `sm:py-2.5`
+
+**Large (lg: >= 1024px):**
+- Reveal created date in metadata row
+- Full header functionality with maximum spacing
+- Responsive gaps: `gap-2` (mobile) → `gap-3 sm:gap-4 lg:gap-4`
+- Full text sizing across all elements
+- Icon sizes scale up proportionally
+
+**Technical Improvements:**
+- Split header into two semantic rows for better hierarchy
+- Top row: Back button + Title + Status indicator (always visible)
+- Bottom row: Metadata with progressive disclosure
+- Removed `min-h-14` and `h-auto` - let content determine height naturally
+- Added `shrink-0` to fixed-width elements to prevent squashing
+- Added `min-w-0` to title for proper truncation
+- Responsive padding: `px-4 py-2 sm:px-6 sm:py-2.5 lg:px-6 lg:py-2`
+- Responsive gaps: `gap-2 sm:gap-3 lg:gap-4`
+- Responsive text: `text-[10px] sm:text-xs lg:text-xs`
+- Responsive icons: Scale from `size-2.5` (mobile) to `size-3` (desktop)
+- Strategic hiding with `hidden sm:inline` and `hidden lg:inline` for progressive disclosure
+- Maintained status indicator visibility on all screen sizes
+
+### Result
+Mobile users now see a clean, scannable header that prioritizes essential information (title, tokens, cost) while gracefully revealing secondary metadata (hostname, date) on larger screens. The two-row layout prevents excessive wrapping and creates a clear visual hierarchy. The header follows 2025 mobile-first design principles with progressive disclosure, ensuring users can quickly access critical session data without navigating through cluttered, wrapped metadata. This matches the responsive patterns established in previous iterations (sidebar, stats headers) and creates a consistent mobile experience across all pages.
