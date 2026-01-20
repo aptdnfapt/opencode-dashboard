@@ -104,6 +104,42 @@ export default function App() {
     setIsAuthenticated(false)
   }
 
+  // Play bing sound using Web Audio API
+  const playBing = useCallback(() => {
+    if (localStorage.getItem('dashboard_sound_enabled') === 'false') return
+    
+    try {
+      const ctx = new AudioContext()
+      const oscillator = ctx.createOscillator()
+      const gain = ctx.createGain()
+      
+      oscillator.connect(gain)
+      gain.connect(ctx.destination)
+      
+      // Pleasant bing tone
+      oscillator.frequency.value = 880 // A5 note
+      oscillator.type = 'sine'
+      
+      // Fade out
+      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5)
+      
+      oscillator.start(ctx.currentTime)
+      oscillator.stop(ctx.currentTime + 0.5)
+    } catch (e) {
+      console.warn('Bing sound failed:', e)
+    }
+  }, [])
+
+  // Show browser notification (works on HTTPS only)
+  const showNotification = useCallback((title: string, body: string) => {
+    if (localStorage.getItem('dashboard_notifications_enabled') === 'false') return
+    if (!('Notification' in window)) return
+    if (Notification.permission !== 'granted') return
+    
+    new Notification(title, { body, icon: '/favicon.ico' })
+  }, [])
+
   // Global WebSocket handler - handles idle TTS from any page
   const handleWSMessage = useCallback((msg: any) => {
     switch (msg.type) {
@@ -113,17 +149,30 @@ export default function App() {
       case 'session.updated':
         updateSession(msg.data)
         break
-      case 'attention':
+      case 'attention': {
         updateSession({ id: msg.data.sessionId, needs_attention: msg.data.needsAttention ? 1 : 0 })
-        // Queue TTS for attention events
-        if (msg.data.needsAttention && msg.data.audioUrl && localStorage.getItem('dashboard_tts_enabled') !== 'false') {
+        if (msg.data.needsAttention) {
+          // Bing sound (default on)
+          playBing()
+          // Browser notification (default on, requires HTTPS)
+          const session = sessionsRef.current.find(s => s.id === msg.data.sessionId)
+          showNotification(`${session?.title || 'Session'} needs attention`, 'A session requires your input')
+        }
+        // Queue TTS for attention events (opt-in, must be explicitly 'true')
+        if (msg.data.needsAttention && msg.data.audioUrl && localStorage.getItem('dashboard_tts_enabled') === 'true') {
           queueAudio(msg.data.audioUrl)
         }
         break
+      }
       case 'idle': {
         updateSession({ id: msg.data.sessionId, status: 'idle' })
-        // Queue TTS audio if provided by server
-        if (msg.data.audioUrl && localStorage.getItem('dashboard_tts_enabled') !== 'false') {
+        // Bing sound (default on)
+        playBing()
+        // Browser notification (default on, requires HTTPS)
+        const session = sessionsRef.current.find(s => s.id === msg.data.sessionId)
+        showNotification(`${session?.title || 'Session'} is idle`, 'The session is waiting for input')
+        // Queue TTS audio if provided by server (opt-in, must be explicitly 'true')
+        if (msg.data.audioUrl && localStorage.getItem('dashboard_tts_enabled') === 'true') {
           queueAudio(msg.data.audioUrl)
         }
         break
@@ -132,7 +181,7 @@ export default function App() {
         updateSession({ id: msg.data.sessionId, status: 'error' })
         break
     }
-  }, [addSession, updateSession, queueAudio])
+  }, [addSession, updateSession, queueAudio, playBing, showNotification])
 
   const password = localStorage.getItem('dashboard_password') || ''
   useWebSocket(password, handleWSMessage, setWsConnected)

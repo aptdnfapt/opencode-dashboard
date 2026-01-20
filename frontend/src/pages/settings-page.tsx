@@ -1,19 +1,89 @@
 // frontend/src/pages/settings-page.tsx
 import { useState } from 'react'
-import { Sun, Moon, Monitor, Volume2, VolumeX } from 'lucide-react'
+import { Sun, Moon, Monitor, Volume2, VolumeX, Bell, BellOff } from 'lucide-react'
 import { useTheme } from '@/lib/theme-provider'
 
 const TTS_KEY = 'dashboard_tts_enabled'
+const SOUND_KEY = 'dashboard_sound_enabled'
+const NOTIFICATION_KEY = 'dashboard_notifications_enabled'
 
 export function SettingsPage() {
   const { theme, setTheme, resolvedTheme } = useTheme()
-  const [ttsEnabled, setTtsEnabledState] = useState(() => localStorage.getItem(TTS_KEY) !== 'false')
+  // TTS disabled by default (must be explicitly 'true')
+  const [ttsEnabled, setTtsEnabledState] = useState(() => localStorage.getItem(TTS_KEY) === 'true')
+  // Bing sound enabled by default
+  const [soundEnabled, setSoundEnabledState] = useState(() => localStorage.getItem(SOUND_KEY) !== 'false')
+  // Browser notifications enabled by default
+  const [notificationsEnabled, setNotificationsEnabledState] = useState(() => localStorage.getItem(NOTIFICATION_KEY) !== 'false')
 
   // Toggle TTS and persist
   const handleTTSToggle = () => {
     const newValue = !ttsEnabled
     setTtsEnabledState(newValue)
     localStorage.setItem(TTS_KEY, String(newValue))
+  }
+
+  // Toggle bing sound
+  const handleSoundToggle = () => {
+    const newValue = !soundEnabled
+    setSoundEnabledState(newValue)
+    localStorage.setItem(SOUND_KEY, String(newValue))
+  }
+
+  // Toggle browser notifications
+  const handleNotificationsToggle = () => {
+    const newValue = !notificationsEnabled
+    setNotificationsEnabledState(newValue)
+    localStorage.setItem(NOTIFICATION_KEY, String(newValue))
+    
+    // Request permission if enabling and not yet granted
+    if (newValue && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }
+
+  // Test browser notification
+  const testNotification = async () => {
+    if (!('Notification' in window)) {
+      alert('Browser does not support notifications')
+      return
+    }
+    
+    if (Notification.permission === 'default') {
+      await Notification.requestPermission()
+    }
+    
+    if (Notification.permission === 'granted') {
+      new Notification('Test session is idle', {
+        body: 'This is how idle notifications will appear',
+        icon: '/favicon.ico'
+      })
+    } else {
+      alert('Notification permission denied or requires HTTPS')
+    }
+  }
+
+  // Test bing sound
+  const testSound = () => {
+    try {
+      const ctx = new AudioContext()
+      const oscillator = ctx.createOscillator()
+      const gain = ctx.createGain()
+      
+      oscillator.connect(gain)
+      gain.connect(ctx.destination)
+      
+      oscillator.frequency.value = 880
+      oscillator.type = 'sine'
+      
+      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5)
+      
+      oscillator.start(ctx.currentTime)
+      oscillator.stop(ctx.currentTime + 0.5)
+    } catch (e) {
+      console.warn('Sound test failed:', e)
+    }
   }
 
   // Test TTS by calling backend
@@ -78,6 +148,70 @@ export function SettingsPage() {
 
           <p className="text-xs text-muted-foreground mt-4">
             Current: <span className="capitalize">{resolvedTheme}</span>
+          </p>
+        </div>
+
+        {/* Sound Notifications section */}
+        <div className="rounded-lg border border-border bg-card p-6 mt-4">
+          <h2 className="text-sm font-medium mb-1">Sound Notifications</h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Play a bing sound when a session becomes idle or needs attention
+          </p>
+          
+          <div className="flex gap-2">
+            <button
+              onClick={handleSoundToggle}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                soundEnabled
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {soundEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+              {soundEnabled ? 'Enabled' : 'Disabled'}
+            </button>
+
+            <button
+              onClick={testSound}
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Test Sound
+            </button>
+          </div>
+        </div>
+
+        {/* Browser Notifications section */}
+        <div className="rounded-lg border border-border bg-card p-6 mt-4">
+          <h2 className="text-sm font-medium mb-1">Browser Notifications</h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Show browser notification when a session becomes idle or needs attention (requires HTTPS)
+          </p>
+          
+          <div className="flex gap-2">
+            <button
+              onClick={handleNotificationsToggle}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                notificationsEnabled
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {notificationsEnabled ? <Bell className="size-4" /> : <BellOff className="size-4" />}
+              {notificationsEnabled ? 'Enabled' : 'Disabled'}
+            </button>
+
+            <button
+              onClick={testNotification}
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Test Notification
+            </button>
+          </div>
+
+          <p className="text-xs text-muted-foreground mt-4">
+            {typeof Notification !== 'undefined' && Notification.permission === 'granted' 
+              ? 'Permission granted'
+              : 'Requires HTTPS and browser permission'}
           </p>
         </div>
 
