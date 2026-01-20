@@ -68,21 +68,21 @@ export function SessionsPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header - hidden on mobile, visible on lg+ */}
-      <header className="hidden lg:sticky lg:top-0 lg:z-40 lg:h-14 lg:border-b lg:border-border lg:bg-card/80 lg:backdrop-blur-sm lg:block">
-        <div className="h-full px-6 flex items-center justify-between">
-          <div className="flex items-center gap-6">
+      {/* Header - responsive: visible on all devices */}
+      <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-sm">
+        <div className="h-full px-4 py-2 lg:px-6 lg:py-0 lg:h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3 lg:gap-6">
             <h1 className="text-sm font-medium">Sessions</h1>
             
-            {/* Stats */}
-            <div className="flex items-center gap-4 text-xs">
+            {/* Stats - responsive layout */}
+            <div className="flex items-center gap-2 lg:gap-4 text-[11px] lg:text-xs flex-wrap">
               <div className="flex items-center gap-1.5">
-                <Circle className="size-2 fill-emerald-500 text-emerald-500" />
+                <Circle className="size-1.5 lg:size-2 fill-emerald-500 text-emerald-500" />
                 <span className="text-muted-foreground">{activeCount} active</span>
               </div>
               {attentionCount > 0 && (
                 <div className="flex items-center gap-1.5">
-                  <Circle className="size-2 fill-amber-500 text-amber-500 animate-pulse" />
+                  <Circle className="size-1.5 lg:size-2 fill-amber-500 text-amber-500 animate-pulse" />
                   <span className="text-amber-500">{attentionCount} needs attention</span>
                 </div>
               )}
@@ -90,17 +90,17 @@ export function SessionsPage() {
             </div>
           </div>
 
-          {/* Connection status */}
-          <div className="flex items-center gap-1.5 text-xs">
+          {/* Connection status - responsive icon size */}
+          <div className="flex items-center gap-1.5 text-[11px] lg:text-xs">
             {wsConnected ? (
               <>
-                <Wifi className="size-3.5 text-emerald-500" />
-                <span className="text-muted-foreground">Live</span>
+                <Wifi className="size-3 lg:size-3.5 text-emerald-500" />
+                <span className="text-muted-foreground hidden sm:inline">Live</span>
               </>
             ) : (
               <>
-                <WifiOff className="size-3.5 text-destructive" />
-                <span className="text-destructive">Disconnected</span>
+                <WifiOff className="size-3 lg:size-3.5 text-destructive" />
+                <span className="text-destructive hidden sm:inline">Disconnected</span>
               </>
             )}
           </div>
