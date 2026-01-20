@@ -232,7 +232,7 @@ export function AnalyticsPage() {
                 valueLabel="Cost"
               />
             ) : (
-              <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">
+              <div className="h-32 sm:h-36 lg:h-40 flex items-center justify-center text-[11px] sm:text-xs lg:text-sm text-muted-foreground">
                 No agent data yet
               </div>
             )}
@@ -274,11 +274,11 @@ export function AnalyticsPage() {
               secondaryLabel="Removed"
               showSecondary
             />
-          ) : (
-            <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">
-              No file edit data yet
-            </div>
-          )}
+            ) : (
+              <div className="h-32 sm:h-36 lg:h-40 flex items-center justify-center text-[11px] sm:text-xs lg:text-sm text-muted-foreground">
+                No file edit data yet
+              </div>
+            )}
         </ChartCard>
 
         {/* Row 4: Token Usage Heatmap */}
@@ -312,7 +312,7 @@ export function AnalyticsPage() {
               height={280}
             />
           ) : (
-            <div className="h-40 flex items-center justify-center text-sm text-muted-foreground">
+            <div className="h-32 sm:h-36 lg:h-40 flex items-center justify-center text-[11px] sm:text-xs lg:text-sm text-muted-foreground">
               No performance data yet
             </div>
           )}

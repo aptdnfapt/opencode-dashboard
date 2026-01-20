@@ -118,11 +118,11 @@ export function SessionsPage() {
             ))}
           </div>
         ) : sessions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="size-12 rounded-full bg-muted flex items-center justify-center mb-4">
-              <Circle className="size-5 text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center py-10 sm:py-14 lg:py-20 text-center">
+            <div className="size-8 sm:size-10 lg:size-12 rounded-full bg-muted flex items-center justify-center mb-3 sm:mb-4">
+              <Circle className="size-3 sm:size-4 lg:size-5 text-muted-foreground" />
             </div>
-            <p className="text-sm text-muted-foreground">No sessions yet</p>
+            <p className="text-[11px] sm:text-xs lg:text-sm text-muted-foreground">No sessions yet</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">

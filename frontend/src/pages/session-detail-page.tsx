@@ -240,9 +240,9 @@ export function SessionDetailPage() {
       {/* Timeline */}
       <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 relative">
         {sessionTimeline.length === 0 ? (
-          <div className="text-center py-20">
-            <Activity className="size-8 mx-auto mb-3 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">No activity yet</p>
+          <div className="text-center py-10 sm:py-14 lg:py-20">
+            <Activity className="size-6 sm:size-7 lg:size-8 mx-auto mb-2 sm:mb-2.5 lg:mb-3 text-muted-foreground" />
+            <p className="text-[11px] sm:text-xs lg:text-sm text-muted-foreground">No activity yet</p>
           </div>
         ) : (
           <div className="space-y-1 sm:space-y-2 w-full max-w-full">
