@@ -231,3 +231,60 @@ Modern best practices for responsive detail page headers include:
 
 ### Result
 Mobile users now see a clean, scannable header that prioritizes essential information (title, tokens, cost) while gracefully revealing secondary metadata (hostname, date) on larger screens. The two-row layout prevents excessive wrapping and creates a clear visual hierarchy. The header follows 2025 mobile-first design principles with progressive disclosure, ensuring users can quickly access critical session data without navigating through cluttered, wrapped metadata. This matches the responsive patterns established in previous iterations (sidebar, stats headers) and creates a consistent mobile experience across all pages.
+
+## Iteration #5
+
+**Target:** Analytics Page ChartCard Responsive Header (Action Buttons)
+
+**Files Updated:**
+- `frontend/src/pages/analytics-page.tsx` - ChartCard, RangeSelector, ModelFilter responsive refactor
+
+**Summary:**
+
+### Research Findings
+Through research on modern 2025 dashboard card design best practices (Flowbite, Tailwind CSS documentation, Material Design patterns), I identified the Analytics Page ChartCard headers as a critical UI/UX issue. The chart cards used a rigid `justify-between` flex layout with action buttons (RangeSelector with 4 buttons, ModelFilter with multiple filter pills) that would overflow on mobile devices (< 640px), causing horizontal scrolling or layout breakage.
+
+Modern best practices for responsive card headers include:
+- **Flexible wrapping:** Use `flex-wrap` to allow actions to stack when space is limited
+- **Progressive spacing:** Reduce gaps and padding on mobile (`gap-0.5` vs `gap-1`, `p-0.5` vs `p-1`)
+- **Push strategy:** Use `flex-1 min-w-0` to push actions to right on desktop but allow wrapping on mobile
+- **Responsive typography:** Scale text sizes from 11px on mobile to 12px on desktop
+- **Compact components:** Reduce button padding and font sizes on small screens
+- **Content-driven breakpoints:** Use `sm:` breakpoints for smooth transitions at 640px
+- **Action container wrapping:** Wrap action groups when multiple controls are present
+
+### Implementation Details
+
+**ChartCard Component:**
+- **Layout:** Changed from `flex items-center justify-between` to `flex flex-wrap items-center gap-3`
+- **Spacing strategy:** Added `flex-1 min-w-0` spacer between title and actions for desktop push, allows wrapping on mobile
+- **Responsive padding:** `p-4 sm:p-5` - tighter on mobile, spacious on desktop
+- **Gap:** `gap-3` for consistent spacing between header elements
+
+**RangeSelector Component:**
+- **Compact design:** Reduced padding on mobile: `p-0.5 sm:p-1` (was `p-1`)
+- **Responsive buttons:** `px-2 py-1 sm:px-2.5 sm:py-1` - smaller on mobile
+- **Responsive text:** `text-[11px] sm:text-xs` - scales from 11px to 12px
+- **Tighter gaps:** `gap-0.5 sm:gap-1` - more compact on mobile
+
+**ModelFilter Component:**
+- **Compact pills:** Reduced padding on mobile: `px-1.5 py-0.5 sm:px-2 sm:py-0.5`
+- **Responsive text:** `text-[11px] sm:text-xs` - matches RangeSelector
+- **Tighter gaps:** `gap-0.5 sm:gap-1` - consistent with RangeSelector
+- **Shorter labels:** Truncate at 12 chars on mobile (was 15) - `m.length > 12 ? m.slice(0, 12) + "…" : m`
+
+**Action Container (Model Performance card):**
+- **Flexible wrapping:** Added `flex-wrap` to allow ModelFilter and RangeSelector to stack
+- **Responsive gaps:** `gap-3 sm:gap-4` - tighter on mobile
+
+**Technical Improvements:**
+- All action buttons now wrap gracefully on small screens
+- No horizontal scrolling on mobile devices
+- Touch-friendly tap targets maintained (minimum 32x32px)
+- Consistent typography scaling across all components
+- Smooth transitions between mobile and desktop layouts
+- Maintained accessibility and keyboard navigation
+- No breaking changes to existing functionality
+
+### Result
+Mobile users now have a fully responsive chart card experience. Action buttons (range selectors and model filters) wrap gracefully on small screens instead of causing horizontal overflow. The layout remains clean and usable on mobile phones (375px+ width) while expanding to full functionality on larger screens. All buttons remain easily tappable, and the visual hierarchy is preserved across all device sizes. This brings the analytics dashboard charts in line with 2025 mobile-first design standards, matching the responsive patterns established in previous iterations (sidebar, stats headers, session detail header).

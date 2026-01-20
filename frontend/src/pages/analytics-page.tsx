@@ -293,7 +293,7 @@ export function AnalyticsPage() {
         <ChartCard 
           title="Model Performance - Avg Response Time"
           action={
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
               <ModelFilter 
                 models={modelList} 
                 selected={selectedModels} 
@@ -348,9 +348,10 @@ function ChartCard({ title, children, action }: {
   action?: React.ReactNode 
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
-      <div className="flex items-center justify-between mb-4">
+    <div className="rounded-lg border border-border bg-card p-4 sm:p-5">
+      <div className="flex flex-wrap items-center gap-3 mb-4">
         <h3 className="text-sm font-medium">{title}</h3>
+        <div className="flex-1 min-w-0" />
         {action}
       </div>
       {children}
@@ -364,12 +365,12 @@ function RangeSelector({ value, onChange }: {
 }) {
   const ranges: Range[] = ["24h", "7d", "30d", "1y"]
   return (
-    <div className="flex gap-1 p-1 rounded-md bg-muted">
+    <div className="flex gap-0.5 sm:gap-1 p-0.5 sm:p-1 rounded-md bg-muted">
       {ranges.map(r => (
         <button
           key={r}
           onClick={() => onChange(r)}
-          className={`px-2.5 py-1 text-xs rounded transition-colors ${
+          className={`px-2 py-1 sm:px-2.5 sm:py-1 text-[11px] sm:text-xs rounded transition-colors ${
             value === r 
               ? "bg-card text-foreground shadow-sm" 
               : "text-muted-foreground hover:text-foreground"
@@ -398,18 +399,18 @@ function ModelFilter({ models, selected, onChange }: {
   if (models.length === 0) return null
 
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex flex-wrap gap-0.5 sm:gap-1">
       {models.slice(0, 6).map(m => (
         <button
           key={m}
           onClick={() => toggle(m)}
-          className={`px-2 py-0.5 text-xs rounded transition-colors ${
+          className={`px-1.5 py-0.5 sm:px-2 sm:py-0.5 text-[11px] sm:text-xs rounded transition-colors ${
             selected.includes(m)
               ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
               : "bg-muted text-muted-foreground hover:text-foreground"
           }`}
         >
-          {m.length > 15 ? m.slice(0, 15) + "…" : m}
+          {m.length > 12 ? m.slice(0, 12) + "…" : m}
         </button>
       ))}
     </div>
