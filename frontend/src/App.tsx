@@ -32,7 +32,7 @@ export default function App() {
   )?.id || 'sessions'
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="h-screen bg-background flex overflow-hidden">
       {/* Sidebar */}
       <aside className={`fixed left-0 top-0 h-full border-r border-border bg-card flex flex-col z-50 transition-all duration-200 ${collapsed ? 'w-16' : 'w-56'}`}>
         {/* Logo */}
@@ -79,7 +79,7 @@ export default function App() {
       </aside>
 
       {/* Main content */}
-      <main className={`flex-1 transition-all duration-200 ${collapsed ? 'ml-16' : 'ml-56'}`}>
+      <main className={`flex-1 overflow-y-auto overflow-x-hidden transition-all duration-200 ${collapsed ? 'ml-16' : 'ml-56'}`}>
         <Routes>
           <Route path="/" element={<SessionsPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />

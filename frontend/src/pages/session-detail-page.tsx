@@ -68,13 +68,18 @@ export function SessionDetailPage() {
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = main
+      // Show button if content is scrollable AND not near bottom
+      const isScrollable = scrollHeight > clientHeight
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 200
-      setShowScrollBtn(!isNearBottom)
+      setShowScrollBtn(isScrollable && !isNearBottom)
     }
 
+    // Check initially after a delay to let content render
+    setTimeout(handleScroll, 300)
+    
     main.addEventListener('scroll', handleScroll)
     return () => main.removeEventListener('scroll', handleScroll)
-  }, [])
+  }, [sessionTimeline.length, loading])
 
   // Auto-scroll to bottom on initial load
   useEffect(() => {
@@ -182,10 +187,10 @@ export function SessionDetailPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="shrink-0 h-14 border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="h-full px-6 flex items-center gap-4">
+      <header className="shrink-0 h-auto min-h-14 border-b border-border bg-card/80 backdrop-blur-sm overflow-hidden">
+        <div className="h-full px-6 py-2 flex items-center gap-4 flex-wrap">
           <button
             onClick={handleBack}
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -198,7 +203,7 @@ export function SessionDetailPage() {
 
           <h1 className="text-sm font-medium truncate flex-1">{session.title}</h1>
 
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
             <div className={`flex items-center gap-1.5 ${statusColors[session.status] || ''}`}>
               <Circle className="size-2 fill-current" />
               <span className="capitalize">{session.status}</span>
@@ -221,14 +226,14 @@ export function SessionDetailPage() {
       </header>
 
       {/* Timeline */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto p-6">
+      <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden p-6 relative">
         {sessionTimeline.length === 0 ? (
           <div className="text-center py-20">
             <Activity className="size-8 mx-auto mb-3 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">No activity yet</p>
           </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-1 w-full max-w-full">
             {sessionTimeline.map((event, index) => {
               const config = eventConfig[event.event_type] || { icon: Activity, color: "text-muted-foreground" }
               const Icon = config.icon
@@ -245,7 +250,7 @@ export function SessionDetailPage() {
                   </div>
 
                   {/* Content */}
-                  <div className="flex-1 min-w-0 pb-4">
+                  <div className="flex-1 min-w-0 pb-4 overflow-hidden">
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                         {event.event_type}
@@ -260,9 +265,9 @@ export function SessionDetailPage() {
                       </span>
                     </div>
 
-                    <div className="rounded-md bg-muted p-3 text-sm">
+                    <div className="rounded-md bg-muted p-3 text-sm overflow-x-auto max-w-full">
                       {event.event_type === "message" || event.event_type === "user" ? (
-                        <div className="prose prose-sm prose-invert max-w-none">
+                        <div className="prose prose-sm prose-invert max-w-none break-words overflow-hidden">
                           <ReactMarkdown
                             components={{
                               code({ children, className }) {
@@ -271,8 +276,8 @@ export function SessionDetailPage() {
                                   <code
                                     className={
                                       isInline
-                                        ? "bg-background px-1 py-0.5 rounded text-xs"
-                                        : "block bg-background p-3 rounded overflow-x-auto text-xs"
+                                        ? "bg-background px-1 py-0.5 rounded text-xs break-all"
+                                        : "block bg-background p-3 rounded overflow-x-auto text-xs whitespace-pre-wrap break-all"
                                     }
                                   >
                                     {children}
@@ -285,7 +290,7 @@ export function SessionDetailPage() {
                           </ReactMarkdown>
                         </div>
                       ) : event.event_type === "tool" || event.event_type === "bash" ? (
-                        <div className="font-mono text-xs">
+                        <div className="font-mono text-xs break-all whitespace-pre-wrap">
                           <span className="text-muted-foreground mr-2">$</span>
                           {event.summary}
                         </div>
@@ -309,7 +314,7 @@ export function SessionDetailPage() {
       {showScrollBtn && (
         <button
           onClick={scrollToBottom}
-          className="fixed bottom-6 right-6 size-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+          className="fixed bottom-6 right-6 z-50 size-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
         >
           <ArrowDown className="size-5" />
         </button>

@@ -114,7 +114,7 @@ export function createApiHandler(app: Hono, db: Database) {
   })
 
   // GET /api/analytics/usage - token usage by period with model breakdown
-  // Params: range=24h|7d|30d (default 7d)
+  // Params: range=24h|7d|30d|1y (default 7d)
   app.get('/api/analytics/usage', (c: Context) => {
     const range = c.req.query('range') || '7d'
     
@@ -122,19 +122,28 @@ export function createApiHandler(app: Hono, db: Database) {
     const now = Date.now()
     let startTime: number
     let groupBy: string
+    let periodType: 'hour' | 'day' | 'month'
     
     switch (range) {
       case '24h':
         startTime = now - 24 * 60 * 60 * 1000
         groupBy = "strftime('%Y-%m-%d %H:00', timestamp/1000, 'unixepoch')" // hourly
+        periodType = 'hour'
         break
       case '30d':
         startTime = now - 30 * 24 * 60 * 60 * 1000
         groupBy = "strftime('%Y-%m-%d', timestamp/1000, 'unixepoch')" // daily
+        periodType = 'day'
+        break
+      case '1y':
+        startTime = now - 365 * 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m', timestamp/1000, 'unixepoch')" // monthly
+        periodType = 'month'
         break
       default: // 7d
         startTime = now - 7 * 24 * 60 * 60 * 1000
         groupBy = "strftime('%Y-%m-%d', timestamp/1000, 'unixepoch')" // daily
+        periodType = 'day'
     }
 
     // Get usage grouped by period and model
@@ -161,7 +170,35 @@ export function createApiHandler(app: Hono, db: Database) {
       entry.total += row.tokens
     }
 
-    return c.json(Array.from(periodMap.values()))
+    // Fill gaps with empty values (use UTC to match SQLite)
+    const result: { period: string; total: number; models: Record<string, number> }[] = []
+    const start = new Date(startTime)
+    const end = new Date(now)
+
+    if (periodType === 'hour') {
+      start.setUTCMinutes(0, 0, 0)
+      for (let d = new Date(start); d <= end; d.setUTCHours(d.getUTCHours() + 1)) {
+        const period = d.toISOString().slice(0, 13).replace('T', ' ') + ':00'
+        const existing = periodMap.get(period)
+        result.push({ period, total: existing?.total || 0, models: existing?.models || {} })
+      }
+    } else if (periodType === 'day') {
+      start.setUTCHours(0, 0, 0, 0)
+      for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        const period = d.toISOString().slice(0, 10)
+        const existing = periodMap.get(period)
+        result.push({ period, total: existing?.total || 0, models: existing?.models || {} })
+      }
+    } else { // month
+      start.setUTCDate(1)
+      for (let d = new Date(start); d <= end; d.setUTCMonth(d.getUTCMonth() + 1)) {
+        const period = d.toISOString().slice(0, 7)
+        const existing = periodMap.get(period)
+        result.push({ period, total: existing?.total || 0, models: existing?.models || {} })
+      }
+    }
+
+    return c.json(result)
   })
 
   // GET /api/analytics/trend - daily token usage for line chart
