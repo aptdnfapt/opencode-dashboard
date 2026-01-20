@@ -26,7 +26,9 @@ export function useWebSocket(
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
-    const wsUrl = `ws://${window.location.hostname}:3001`
+    // Use same protocol as current page (ws:// or wss://)
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${protocol}//${window.location.hostname}:3001`
     const ws = new WebSocket(wsUrl)
 
     ws.onopen = () => {

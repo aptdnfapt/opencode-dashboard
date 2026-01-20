@@ -19,13 +19,17 @@ export function SettingsPage() {
   // Test TTS by calling backend
   const testTTS = async () => {
     try {
-      const password = localStorage.getItem('dashboard_password') || 'default-key'
       const text = 'Test session is idle'
-      const expiry = Math.floor(Date.now() / 1000) + 300 // 5 minutes
-      const dataToSign = text + expiry
-      const signature = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(dataToSign + password))
-      const sigHex = Array.from(new Uint8Array(signature)).slice(0, 16).reduce((h, b) => h + b.toString(16).padStart(2, '0'), '')
-      const signedUrl = `/api/tts?text=${encodeURIComponent(text)}&exp=${expiry}&sig=${sigHex}`
+      const password = localStorage.getItem('dashboard_password') || 'default-key'
+      const res = await fetch(`/api/tts/test?text=${encodeURIComponent(text)}`, {
+        headers: { 'X-API-Key': password }
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to get signed URL')
+      }
+
+      const { signedUrl } = await res.json()
 
       const audio = new Audio(signedUrl)
       await audio.play()
