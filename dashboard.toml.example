@@ -1,0 +1,10 @@
+# OpenCode Plugin Configuration
+
+# Dashboard backend URL
+url = "http://localhost:3000"
+
+# API Key (must match API_KEY in backend .env)
+apiKey = "plugin-webhook-password"
+
+# Unique hostname for this VPS
+hostname = "your-vps-hostname"
