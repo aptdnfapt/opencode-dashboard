@@ -123,13 +123,23 @@ export function createWebhookHandler(app: Hono, db: Database) {
             db.prepare('UPDATE sessions SET needs_attention = 1 WHERE id = ?')
               .run(event.sessionId)
 
-            wsManager.broadcastAttention(event.sessionId!, true)
-          }
-
-          // Clear needs_attention on user message
-          if (event.eventType === 'user') {
-            db.prepare('UPDATE sessions SET needs_attention = 0, status = ? WHERE id = ?')
-              .run('active', event.sessionId)
+            // Get session title for TTS
+            const attentionSession = db.prepare('SELECT title FROM sessions WHERE id = ?').get(event.sessionId) as { title: string } | null
+            let attentionAudioUrl: string | undefined
+            if (attentionSession && isTTSReady()) {
+              attentionAudioUrl = `/api/tts?text=${encodeURIComponent(attentionSession.title + ' needs attention')}`
+            }
+            
+            wsManager.broadcastAttention(event.sessionId!, true, attentionAudioUrl)
+          } else {
+            // Any other event clears needs_attention (permission was handled)
+            const currentSession = db.prepare('SELECT needs_attention FROM sessions WHERE id = ?').get(event.sessionId) as { needs_attention: number } | null
+            if (currentSession?.needs_attention === 1) {
+              console.log('[Webhook] Clearing needs_attention for session:', event.sessionId, 'event:', event.eventType)
+              db.prepare('UPDATE sessions SET needs_attention = 0, status = ? WHERE id = ?')
+                .run('active', event.sessionId)
+              wsManager.broadcastAttention(event.sessionId!, false)
+            }
           }
           break
 

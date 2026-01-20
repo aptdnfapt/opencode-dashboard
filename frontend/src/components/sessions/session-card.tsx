@@ -59,9 +59,9 @@ export function SessionCard({ session, onClick, justUpdated }: SessionCardProps)
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
             <Coins className="size-3" />
-            <span>{(session.token_total / 1000).toFixed(1)}k</span>
+            <span>{((session.token_total || 0) / 1000).toFixed(1)}k</span>
           </div>
-          <span className="text-foreground font-medium">${session.cost_total.toFixed(2)}</span>
+          <span className="text-foreground font-medium">${(session.cost_total || 0).toFixed(2)}</span>
         </div>
         <div className="flex items-center gap-1">
           <Clock className="size-3" />

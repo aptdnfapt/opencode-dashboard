@@ -1,8 +1,7 @@
 // frontend/src/pages/sessions-page.tsx
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
-import { useWebSocket } from '@/hooks/useWebSocket'
 import { SessionCard } from '@/components/sessions/session-card'
 import { SessionFilters } from '@/components/sessions/session-filters'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -11,12 +10,22 @@ import type { Session } from '@/store'
 
 export function SessionsPage() {
   const navigate = useNavigate()
-  const { selectSession, setSessions, addSession, updateSession, getFilteredSessions, wsConnected, setWsConnected } = useStore()
-  const sessions = getFilteredSessions()
+  const selectSession = useStore(s => s.selectSession)
+  const setSessions = useStore(s => s.setSessions)
+  const wsConnected = useStore(s => s.wsConnected)
+  const sessions = useStore(s => s.sessions)
+  const filters = useStore(s => s.filters)
+  
+  // Filter sessions (reactive to both sessions and filters changes)
+  const filteredSessions = sessions.filter((s) => {
+    if (filters.hostname && s.hostname !== filters.hostname) return false
+    if (filters.status && s.status !== filters.status) return false
+    if (filters.search && !s.title.toLowerCase().includes(filters.search.toLowerCase())) return false
+    return true
+  })
 
   const [loading, setLoading] = useState(true)
   const [instances, setInstances] = useState<string[]>([])
-  const [recentUpdates, setRecentUpdates] = useState<Set<string>>(new Set())
 
   // Fetch initial data
   useEffect(() => {
@@ -38,66 +47,10 @@ export function SessionsPage() {
     fetchData()
   }, [setSessions])
 
-  // Flash effect
-  const flashSession = useCallback((id: string) => {
-    setRecentUpdates((prev) => new Set(prev).add(id))
-    setTimeout(() => {
-      setRecentUpdates((prev) => {
-        const next = new Set(prev)
-        next.delete(id)
-        return next
-      })
-    }, 2000)
-  }, [])
-
-  const playSound = useCallback(() => {
-    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ==')
-    audio.volume = 0.3
-    audio.play().catch(() => {})
-  }, [])
-
-  const handlersRef = useRef({ addSession, updateSession, flashSession, playSound, sessions })
-  useEffect(() => {
-    handlersRef.current = { addSession, updateSession, flashSession, playSound, sessions }
-  }, [addSession, updateSession, flashSession, playSound, sessions])
-
-  const handleWSMessage = useCallback((msg: any) => {
-    const { addSession, updateSession, flashSession, playSound, sessions } = handlersRef.current
-    switch (msg.type) {
-      case 'session.created':
-        addSession(msg.data)
-        flashSession(msg.data.id)
-        break
-      case 'session.updated':
-        updateSession(msg.data)
-        flashSession(msg.data.id)
-        break
-      case 'timeline':
-        flashSession(msg.data.sessionId)
-        break
-      case 'attention':
-        updateSession({ id: msg.data.sessionId, needs_attention: msg.data.needsAttention ? 1 : 0 })
-        if (msg.data.needsAttention) playSound()
-        break
-      case 'idle':
-        updateSession({ id: msg.data.sessionId, status: 'idle' })
-        flashSession(msg.data.sessionId)
-        break
-      case 'error':
-        updateSession({ id: msg.data.sessionId, status: 'error' })
-        flashSession(msg.data.sessionId)
-        playSound()
-        break
-    }
-  }, [])
-
   const handleSessionClick = useCallback((session: Session) => {
     selectSession(session)
     navigate(`/session/${session.id}`)
   }, [navigate, selectSession])
-
-  const password = localStorage.getItem('dashboard_password') || ''
-  useWebSocket(password, handleWSMessage, setWsConnected)
 
   // Stats
   const activeCount = sessions.filter(s => s.status === 'active').length
@@ -168,7 +121,6 @@ export function SessionsPage() {
                 key={session.id}
                 session={session}
                 onClick={() => handleSessionClick(session)}
-                justUpdated={recentUpdates.has(session.id)}
               />
             ))}
           </div>
