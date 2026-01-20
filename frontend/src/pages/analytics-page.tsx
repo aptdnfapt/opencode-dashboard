@@ -165,8 +165,8 @@ export function AnalyticsPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header Stats Bar */}
-      <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-sm">
+      {/* Header Stats Bar - hidden on mobile */}
+      <header className="hidden lg:sticky lg:top-0 lg:z-40 lg:border-b lg:border-border lg:bg-card/95 lg:backdrop-blur-sm lg:block">
         <div className="px-6 py-4">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             <StatItem 
@@ -201,7 +201,7 @@ export function AnalyticsPage() {
         </div>
       </header>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 lg:p-6 space-y-6">
         {/* Row 1: Cost Over Time (full width) */}
         <ChartCard title="Cost Over Time">
           <AreaChart

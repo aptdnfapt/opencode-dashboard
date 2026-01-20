@@ -68,8 +68,8 @@ export function SessionsPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
-      <header className="sticky top-0 z-40 h-14 border-b border-border bg-card/80 backdrop-blur-sm">
+      {/* Header - hidden on mobile, visible on lg+ */}
+      <header className="hidden lg:sticky lg:top-0 lg:z-40 lg:h-14 lg:border-b lg:border-border lg:bg-card/80 lg:backdrop-blur-sm lg:block">
         <div className="h-full px-6 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <h1 className="text-sm font-medium">Sessions</h1>
@@ -108,7 +108,7 @@ export function SessionsPage() {
       </header>
 
       {/* Content */}
-      <div className="p-6">
+      <div className="p-4 lg:p-6">
         <SessionFilters instances={instances} />
 
         {loading ? (
@@ -125,7 +125,7 @@ export function SessionsPage() {
             <p className="text-sm text-muted-foreground">No sessions yet</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
             {sessions.map((session) => (
               <SessionCard
                 key={session.id}
