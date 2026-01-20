@@ -49,7 +49,7 @@ export function SessionDetail() {
   if (!selectedSession) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/80"
@@ -57,39 +57,39 @@ export function SessionDetail() {
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-3xl max-h-[85vh] overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+      <div className="relative w-full max-w-xl max-h-[90vh] sm:max-h-[85vh] overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 p-6 border-b border-border bg-card">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 sm:gap-4 p-4 sm:p-6 border-b border-border bg-card">
           <div className="flex-1 min-w-0">
-            <h2 className="text-xl font-semibold text-foreground truncate">
+            <h2 className="text-lg sm:text-xl font-semibold text-foreground truncate">
               {selectedSession.title}
             </h2>
-            <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
-              <Badge variant={selectedSession.status}>{selectedSession.status}</Badge>
+            <div className="flex items-center gap-2 sm:gap-3 mt-1.5 sm:mt-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
+              <Badge variant={selectedSession.status} className="text-[10px] sm:text-xs">{selectedSession.status}</Badge>
               <span>{selectedSession.hostname}</span>
               <span className="flex items-center gap-1">
-                <Clock className="size-3.5" />
+                <Clock className="size-3 sm:size-3.5" />
                 {formatRelativeTime(selectedSession.updated_at)}
               </span>
             </div>
           </div>
           <Button variant="ghost" size="icon" onClick={() => selectSession(null)}>
-            <X className="size-5" />
+            <X className="size-4 sm:size-5" />
           </Button>
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(85vh-120px)]">
+        <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(90vh-80px)] sm:max-h-[calc(85vh-100px)]">
           {/* Session info */}
-          <div className="grid grid-cols-2 gap-4 mb-6 p-4 rounded-lg bg-muted">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6 p-3 sm:p-4 rounded-lg bg-muted">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Started</p>
-              <p className="text-sm font-medium">{new Date(selectedSession.created_at).toLocaleString()}</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mb-1">Started</p>
+              <p className="text-xs sm:text-sm font-medium">{new Date(selectedSession.created_at).toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Tokens</p>
-              <p className="text-sm font-medium flex items-center gap-1">
-                <Coins className="size-3.5 text-primary" />
+              <p className="text-[10px] sm:text-xs text-muted-foreground mb-1">Tokens</p>
+              <p className="text-xs sm:text-sm font-medium flex items-center gap-1">
+                <Coins className="size-3 sm:size-3.5 text-primary" />
                 {selectedSession.token_total.toLocaleString()}
               </p>
             </div>
@@ -97,33 +97,33 @@ export function SessionDetail() {
 
           {/* Timeline */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Timeline</h3>
-            <div className="space-y-3">
+            <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Timeline</h3>
+            <div className="space-y-2 sm:space-y-3">
               {loading ? (
                 [...Array(3)].map((_, i) => (
-                  <Skeleton key={i} className="h-16 rounded-lg" />
+                  <Skeleton key={i} className="h-14 sm:h-16 rounded-lg" />
                 ))
               ) : events.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">No events yet</p>
+                <p className="text-sm text-muted-foreground text-center py-6 sm:py-8">No events yet</p>
               ) : (
                 events.map((event) => (
                   <div
                     key={event.id}
-                    className="flex gap-3 p-3 rounded-lg border border-border hover:bg-muted transition-colors"
+                    className="flex gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-lg border border-border hover:bg-muted transition-colors"
                   >
                     <div className="mt-1 flex-shrink-0">
-                      {eventIcons[event.event_type] || <MessageSquare className="size-4 text-muted-foreground" />}
+                      {eventIcons[event.event_type] || <MessageSquare className="size-3.5 sm:size-4 text-muted-foreground" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="text-xs">{event.event_type}</Badge>
-                        <span className="text-xs text-muted-foreground ml-auto">
+                      <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                        <Badge variant="outline" className="text-[10px] sm:text-xs">{event.event_type}</Badge>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground ml-auto">
                           {formatRelativeTime(event.timestamp)}
                         </span>
                       </div>
-                      <p className="text-sm text-foreground line-clamp-2">{event.summary}</p>
+                      <p className="text-[10px] sm:text-sm text-foreground line-clamp-2">{event.summary}</p>
                       {event.tool_name && (
-                        <p className="text-xs text-muted-foreground mt-1">{event.tool_name}</p>
+                        <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">{event.tool_name}</p>
                       )}
                     </div>
                   </div>
