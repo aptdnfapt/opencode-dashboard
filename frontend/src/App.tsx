@@ -77,6 +77,11 @@ export default function App() {
   }, [])
 
   const queueAudio = useCallback((url: string) => {
+    // Dedupe: don't add if already in queue
+    if (audioQueueRef.current.some(u => u === url)) {
+      console.log('[Audio Queue] Skipping duplicate:', url)
+      return
+    }
     audioQueueRef.current.push(url)
     if (!isPlayingRef.current) {
       playQueuedAudio()
