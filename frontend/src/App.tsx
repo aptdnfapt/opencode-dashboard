@@ -30,11 +30,65 @@ export default function App() {
 
   const { sessions, addSession, updateSession, setWsConnected } = useStore()
 
+  // Audio queue refs
+  const audioQueueRef = useRef<string[]>([])
+  const isPlayingRef = useRef(false)
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null)
+
   // Ref to always have fresh sessions for TTS lookup
   const sessionsRef = useRef(sessions)
   useEffect(() => {
     sessionsRef.current = sessions
   }, [sessions])
+
+  // Audio queue management - plays audio one at a time
+  const playQueuedAudio = useCallback(async () => {
+    if (isPlayingRef.current || audioQueueRef.current.length === 0) {
+      return
+    }
+
+    isPlayingRef.current = true
+    const url = audioQueueRef.current.shift()
+
+    if (!url) {
+      isPlayingRef.current = false
+      return
+    }
+
+    try {
+      const audio = new Audio(url)
+      currentAudioRef.current = audio
+      await audio.play()
+      // Wait for audio to finish
+      await new Promise<void>((resolve) => {
+        audio.onended = () => resolve()
+        audio.onerror = () => resolve() // Continue even on error
+      })
+    } catch (e) {
+      console.warn('Audio playback failed:', e)
+    } finally {
+      currentAudioRef.current = null
+      setTimeout(() => {
+        isPlayingRef.current = false
+        // Play next in queue
+        playQueuedAudio()
+      }, 200) // Small delay between audio
+    }
+  }, [])
+
+  const queueAudio = useCallback((url: string) => {
+    audioQueueRef.current.push(url)
+    if (!isPlayingRef.current) {
+      playQueuedAudio()
+    }
+  }, [playQueuedAudio])
+
+  const clearAudioQueue = useCallback(() => {
+    audioQueueRef.current = []
+    currentAudioRef.current?.pause()
+    currentAudioRef.current = null
+    isPlayingRef.current = false
+  }, [])
 
   const handleLogin = (password: string) => {
     setIsAuthenticated(true)
@@ -56,18 +110,16 @@ export default function App() {
         break
       case 'attention':
         updateSession({ id: msg.data.sessionId, needs_attention: msg.data.needsAttention ? 1 : 0 })
-        // Play TTS for attention events
+        // Queue TTS for attention events
         if (msg.data.needsAttention && msg.data.audioUrl && localStorage.getItem('dashboard_tts_enabled') !== 'false') {
-          const audio = new Audio(msg.data.audioUrl)
-          audio.play().catch(e => console.warn('TTS playback failed:', e))
+          queueAudio(msg.data.audioUrl)
         }
         break
       case 'idle': {
         updateSession({ id: msg.data.sessionId, status: 'idle' })
-        // Play TTS audio if provided by server
+        // Queue TTS audio if provided by server
         if (msg.data.audioUrl && localStorage.getItem('dashboard_tts_enabled') !== 'false') {
-          const audio = new Audio(msg.data.audioUrl)
-          audio.play().catch(e => console.warn('TTS playback failed:', e))
+          queueAudio(msg.data.audioUrl)
         }
         break
       }
@@ -75,7 +127,7 @@ export default function App() {
         updateSession({ id: msg.data.sessionId, status: 'error' })
         break
     }
-  }, [addSession, updateSession])
+  }, [addSession, updateSession, queueAudio])
 
   const password = localStorage.getItem('dashboard_password') || ''
   useWebSocket(password, handleWSMessage, setWsConnected)
