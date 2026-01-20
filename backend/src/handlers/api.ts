@@ -2,8 +2,32 @@
 // REST API endpoints for frontend data fetching
 import type { Hono, Context } from 'hono'
 import type { Database } from 'bun:sqlite'
+import { generateSpeech, isTTSReady } from '../services/tts'
 
 export function createApiHandler(app: Hono, db: Database) {
+  // GET /api/tts - generate speech audio from text
+  app.get('/api/tts', async (c: Context) => {
+    const text = c.req.query('text')
+    if (!text) {
+      return c.text('Missing text parameter', 400)
+    }
+    
+    if (!isTTSReady()) {
+      return c.text('TTS model not loaded yet', 503)
+    }
+    
+    const audio = await generateSpeech(text)
+    if (!audio) {
+      return c.text('TTS generation failed', 500)
+    }
+    
+    return new Response(audio, {
+      headers: {
+        'Content-Type': 'audio/wav',
+        'Cache-Control': 'public, max-age=3600'
+      }
+    })
+  })
   // GET /api/sessions - list sessions with optional filters
   // Sessions not updated for 60s while "active" are marked as "stale"
   app.get('/api/sessions', (c: Context) => {

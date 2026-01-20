@@ -49,8 +49,8 @@ export class WebSocketManager {
     this.broadcast({ type: 'attention', data: { sessionId, needsAttention } })
   }
 
-  broadcastIdle(sessionId: string): void {
-    this.broadcast({ type: 'idle', data: { sessionId } })
+  broadcastIdle(sessionId: string, audioUrl?: string): void {
+    this.broadcast({ type: 'idle', data: { sessionId, audioUrl } })
   }
 
   broadcastError(sessionId: string, error: string): void {

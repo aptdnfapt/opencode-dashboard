@@ -3,6 +3,7 @@
 import type { Hono } from 'hono'
 import type { Database } from 'bun:sqlite'
 import { wsManager } from '../websocket/server'
+import { generateIdleAnnouncement, isTTSReady } from '../services/tts'
 
 interface PluginEvent {
   type: string
@@ -77,11 +78,23 @@ export function createWebhookHandler(app: Hono, db: Database) {
           wsManager.broadcastSessionUpdated({ id: event.sessionId, title: event.title })
           break
 
-        case 'session.idle':
+        case 'session.idle': {
           db.prepare('UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?')
             .run('idle', event.timestamp, event.sessionId)
-          wsManager.broadcastIdle(event.sessionId!)
+          
+          // Get session title for TTS
+          const session = db.prepare('SELECT title FROM sessions WHERE id = ?').get(event.sessionId) as { title: string } | null
+          let audioUrl: string | undefined
+          
+          // Generate TTS audio if model is ready
+          if (session && isTTSReady()) {
+            // Use URL-encoded text param - client will fetch audio on demand
+            audioUrl = `/api/tts?text=${encodeURIComponent(session.title + ' is idle')}`
+          }
+          
+          wsManager.broadcastIdle(event.sessionId!, audioUrl)
           break
+        }
 
         case 'session.error':
           db.prepare('UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?')

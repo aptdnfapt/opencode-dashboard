@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { Activity, BarChart3, Settings, Terminal, ChevronRight } from 'lucide-react'
 import { SessionsPage } from './pages/sessions-page'
 import { AnalyticsPage } from './pages/analytics-page'
 import { SettingsPage } from './pages/settings-page'
 import { SessionDetailPage } from './pages/session-detail-page'
+import { useWebSocket } from './hooks/useWebSocket'
+import { useStore } from './store'
 
 type NavItem = {
   id: string
@@ -23,6 +25,44 @@ export default function App() {
   const navigate = useNavigate()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
+  
+  const { sessions, addSession, updateSession, setWsConnected } = useStore()
+  
+  // Ref to always have fresh sessions for TTS lookup
+  const sessionsRef = useRef(sessions)
+  useEffect(() => {
+    sessionsRef.current = sessions
+  }, [sessions])
+
+  // Global WebSocket handler - handles idle TTS from any page
+  const handleWSMessage = useCallback((msg: any) => {
+    switch (msg.type) {
+      case 'session.created':
+        addSession(msg.data)
+        break
+      case 'session.updated':
+        updateSession(msg.data)
+        break
+      case 'attention':
+        updateSession({ id: msg.data.sessionId, needs_attention: msg.data.needsAttention ? 1 : 0 })
+        break
+      case 'idle': {
+        updateSession({ id: msg.data.sessionId, status: 'idle' })
+        // Play TTS audio if provided by server
+        if (msg.data.audioUrl && localStorage.getItem('dashboard_tts_enabled') !== 'false') {
+          const audio = new Audio(msg.data.audioUrl)
+          audio.play().catch(e => console.warn('TTS playback failed:', e))
+        }
+        break
+      }
+      case 'error':
+        updateSession({ id: msg.data.sessionId, status: 'error' })
+        break
+    }
+  }, [addSession, updateSession])
+
+  const password = localStorage.getItem('dashboard_password') || ''
+  useWebSocket(password, handleWSMessage, setWsConnected)
 
   // Determine active nav item
   const activeNav = navItems.find(item => 

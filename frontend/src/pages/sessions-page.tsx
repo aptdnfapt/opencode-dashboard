@@ -56,13 +56,13 @@ export function SessionsPage() {
     audio.play().catch(() => {})
   }, [])
 
-  const handlersRef = useRef({ addSession, updateSession, flashSession, playSound })
+  const handlersRef = useRef({ addSession, updateSession, flashSession, playSound, sessions })
   useEffect(() => {
-    handlersRef.current = { addSession, updateSession, flashSession, playSound }
-  }, [addSession, updateSession, flashSession, playSound])
+    handlersRef.current = { addSession, updateSession, flashSession, playSound, sessions }
+  }, [addSession, updateSession, flashSession, playSound, sessions])
 
   const handleWSMessage = useCallback((msg: any) => {
-    const { addSession, updateSession, flashSession, playSound } = handlersRef.current
+    const { addSession, updateSession, flashSession, playSound, sessions } = handlersRef.current
     switch (msg.type) {
       case 'session.created':
         addSession(msg.data)

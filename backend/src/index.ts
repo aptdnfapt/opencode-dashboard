@@ -6,6 +6,7 @@ import db from './db'
 import { createWebhookHandler } from './handlers/webhook'
 import { createApiHandler } from './handlers/api'
 import { wsManager } from './websocket/server'
+import { initTTS } from './services/tts'
 
 const app = new Hono()
 
@@ -28,6 +29,9 @@ export default {
 
 // Start servers only when run directly (not imported)
 if (import.meta.main) {
+  // Initialize TTS model in background (don't block startup)
+  initTTS().catch(err => console.error('[TTS] Init failed:', err))
+
   // Start WebSocket server on port+1
   Bun.serve({
     hostname: '0.0.0.0',

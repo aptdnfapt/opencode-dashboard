@@ -1,9 +1,30 @@
 // frontend/src/pages/settings-page.tsx
-import { Sun, Moon, Monitor } from 'lucide-react'
+import { useState } from 'react'
+import { Sun, Moon, Monitor, Volume2, VolumeX } from 'lucide-react'
 import { useTheme } from '@/lib/theme-provider'
+
+const TTS_KEY = 'dashboard_tts_enabled'
 
 export function SettingsPage() {
   const { theme, setTheme, resolvedTheme } = useTheme()
+  const [ttsEnabled, setTtsEnabledState] = useState(() => localStorage.getItem(TTS_KEY) !== 'false')
+
+  // Toggle TTS and persist
+  const handleTTSToggle = () => {
+    const newValue = !ttsEnabled
+    setTtsEnabledState(newValue)
+    localStorage.setItem(TTS_KEY, String(newValue))
+  }
+
+  // Test TTS by calling backend
+  const testTTS = async () => {
+    try {
+      const audio = new Audio('/api/tts?text=Test%20session%20is%20idle')
+      await audio.play()
+    } catch (e) {
+      console.warn('TTS test failed:', e)
+    }
+  }
 
   const themes = [
     { id: 'light', label: 'Light', icon: Sun },
@@ -45,6 +66,39 @@ export function SettingsPage() {
 
           <p className="text-xs text-muted-foreground mt-4">
             Current: <span className="capitalize">{resolvedTheme}</span>
+          </p>
+        </div>
+
+        {/* TTS section */}
+        <div className="rounded-lg border border-border bg-card p-6 mt-4">
+          <h2 className="text-sm font-medium mb-1">Voice Announcements</h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Speak session title when it goes idle (uses Kokoro TTS model)
+          </p>
+          
+          <div className="flex gap-2">
+            <button
+              onClick={handleTTSToggle}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                ttsEnabled
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {ttsEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+              {ttsEnabled ? 'Enabled' : 'Disabled'}
+            </button>
+
+            <button
+              onClick={testTTS}
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Test TTS
+            </button>
+          </div>
+
+          <p className="text-xs text-muted-foreground mt-4">
+            When a session becomes idle, you'll hear: "[session title] is idle"
           </p>
         </div>
       </div>
