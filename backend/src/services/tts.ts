@@ -63,7 +63,7 @@ export function generateSignedUrl(text: string, expiresInMinutes: number = 5): s
   const signature = createHash('sha256')
     .update(dataToSign + serverKey)
     .digest('hex')
-    .substring(0, 16) // Use first 16 chars for shorter URL
+    .substring(0, 32) // First 32 hex chars (16 bytes) to match frontend
 
   return `/api/tts?text=${encodeURIComponent(text)}&exp=${expiry}&sig=${signature}`
 }
@@ -83,7 +83,7 @@ export function verifySignedUrl(text: string, expiry: string, signature: string)
   const expectedSignature = createHash('sha256')
     .update(dataToSign + serverKey)
     .digest('hex')
-    .substring(0, 16)
+    .substring(0, 32)
 
   return signature === expectedSignature
 }
