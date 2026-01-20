@@ -2,25 +2,29 @@
 // REST API endpoints for frontend data fetching
 import type { Hono, Context } from 'hono'
 import type { Database } from 'bun:sqlite'
-import { generateSpeech, isTTSReady } from '../services/tts'
+import { generateSpeech, isTTSReady, verifySignedUrl } from '../services/tts'
 
 export function createApiHandler(app: Hono, db: Database) {
-  // GET /api/tts - generate speech audio from text
+  // GET /api/tts - generate speech audio from text (signed URL)
   app.get('/api/tts', async (c: Context) => {
     const text = c.req.query('text')
-    if (!text) {
-      return c.text('Missing text parameter', 400)
+    const expiry = c.req.query('exp')
+    const signature = c.req.query('sig')
+
+    // Verify signed URL
+    if (!text || !expiry || !signature || !verifySignedUrl(text, expiry, signature)) {
+      return c.text('Unauthorized or expired URL', 401)
     }
-    
+
     if (!isTTSReady()) {
       return c.text('TTS model not loaded yet', 503)
     }
-    
+
     const audio = await generateSpeech(text)
     if (!audio) {
       return c.text('TTS generation failed', 500)
     }
-    
+
     return new Response(audio, {
       headers: {
         'Content-Type': 'audio/wav',

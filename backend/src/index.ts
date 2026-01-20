@@ -1,5 +1,8 @@
 // backend/src/index.ts
 // Main API entry point - exports Hono app for Bun server
+import { config } from 'dotenv'
+await config({ path: '../.env' }) // Load env vars from root .env
+
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import db from './db'
@@ -15,7 +18,14 @@ app.get('/', (c) => c.text('OpenCode Dashboard API'))
 app.get('/health', (c) => c.json({ status: 'ok', clients: wsManager.clientCount }))
 
 // Auth middleware for /api/* routes - require FRONTEND_PASSWORD
+// Note: /api/tts is public (needed for audio playback without headers)
 app.use('/api/*', async (c, next) => {
+  // Skip auth for /api/tts (browser audio cannot send headers)
+  if (c.req.path.startsWith('/api/tts')) {
+    await next()
+    return
+  }
+
   const frontendPassword = process.env.FRONTEND_PASSWORD
   const providedKey = c.req.header('X-API-Key')
 

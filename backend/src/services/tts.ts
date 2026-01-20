@@ -2,6 +2,7 @@
 // Kokoro TTS service - loads model once, generates audio on demand
 
 import { KokoroTTS } from 'kokoro-js'
+import { createHash } from 'crypto'
 
 let tts: KokoroTTS | null = null
 let loading = false
@@ -50,6 +51,41 @@ export async function generateSpeech(text: string, voice: string = 'af_bella'): 
     console.error('[TTS] Generation failed:', err)
     return null
   }
+}
+
+// Generate signed URL for TTS audio
+export function generateSignedUrl(text: string, expiresInMinutes: number = 5): string {
+  const expiry = Math.floor(Date.now() / 1000) + (expiresInMinutes * 60)
+  const serverKey = process.env.FRONTEND_PASSWORD || 'default-key'
+
+  // Create signature: HMAC-SHA256(text + expiry, key)
+  const dataToSign = `${text}${expiry}`
+  const signature = createHash('sha256')
+    .update(dataToSign + serverKey)
+    .digest('hex')
+    .substring(0, 16) // Use first 16 chars for shorter URL
+
+  return `/api/tts?text=${encodeURIComponent(text)}&exp=${expiry}&sig=${signature}`
+}
+
+// Verify signed URL
+export function verifySignedUrl(text: string, expiry: string, signature: string): boolean {
+  const serverKey = process.env.FRONTEND_PASSWORD || 'default-key'
+  const now = Math.floor(Date.now() / 1000)
+
+  // Check expiry
+  if (parseInt(expiry) < now) {
+    return false
+  }
+
+  // Verify signature
+  const dataToSign = `${text}${expiry}`
+  const expectedSignature = createHash('sha256')
+    .update(dataToSign + serverKey)
+    .digest('hex')
+    .substring(0, 16)
+
+  return signature === expectedSignature
 }
 
 // Generate idle announcement

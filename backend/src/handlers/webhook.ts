@@ -3,7 +3,7 @@
 import type { Hono } from 'hono'
 import type { Database } from 'bun:sqlite'
 import { wsManager } from '../websocket/server'
-import { generateIdleAnnouncement, isTTSReady } from '../services/tts'
+import { generateIdleAnnouncement, isTTSReady, generateSignedUrl } from '../services/tts'
 
 interface PluginEvent {
   type: string
@@ -95,10 +95,10 @@ export function createWebhookHandler(app: Hono, db: Database) {
           // Get session title for TTS
           const session = db.prepare('SELECT title FROM sessions WHERE id = ?').get(event.sessionId) as { title: string } | null
           let audioUrl: string | undefined
-          
-          // Generate TTS audio if model is ready
+
+          // Generate signed TTS URL if model is ready
           if (session && isTTSReady()) {
-            audioUrl = `/api/tts?text=${encodeURIComponent(session.title + ' is idle')}`
+            audioUrl = generateSignedUrl(session.title + ' is idle', 5) // 5 min expiry
           }
           
           wsManager.broadcastIdle(event.sessionId!, audioUrl)
@@ -136,7 +136,7 @@ export function createWebhookHandler(app: Hono, db: Database) {
             const attentionSession = db.prepare('SELECT title FROM sessions WHERE id = ?').get(event.sessionId) as { title: string } | null
             let attentionAudioUrl: string | undefined
             if (attentionSession && isTTSReady()) {
-              attentionAudioUrl = `/api/tts?text=${encodeURIComponent(attentionSession.title + ' needs attention')}`
+              attentionAudioUrl = generateSignedUrl(attentionSession.title + ' needs attention', 5) // 5 min expiry
             }
             
             wsManager.broadcastAttention(event.sessionId!, true, attentionAudioUrl)
