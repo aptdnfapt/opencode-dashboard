@@ -1,5 +1,5 @@
 // frontend/src/components/ui/button.tsx
-// Button component with variants - from square-ui
+// Button component with variants - mobile-first responsive design
 import * as React from 'react'
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
@@ -18,10 +18,12 @@ const buttonVariants = cva(
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-9 px-4 py-2',
-        sm: 'h-8 rounded-md px-3 text-xs',
-        lg: 'h-10 rounded-md px-8',
-        icon: 'h-9 w-9',
+        xs: 'h-8 px-2 py-1.5 sm:px-2.5 sm:py-2 sm:h-8 text-xs sm:text-xs',
+        sm: 'h-9 px-2.5 py-1.5 sm:px-3 sm:py-2 sm:h-9 text-xs sm:text-sm',
+        default: 'h-10 px-3 py-2 sm:px-4 sm:py-2 sm:h-9 text-sm sm:text-sm',
+        lg: 'h-11 px-4 py-2.5 sm:px-6 sm:py-3 sm:h-10 text-sm sm:text-base',
+        icon: 'h-9 w-9 sm:h-8 sm:w-8',
+        'icon-sm': 'h-8 w-8 sm:h-7 sm:w-7',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },
