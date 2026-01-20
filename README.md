@@ -86,9 +86,36 @@ cd frontend && bun test
 
 ```env
 BACKEND_PORT=3000
-BACKEND_PASSWORD=change_this_password
+API_KEY=your-plugin-api-key
+FRONTEND_PASSWORD=your-dashboard-password
 DATABASE_URL=./data/database.db
 ```
+
+## Authentication
+
+The dashboard uses two separate passwords for different access levels:
+
+### API_KEY (Plugin → Webhook)
+- Used by the OpenCode plugin to send data to the webhook
+- Validates `X-API-Key` header on `/events` endpoint
+- If not set, allows localhost requests without auth (no-config mode)
+
+### FRONTEND_PASSWORD (Dashboard UI → API)
+- Used to protect the dashboard frontend
+- Validates `X-API-Key` header on all `/api/*` endpoints and WebSocket connection
+- Required to access the web interface
+
+### Setting up Plugin Config
+
+Create `~/.config/opencode/dashboard.toml`:
+
+```toml
+url = "http://localhost:3000"
+apiKey = "your-api-key"
+hostname = "my-vps-hostname"
+```
+
+Or per-project `.opencode/dashboard.toml` (overrides global config).
 
 ## Features
 

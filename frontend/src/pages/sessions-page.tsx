@@ -31,10 +31,20 @@ export function SessionsPage() {
   useEffect(() => {
     async function fetchData() {
       try {
+        const password = localStorage.getItem('dashboard_password') || ''
+        const headers = { 'X-API-Key': password }
+
         const [sessionsRes, instancesRes] = await Promise.all([
-          fetch('/api/sessions'),
-          fetch('/api/instances')
+          fetch('/api/sessions', { headers }),
+          fetch('/api/instances', { headers })
         ])
+
+        if (!sessionsRes.ok || !instancesRes.ok) {
+          console.error('Auth failed')
+          setLoading(false)
+          return
+        }
+
         const sessionsData = await sessionsRes.json()
         const instancesData = await instancesRes.json()
         setSessions(sessionsData)

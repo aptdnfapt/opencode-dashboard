@@ -13,6 +13,20 @@ const app = new Hono()
 app.use('*', cors())
 app.get('/', (c) => c.text('OpenCode Dashboard API'))
 app.get('/health', (c) => c.json({ status: 'ok', clients: wsManager.clientCount }))
+
+// Auth middleware for /api/* routes - require FRONTEND_PASSWORD
+app.use('/api/*', async (c, next) => {
+  const frontendPassword = process.env.FRONTEND_PASSWORD
+  const providedKey = c.req.header('X-API-Key')
+
+  // If FRONTEND_PASSWORD is set, require X-API-Key
+  if (frontendPassword && providedKey !== frontendPassword) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  await next()
+})
+
 app.notFound((c) => c.text('Not Found', 404))
 
 // Register handlers
@@ -46,7 +60,7 @@ if (import.meta.main) {
       message(ws, msg) {
         const data = JSON.parse(msg.toString())
         if (data.type === 'auth') {
-          const valid = !process.env.BACKEND_PASSWORD || data.password === process.env.BACKEND_PASSWORD
+          const valid = !process.env.FRONTEND_PASSWORD || data.password === process.env.FRONTEND_PASSWORD
           ws.send(JSON.stringify({ type: 'auth', success: valid }))
           if (!valid) ws.close()
         }

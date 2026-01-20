@@ -5,6 +5,7 @@ import { SessionsPage } from './pages/sessions-page'
 import { AnalyticsPage } from './pages/analytics-page'
 import { SettingsPage } from './pages/settings-page'
 import { SessionDetailPage } from './pages/session-detail-page'
+import { LoginPage } from './pages/login-page'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useStore } from './store'
 
@@ -25,14 +26,24 @@ export default function App() {
   const navigate = useNavigate()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
-  
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('dashboard_password'))
+
   const { sessions, addSession, updateSession, setWsConnected } = useStore()
-  
+
   // Ref to always have fresh sessions for TTS lookup
   const sessionsRef = useRef(sessions)
   useEffect(() => {
     sessionsRef.current = sessions
   }, [sessions])
+
+  const handleLogin = (password: string) => {
+    setIsAuthenticated(true)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('dashboard_password')
+    setIsAuthenticated(false)
+  }
 
   // Global WebSocket handler - handles idle TTS from any page
   const handleWSMessage = useCallback((msg: any) => {
@@ -68,6 +79,11 @@ export default function App() {
 
   const password = localStorage.getItem('dashboard_password') || ''
   useWebSocket(password, handleWSMessage, setWsConnected)
+
+  // Show login if not authenticated
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />
+  }
 
   // Determine active nav item
   const activeNav = navItems.find(item => 
@@ -121,6 +137,19 @@ export default function App() {
             {!collapsed && <span>Collapse</span>}
           </button>
         </div>
+
+        {/* Logout button */}
+        {!collapsed && (
+          <div className="p-2">
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+            >
+              <Settings className="size-4 shrink-0" />
+              <span>Logout</span>
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* Main content */}

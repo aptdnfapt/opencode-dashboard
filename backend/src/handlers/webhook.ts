@@ -52,6 +52,16 @@ export function createWebhookHandler(app: Hono, db: Database) {
   }
 
   app.post('/events', async (c) => {
+    // Auth: Require X-API-Key if API_KEY is set, allow localhost without auth
+    const providedKey = c.req.header('X-API-Key')
+    const apiKey = process.env.API_KEY
+    const host = c.req.header('host')
+    const isLocalhost = host?.includes('localhost') || host?.includes('127.0.0.1')
+
+    if (apiKey && !isLocalhost && providedKey !== apiKey) {
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
+
     const event: PluginEvent = await c.req.json()
     const now = Date.now()
 

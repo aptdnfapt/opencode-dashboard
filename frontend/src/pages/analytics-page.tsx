@@ -91,16 +91,22 @@ export function AnalyticsPage() {
   const [usageRange, setUsageRange] = useState<Range>("7d")
   const [loading, setLoading] = useState(true)
 
+  // Helper to get auth headers
+  const getHeaders = useCallback(() => {
+    const password = localStorage.getItem('dashboard_password') || ''
+    return { 'X-API-Key': password }
+  }, [])
+
   // Fetch all data
   useEffect(() => {
     Promise.all([
-      fetch("/api/analytics/summary-extended").then(r => r.json()),
-      fetch("/api/analytics/cost-by-model").then(r => r.json()),
-      fetch("/api/analytics/cost-by-agent").then(r => r.json()),
-      fetch("/api/analytics/file-stats").then(r => r.json()),
-      fetch("/api/analytics/heatmap").then(r => r.json()),
-      fetch("/api/analytics/cost-trend?days=30").then(r => r.json()),
-      fetch("/api/analytics/model-list").then(r => r.json()),
+      fetch("/api/analytics/summary-extended", { headers: getHeaders() }).then(r => r.json()),
+      fetch("/api/analytics/cost-by-model", { headers: getHeaders() }).then(r => r.json()),
+      fetch("/api/analytics/cost-by-agent", { headers: getHeaders() }).then(r => r.json()),
+      fetch("/api/analytics/file-stats", { headers: getHeaders() }).then(r => r.json()),
+      fetch("/api/analytics/heatmap", { headers: getHeaders() }).then(r => r.json()),
+      fetch("/api/analytics/cost-trend?days=30", { headers: getHeaders() }).then(r => r.json()),
+      fetch("/api/analytics/model-list", { headers: getHeaders() }).then(r => r.json()),
     ]).then(([sum, models, agents, files, heatmap, cost, modelL]) => {
       setSummary(sum)
       setCostByModel(models)
@@ -112,30 +118,30 @@ export function AnalyticsPage() {
       setSelectedModels(modelL.slice(0, 4)) // default first 4
       setLoading(false)
     })
-  }, [])
+  }, [getHeaders])
 
   // Fetch token flow when range changes
   useEffect(() => {
-    fetch(`/api/analytics/token-flow?range=${tokenRange}`)
+    fetch(`/api/analytics/token-flow?range=${tokenRange}`, { headers: getHeaders() })
       .then(r => r.json())
       .then(setTokenFlow)
-  }, [tokenRange])
+  }, [tokenRange, getHeaders])
 
   // Fetch model usage when range changes
   useEffect(() => {
-    fetch(`/api/analytics/usage?range=${usageRange}`)
+    fetch(`/api/analytics/usage?range=${usageRange}`, { headers: getHeaders() })
       .then(r => r.json())
       .then(setModelUsage)
-  }, [usageRange])
+  }, [usageRange, getHeaders])
 
   // Fetch model performance when range changes
   useEffect(() => {
     const params = new URLSearchParams({ range: perfRange })
     if (selectedModels.length) params.set("models", selectedModels.join(","))
-    fetch(`/api/analytics/model-performance?${params}`)
+    fetch(`/api/analytics/model-performance?${params}`, { headers: getHeaders() })
       .then(r => r.json())
       .then(setModelPerf)
-  }, [perfRange, selectedModels])
+  }, [perfRange, selectedModels, getHeaders])
 
   const formatCost = useCallback((v: number) => {
     if (v >= 100) return `$${v.toFixed(0)}`

@@ -30,7 +30,11 @@ export function SessionDetail() {
   useEffect(() => {
     if (!selectedSession || timeline.has(selectedSession.id)) return
     setLoading(true)
-    fetch(`/api/sessions/${selectedSession.id}`)
+
+    const password = localStorage.getItem('dashboard_password') || ''
+    fetch(`/api/sessions/${selectedSession.id}`, {
+      headers: { 'X-API-Key': password }
+    })
       .then(res => res.json())
       .then(data => {
         if (data.timeline) {

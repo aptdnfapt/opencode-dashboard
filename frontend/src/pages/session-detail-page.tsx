@@ -97,7 +97,10 @@ export function SessionDetailPage() {
 
     async function fetchSession() {
       try {
-        const res = await fetch(`/api/sessions/${sessionId}`)
+        const password = localStorage.getItem('dashboard_password') || ''
+        const res = await fetch(`/api/sessions/${sessionId}`, {
+          headers: { 'X-API-Key': password }
+        })
         const data = await res.json()
         setSession(data.session)
         selectSession(data.session)
