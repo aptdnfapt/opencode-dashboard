@@ -15,6 +15,8 @@ interface PluginEvent {
   tokensIn?: number
   tokensOut?: number
   cost?: number
+  providerId?: string
+  modelId?: string
   timestamp: number
 }
 
@@ -87,11 +89,19 @@ export function createWebhookHandler(app: Hono, db: Database) {
           break
 
         case 'tokens':
-          // Insert token record
+          // Insert token record with model info
           db.prepare(`
-            INSERT INTO token_usage (session_id, tokens_in, tokens_out, cost, timestamp)
-            VALUES (?, ?, ?, ?, ?)
-          `).run(event.sessionId, event.tokensIn, event.tokensOut, event.cost, event.timestamp)
+            INSERT INTO token_usage (session_id, provider_id, model_id, tokens_in, tokens_out, cost, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            event.sessionId, 
+            (event as any).providerId || null,
+            (event as any).modelId || null,
+            event.tokensIn, 
+            event.tokensOut, 
+            event.cost, 
+            event.timestamp
+          )
 
           // Update session totals
           const totalTokens = (event.tokensIn || 0) + (event.tokensOut || 0)

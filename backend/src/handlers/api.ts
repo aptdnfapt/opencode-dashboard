@@ -5,8 +5,11 @@ import type { Database } from 'bun:sqlite'
 
 export function createApiHandler(app: Hono, db: Database) {
   // GET /api/sessions - list sessions with optional filters
+  // Sessions not updated for 60s while "active" are marked as "stale"
   app.get('/api/sessions', (c: Context) => {
     const { hostname, status, search, date } = c.req.query()
+    const STALE_THRESHOLD = 60 * 1000 // 1 minute
+    const now = Date.now()
 
     let sql = 'SELECT * FROM sessions WHERE 1=1'
     const params: unknown[] = []
@@ -15,10 +18,7 @@ export function createApiHandler(app: Hono, db: Database) {
       sql += ' AND hostname = ?'
       params.push(hostname)
     }
-    if (status) {
-      sql += ' AND status = ?'
-      params.push(status)
-    }
+    // Don't filter by status yet - we'll compute it dynamically
     if (search) {
       sql += ' AND title LIKE ?'
       params.push(`%${search}%`)
@@ -31,8 +31,23 @@ export function createApiHandler(app: Hono, db: Database) {
     }
 
     sql += ' ORDER BY updated_at DESC'
-    const sessions = db.prepare(sql).all(...params)
-    return c.json(sessions)
+    const sessions = db.prepare(sql).all(...params) as any[]
+
+    // Compute effective status: active sessions not updated for 60s -> stale
+    const processed = sessions.map(s => {
+      let effectiveStatus = s.status
+      if (s.status === 'active' && (now - s.updated_at) > STALE_THRESHOLD) {
+        effectiveStatus = 'stale'
+      }
+      return { ...s, status: effectiveStatus }
+    })
+
+    // Now filter by status if requested
+    const filtered = status 
+      ? processed.filter(s => s.status === status)
+      : processed
+
+    return c.json(filtered)
   })
 
   // GET /api/sessions/:id - session detail with timeline
@@ -98,85 +113,110 @@ export function createApiHandler(app: Hono, db: Database) {
     return c.json(daily)
   })
 
-  // GET /api/analytics/usage - model usage by period (day/week/month)
+  // GET /api/analytics/usage - token usage by period with model breakdown
+  // Params: range=24h|7d|30d (default 7d)
   app.get('/api/analytics/usage', (c: Context) => {
-    const period = c.req.query('period') || 'day'
-    const limit = parseInt(c.req.query('limit') || '30')
-
-    let dateFormat: string
-    let orderDir: string
-
-    switch (period) {
-      case 'week':
-        dateFormat = "DATE('week' = 'mon', timestamp/1000, 'unixepoch', 'start of week')"
+    const range = c.req.query('range') || '7d'
+    
+    // Calculate time boundaries
+    const now = Date.now()
+    let startTime: number
+    let groupBy: string
+    
+    switch (range) {
+      case '24h':
+        startTime = now - 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d %H:00', timestamp/1000, 'unixepoch')" // hourly
         break
-      case 'month':
-        dateFormat = "DATE(timestamp/1000, 'unixepoch', 'start of month')"
+      case '30d':
+        startTime = now - 30 * 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d', timestamp/1000, 'unixepoch')" // daily
         break
-      default:
-        dateFormat = "DATE(timestamp/1000, 'unixepoch')"
+      default: // 7d
+        startTime = now - 7 * 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d', timestamp/1000, 'unixepoch')" // daily
     }
 
-    // Get all models first
-    const models = db.prepare(`
-      SELECT DISTINCT model_id FROM token_usage WHERE model_id IS NOT NULL
-    `).all() as { model_id: string }[]
-
-    if (models.length === 0) {
-      return c.json([])
-    }
-
-    // Build dynamic SQL based on models
-    const modelColumns = models.map((_, i) =>
-      `COALESCE(SUM(CASE WHEN model_id = ? THEN tokens_in + tokens_out ELSE 0 END), 0) as model_${i}`
-    ).join(', ')
-
-    const modelParams = models.map(m => m.model_id)
-
-    const sql = `
-      SELECT
-        ${dateFormat} as period,
-        SUM(tokens_in + tokens_out) as total_tokens,
-        SUM(cost) as total_cost,
-        ${modelColumns}
+    // Get usage grouped by period and model
+    const rows = db.prepare(`
+      SELECT 
+        ${groupBy} as period,
+        model_id,
+        SUM(tokens_in + tokens_out) as tokens
       FROM token_usage
-      WHERE model_id IS NOT NULL
-      GROUP BY period
-      ORDER BY period ${orderDir || 'DESC'}
-      LIMIT ?
-    `
+      WHERE timestamp >= ? AND model_id IS NOT NULL
+      GROUP BY period, model_id
+      ORDER BY period ASC
+    `).all(startTime) as { period: string; model_id: string; tokens: number }[]
 
-    const usage = db.prepare(sql).all(...modelParams, limit) as Record<string, unknown>[]
-
-    // Return clean format with model data as object
-    return c.json(usage.map(row => {
-      const { period, total_tokens, total_cost, ...modelData } = row
-      return {
-        period,
-        total_tokens,
-        total_cost,
-        models: Object.fromEntries(
-          Object.entries(modelData).map(([key, val], i) => [models[i].model_id, val])
-        )
+    // Pivot: group by period, nest models
+    const periodMap = new Map<string, { period: string; total: number; models: Record<string, number> }>()
+    
+    for (const row of rows) {
+      if (!periodMap.has(row.period)) {
+        periodMap.set(row.period, { period: row.period, total: 0, models: {} })
       }
-    }))
+      const entry = periodMap.get(row.period)!
+      entry.models[row.model_id] = row.tokens
+      entry.total += row.tokens
+    }
+
+    return c.json(Array.from(periodMap.values()))
   })
 
-  // GET /api/analytics/trend - quarterly usage trend (day by day)
+  // GET /api/analytics/trend - daily token usage for line chart
   app.get('/api/analytics/trend', (c: Context) => {
     const days = parseInt(c.req.query('days') || '90')
+    const startTime = Date.now() - days * 24 * 60 * 60 * 1000
 
     const trend = db.prepare(`
-      SELECT DATE(timestamp/1000, 'unixepoch') as date,
+      SELECT 
+        strftime('%Y-%m-%d', timestamp/1000, 'unixepoch') as date,
         SUM(tokens_in + tokens_out) as total_tokens,
         SUM(cost) as total_cost
       FROM token_usage
+      WHERE timestamp >= ?
       GROUP BY date
       ORDER BY date ASC
-      LIMIT ?
-    `).all(days)
+    `).all(startTime)
 
     return c.json(trend)
+  })
+
+  // GET /api/analytics/cost-trend - daily cost for smooth line chart
+  app.get('/api/analytics/cost-trend', (c: Context) => {
+    const days = parseInt(c.req.query('days') || '30')
+    const startTime = Date.now() - days * 24 * 60 * 60 * 1000
+
+    const costs = db.prepare(`
+      SELECT 
+        strftime('%Y-%m-%d', timestamp/1000, 'unixepoch') as date,
+        SUM(cost) as cost,
+        SUM(tokens_in + tokens_out) as tokens
+      FROM token_usage
+      WHERE timestamp >= ?
+      GROUP BY date
+      ORDER BY date ASC
+    `).all(startTime) as { date: string; cost: number; tokens: number }[]
+
+    // Fill missing days with 0
+    const result: { date: string; cost: number; tokens: number }[] = []
+    const startDate = new Date(startTime)
+    const endDate = new Date()
+    
+    const costMap = new Map(costs.map(c => [c.date, c]))
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0]
+      const existing = costMap.get(dateStr)
+      result.push({
+        date: dateStr,
+        cost: existing?.cost || 0,
+        tokens: existing?.tokens || 0
+      })
+    }
+
+    return c.json(result)
   })
 
   // GET /api/instances - list all VPS instances

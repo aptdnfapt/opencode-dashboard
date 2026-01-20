@@ -55,6 +55,7 @@ interface DashboardStore {
   updateSession: (session: Partial<Session> & { id: string }) => void
   selectSession: (session: Session | null) => void
   setTimeline: (sessionId: string, events: TimelineEvent[]) => void
+  addTimelineEvent: (sessionId: string, event: TimelineEvent) => void
   setMessages: (sessionId: string, msgs: ChatMessage[]) => void
   addMessage: (sessionId: string, msg: ChatMessage) => void
   setFilters: (filters: Partial<Filters>) => void
@@ -89,6 +90,22 @@ export const useStore = create<DashboardStore>((set, get) => ({
   setTimeline: (sessionId, events) => set((s) => {
     const timeline = new Map(s.timeline)
     timeline.set(sessionId, events)
+    return { timeline }
+  }),
+
+  addTimelineEvent: (sessionId, event) => set((s) => {
+    const timeline = new Map(s.timeline)
+    const current = timeline.get(sessionId) || []
+    
+    // Dedupe: skip if same event_type + summary already exists in last 5 events
+    const recent = current.slice(-5)
+    const isDupe = recent.some(e => 
+      e.event_type === event.event_type && 
+      e.summary === event.summary
+    )
+    if (isDupe) return { timeline }
+    
+    timeline.set(sessionId, [...current, event])
     return { timeline }
   }),
 

@@ -1,5 +1,5 @@
 // frontend/src/components/dashboard/stat-card.tsx
-// Stat card for analytics - beautiful, polished square-ui pattern
+// Stat card for analytics - Flexoki themed
 import { Coins, DollarSign, Activity, Server, LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -15,29 +15,34 @@ interface StatCardProps {
   value: string | number
   icon: keyof typeof iconMap
   subtitle?: string
+  change?: number
   className?: string
 }
 
-export function StatCard({ title, value, icon, subtitle, className }: StatCardProps) {
+export function StatCard({ title, value, icon, subtitle, change, className }: StatCardProps) {
   const Icon = iconMap[icon]
 
   return (
     <div className={cn(
-      'relative overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm hover:shadow-md transition-all',
+      'rounded-lg border border-border bg-card p-4',
       className
     )}>
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-2xl font-semibold text-foreground tracking-tight">{value}</p>
-          {subtitle && (
-            <p className="text-xs text-muted-foreground">{subtitle}</p>
-          )}
-        </div>
-        <div className="flex size-14 items-center justify-center rounded-xl bg-muted border border-border">
-          <Icon className="size-6 text-primary" />
-        </div>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{title}</p>
+        <Icon className="size-4 text-muted-foreground" />
       </div>
+      <p className="text-2xl font-semibold mt-2">{value}</p>
+      {subtitle && (
+        <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+      )}
+      {change !== undefined && (
+        <p className={cn(
+          "text-xs mt-1",
+          change >= 0 ? "text-[#879A39]" : "text-[#D14D41]"
+        )}>
+          {change >= 0 ? "+" : ""}{change}% from last period
+        </p>
+      )}
     </div>
   )
 }

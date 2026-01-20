@@ -1,12 +1,10 @@
-"use client"
-
-import { useEffect, useState } from "react"
+// frontend/src/pages/session-detail-page.tsx
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useStore } from "@/store"
 import { useParams, useNavigate } from "react-router-dom"
+import { useWebSocket } from "@/hooks/useWebSocket"
 import ReactMarkdown from "react-markdown"
-import { ArrowLeft, User, Bot, Clock, Hash, DollarSign, Terminal, FileText, AlertCircle, CheckCircle, Activity, Server } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { ArrowLeft, User, Bot, Clock, Terminal, FileText, AlertCircle, CheckCircle, Activity, Server, Coins, Circle, ArrowDown } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 
 function formatTime(timestamp: number) {
@@ -26,60 +24,79 @@ function formatDate(timestamp: number) {
   })
 }
 
-const eventIcons: Record<string, typeof Bot> = {
-  user: User,
-  message: Bot,
-  tool: Terminal,
-  bash: Terminal,
-  read: FileText,
-  write: FileText,
-  edit: FileText,
-  error: AlertCircle,
-  idle: CheckCircle,
-  compacted: Activity,
-  permission: AlertCircle,
+const eventConfig: Record<string, { icon: typeof Bot; color: string }> = {
+  user: { icon: User, color: "text-sky-500" },
+  message: { icon: Bot, color: "text-violet-500" },
+  tool: { icon: Terminal, color: "text-amber-500" },
+  bash: { icon: Terminal, color: "text-emerald-500" },
+  read: { icon: FileText, color: "text-sky-500" },
+  write: { icon: FileText, color: "text-sky-500" },
+  edit: { icon: FileText, color: "text-sky-500" },
+  error: { icon: AlertCircle, color: "text-rose-500" },
+  idle: { icon: CheckCircle, color: "text-muted-foreground" },
+  compacted: { icon: Activity, color: "text-amber-500" },
+  permission: { icon: AlertCircle, color: "text-amber-500" },
 }
 
-// Solid background colors - no transparency
-const eventColors: Record<string, string> = {
-  user: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  message: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
-  tool: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-  bash: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-  read: "bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300",
-  write: "bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300",
-  edit: "bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300",
-  error: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-  idle: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  compacted: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
-  permission: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+const statusColors: Record<string, string> = {
+  active: "text-emerald-500",
+  idle: "text-amber-500",
+  error: "text-rose-500",
 }
 
 export function SessionDetailPage() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
-  const { selectSession, setTimeline, timeline } = useStore()
+  const { selectSession, setTimeline, timeline, addTimelineEvent } = useStore()
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState<any>(null)
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
+  const timelineEndRef = useRef<HTMLDivElement>(null)
+  const mainRef = useRef<HTMLDivElement>(null)
 
   const sessionTimeline = sessionId ? timeline.get(sessionId) || [] : []
 
+  // Scroll to bottom
+  const scrollToBottom = useCallback(() => {
+    timelineEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
+
+  // Track scroll position to show/hide scroll button
+  useEffect(() => {
+    const main = mainRef.current
+    if (!main) return
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = main
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 200
+      setShowScrollBtn(!isNearBottom)
+    }
+
+    main.addEventListener('scroll', handleScroll)
+    return () => main.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  // Auto-scroll to bottom on initial load
+  useEffect(() => {
+    if (!loading && sessionTimeline.length > 0) {
+      setTimeout(scrollToBottom, 100)
+    }
+  }, [loading, scrollToBottom])
+
+  // Fetch initial data
   useEffect(() => {
     if (!sessionId) {
       navigate("/")
       return
     }
 
-    const currentSessionId = sessionId
-
     async function fetchSession() {
       try {
-        const res = await fetch(`/api/sessions/${currentSessionId}`)
+        const res = await fetch(`/api/sessions/${sessionId}`)
         const data = await res.json()
-
         setSession(data.session)
         selectSession(data.session)
-        setTimeline(currentSessionId, data.timeline || [])
+        setTimeline(sessionId!, data.timeline || [])
       } catch (err) {
         console.error("Failed to fetch session:", err)
       }
@@ -89,6 +106,50 @@ export function SessionDetailPage() {
     fetchSession()
   }, [sessionId, navigate, selectSession, setTimeline])
 
+  // WebSocket handler for real-time updates
+  const handleWSMessage = useCallback((msg: any) => {
+    if (!sessionId) return
+    
+    switch (msg.type) {
+      case 'timeline':
+        // Only add if it's for this session
+        if (msg.data?.sessionId === sessionId) {
+          addTimelineEvent(sessionId, {
+            id: Date.now(), // temp id
+            session_id: sessionId,
+            timestamp: msg.data.timestamp || Date.now(),
+            event_type: msg.data.eventType,
+            summary: msg.data.summary,
+            tool_name: msg.data.tool,
+          })
+          // Auto-scroll to bottom
+          setTimeout(() => {
+            timelineEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+          }, 100)
+        }
+        break
+      case 'idle':
+        if (msg.data?.sessionId === sessionId) {
+          setSession((s: any) => s ? { ...s, status: 'idle' } : s)
+        }
+        break
+      case 'error':
+        if (msg.data?.sessionId === sessionId) {
+          setSession((s: any) => s ? { ...s, status: 'error' } : s)
+        }
+        break
+      case 'attention':
+        if (msg.data?.sessionId === sessionId) {
+          setSession((s: any) => s ? { ...s, needs_attention: msg.data.needsAttention ? 1 : 0 } : s)
+        }
+        break
+    }
+  }, [sessionId, addTimelineEvent])
+
+  // Connect to WebSocket
+  const password = localStorage.getItem('dashboard_password') || ''
+  useWebSocket(password, handleWSMessage)
+
   const handleBack = () => {
     selectSession(null)
     navigate("/")
@@ -96,11 +157,12 @@ export function SessionDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="px-6 py-6">
-          <Skeleton className="h-10 w-32 mb-6" />
-          <Skeleton className="h-48 w-full rounded-xl mb-4" />
-          <Skeleton className="h-64 w-full rounded-xl" />
+      <div className="min-h-screen">
+        <div className="h-14 border-b border-border" />
+        <div className="p-6 space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
         </div>
       </div>
     )
@@ -108,87 +170,88 @@ export function SessionDetailPage() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">Session not found</h1>
-          <Button onClick={handleBack}>Go back</Button>
+          <p className="text-muted-foreground mb-4">Session not found</p>
+          <button onClick={handleBack} className="text-sm text-primary hover:underline">
+            Go back
+          </button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Sticky header with session info */}
-      <header className="sticky top-0 z-40 border-b border-border bg-card">
-        <div className="px-6 py-3">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={handleBack}>
-              <ArrowLeft className="size-4 mr-2" />
-              Back
-            </Button>
-            
-            <div className="h-6 w-px bg-border" />
-            
-            <h1 className="text-base font-semibold truncate flex-1">{session.title}</h1>
-            
-            <div className="flex items-center gap-4 text-sm text-muted-foreground shrink-0">
-              <Badge variant={session.status}>{session.status}</Badge>
-              <span className="flex items-center gap-1">
-                <Server className="size-3.5" />
-                {session.hostname}
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock className="size-3.5" />
-                {formatDate(session.created_at)}
-              </span>
-              <span className="flex items-center gap-1 font-medium text-foreground">
-                <Hash className="size-3.5" />
-                {(session.token_total / 1000).toFixed(1)}k
-              </span>
-              <span className="flex items-center gap-1 font-medium text-foreground">
-                <DollarSign className="size-3.5" />
-                ${session.cost_total.toFixed(2)}
-              </span>
+    <div className="h-screen flex flex-col">
+      {/* Header */}
+      <header className="shrink-0 h-14 border-b border-border bg-card/80 backdrop-blur-sm">
+        <div className="h-full px-6 flex items-center gap-4">
+          <button
+            onClick={handleBack}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" />
+            Back
+          </button>
+
+          <div className="h-4 w-px bg-border" />
+
+          <h1 className="text-sm font-medium truncate flex-1">{session.title}</h1>
+
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <div className={`flex items-center gap-1.5 ${statusColors[session.status] || ''}`}>
+              <Circle className="size-2 fill-current" />
+              <span className="capitalize">{session.status}</span>
             </div>
+            <div className="flex items-center gap-1.5">
+              <Server className="size-3" />
+              <span>{session.hostname}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Clock className="size-3" />
+              <span>{formatDate(session.created_at)}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Coins className="size-3" />
+              <span>{(session.token_total / 1000).toFixed(1)}k</span>
+            </div>
+            <span className="font-medium text-foreground">${session.cost_total.toFixed(2)}</span>
           </div>
         </div>
       </header>
 
-      {/* Timeline - full width */}
-      <main className="px-6 py-6">
+      {/* Timeline */}
+      <main ref={mainRef} className="flex-1 overflow-y-auto p-6">
         {sessionTimeline.length === 0 ? (
-          <div className="text-center py-20 text-muted-foreground">
-            <Activity className="size-12 mx-auto mb-4 opacity-50" />
-            <p>No activity in this session</p>
+          <div className="text-center py-20">
+            <Activity className="size-8 mx-auto mb-3 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">No activity yet</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1">
             {sessionTimeline.map((event, index) => {
-              const Icon = eventIcons[event.event_type] || Activity
-              const colorClass = eventColors[event.event_type] || "bg-muted text-muted-foreground"
+              const config = eventConfig[event.event_type] || { icon: Activity, color: "text-muted-foreground" }
+              const Icon = config.icon
               const isLast = index === sessionTimeline.length - 1
 
               return (
-                <div key={event.id} className="flex gap-4">
-                  {/* Timeline indicator */}
-                  <div className="flex flex-col items-center shrink-0">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${colorClass}`}>
-                      <Icon className="size-4" />
+                <div key={event.id} className="flex gap-3">
+                  {/* Timeline line + icon */}
+                  <div className="flex flex-col items-center w-6 shrink-0">
+                    <div className={`size-6 rounded-full bg-muted flex items-center justify-center ${config.color}`}>
+                      <Icon className="size-3" />
                     </div>
-                    {!isLast && (
-                      <div className="w-0.5 flex-1 bg-border min-h-[20px] my-1" />
-                    )}
+                    {!isLast && <div className="w-px flex-1 bg-border my-1" />}
                   </div>
 
-                  {/* Event content - full width */}
+                  {/* Content */}
                   <div className="flex-1 min-w-0 pb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                         {event.event_type}
                       </span>
                       {event.tool_name && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-muted font-mono">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted font-mono">
                           {event.tool_name}
                         </span>
                       )}
@@ -197,21 +260,20 @@ export function SessionDetailPage() {
                       </span>
                     </div>
 
-                    <div className="bg-muted rounded-lg p-4">
+                    <div className="rounded-md bg-muted p-3 text-sm">
                       {event.event_type === "message" || event.event_type === "user" ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <div className="prose prose-sm prose-invert max-w-none">
                           <ReactMarkdown
                             components={{
-                              code(props) {
-                                const { children, className } = props
+                              code({ children, className }) {
                                 const isInline = !className
                                 return (
                                   <code
-                                    className={`${
+                                    className={
                                       isInline
-                                        ? "bg-background px-1.5 py-0.5 rounded text-sm border border-border"
-                                        : "block bg-background p-4 rounded-lg overflow-x-auto text-sm border border-border"
-                                    } ${className || ""}`}
+                                        ? "bg-background px-1 py-0.5 rounded text-xs"
+                                        : "block bg-background p-3 rounded overflow-x-auto text-xs"
+                                    }
                                   >
                                     {children}
                                   </code>
@@ -223,23 +285,35 @@ export function SessionDetailPage() {
                           </ReactMarkdown>
                         </div>
                       ) : event.event_type === "tool" || event.event_type === "bash" ? (
-                        <div className="font-mono text-sm break-all">
+                        <div className="font-mono text-xs">
                           <span className="text-muted-foreground mr-2">$</span>
                           {event.summary}
                         </div>
                       ) : event.event_type === "error" ? (
-                        <div className="text-red-600 dark:text-red-400 text-sm">{event.summary}</div>
+                        <div className="text-rose-400 text-xs">{event.summary}</div>
                       ) : (
-                        <p className="text-sm whitespace-pre-wrap break-words">{event.summary}</p>
+                        <p className="text-xs whitespace-pre-wrap">{event.summary}</p>
                       )}
                     </div>
                   </div>
                 </div>
               )
             })}
+            {/* Scroll anchor */}
+            <div ref={timelineEndRef} />
           </div>
         )}
       </main>
+
+      {/* Scroll to bottom button */}
+      {showScrollBtn && (
+        <button
+          onClick={scrollToBottom}
+          className="fixed bottom-6 right-6 size-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors"
+        >
+          <ArrowDown className="size-5" />
+        </button>
+      )}
     </div>
   )
 }

@@ -1,194 +1,138 @@
-"use client"
-
-import { useState, useMemo } from "react"
+// frontend/src/components/analytics/model-usage-chart.tsx
+import { useState, useEffect, useMemo } from "react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
-import { Calendar, BarChart3 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { cn } from "@/lib/utils"
 
-const COLORS = [
-  "#3b82f6", "#8b5cf6", "#ec4899", "#f97316",
-  "#22c55e", "#eab308", "#06b6d4", "#ef4444"
+// Stripe-style chart colors
+const CHART_COLORS = [
+  "#635bff", // indigo (primary)
+  "#0ea5e9", // sky
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#ec4899", // pink
+  "#8b5cf6", // violet
+  "#06b6d4", // cyan
+  "#f43f5e", // rose
 ]
 
-export interface UsageData {
+interface UsageEntry {
   period: string
-  total_tokens: number
-  total_cost: number
+  total: number
   models: Record<string, number>
 }
 
-interface ModelUsageChartProps {
-  data: UsageData[]
-  loading?: boolean
-}
+type Range = "24h" | "7d" | "30d"
 
-type Period = "day" | "week" | "month"
+export function ModelUsageChart() {
+  const [range, setRange] = useState<Range>("7d")
+  const [data, setData] = useState<UsageEntry[]>([])
+  const [loading, setLoading] = useState(true)
 
-const periodLabels: Record<Period, string> = {
-  day: "Last 14 Days",
-  week: "Last 8 Weeks",
-  month: "Last 6 Months",
-}
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/analytics/usage?range=${range}`)
+      .then(r => r.json())
+      .then(setData)
+      .finally(() => setLoading(false))
+  }, [range])
 
-const periodLimits: Record<Period, number> = {
-  day: 14,
-  week: 8,
-  month: 6,
-}
-
-function CustomTooltip({ active, payload, label, period }: {
-  active?: boolean
-  payload?: Array<{ value: number; dataKey: string; color: string }>
-  label?: string
-  period: Period
-}) {
-  if (!active || !payload?.length) return null
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    if (period === "month") {
-      return date.toLocaleDateString("en-US", { month: "short", year: "numeric" })
-    }
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-  }
-
-  return (
-    <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
-      <p className="text-xs font-medium text-foreground mb-2">{formatDate(label || "")}</p>
-      {payload.map((entry, index) => (
-        <div key={index} className="flex items-center gap-2 text-xs">
-          <div
-            className="w-2.5 h-2.5 rounded-sm shrink-0"
-            style={{ backgroundColor: entry.color }}
-          />
-          <span className="text-muted-foreground">
-            {entry.dataKey.replace("models.", "")}:
-          </span>
-          <span className="font-medium text-foreground">
-            {entry.value.toLocaleString()}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-export function ModelUsageChart({ data, loading }: ModelUsageChartProps) {
-  const [period, setPeriod] = useState<Period>("day")
-
-  const filteredData = useMemo(() => {
-    const limit = periodLimits[period]
-    return data.slice(-limit).reverse()
-  }, [data, period])
-
-  const modelColors = useMemo(() => {
-    const models = new Set<string>()
-    filteredData.forEach(d => {
-      Object.keys(d.models).forEach(m => models.add(m))
+  // Extract models and flatten data for Recharts (avoid nested paths with special chars)
+  const { models, colorMap, chartData } = useMemo(() => {
+    const modelSet = new Set<string>()
+    data.forEach(d => Object.keys(d.models || {}).forEach(m => modelSet.add(m)))
+    const models = Array.from(modelSet)
+    const colorMap = Object.fromEntries(models.map((m, i) => [m, CHART_COLORS[i % CHART_COLORS.length]]))
+    
+    // Flatten: { period, total, models: {a: 1, b: 2} } -> { period, total, model_0: 1, model_1: 2 }
+    const chartData = data.map(d => {
+      const flat: Record<string, any> = { period: d.period, total: d.total }
+      models.forEach((m, i) => {
+        flat[`model_${i}`] = d.models?.[m] || 0
+      })
+      return flat
     })
-    return Array.from(models).reduce((acc, model, i) => {
-      acc[model] = COLORS[i % COLORS.length]
-      return acc
-    }, {} as Record<string, string>)
-  }, [filteredData])
+    
+    return { models, colorMap, chartData }
+  }, [data])
 
-  const totals = useMemo(() => {
-    return filteredData.reduce((acc, d) => ({
-      tokens: acc.tokens + (d.total_tokens || 0),
-      cost: acc.cost + (d.total_cost || 0)
-    }), { tokens: 0, cost: 0 })
-  }, [filteredData])
+  const totalTokens = data.reduce((sum, d) => sum + (d.total || 0), 0)
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    if (period === "month") {
-      return date.toLocaleDateString("en-US", { month: "short", year: "numeric" })
-    }
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  const formatPeriod = (p: string) => {
+    if (range === "24h") return p.split(" ")[1] || p
+    return new Date(p).toLocaleDateString("en", { month: "short", day: "numeric" })
   }
 
   if (loading) {
-    return (
-      <div className="rounded-xl border border-border bg-card p-6">
-        <div className="h-8 w-48 animate-pulse bg-muted rounded mb-4" />
-        <div className="h-64 bg-muted rounded" />
-      </div>
-    )
+    return <div className="rounded-lg border border-border bg-card p-6 h-80 animate-pulse" />
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+    <div className="rounded-lg border border-border bg-card p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <BarChart3 className="size-5 text-primary" />
-            Model Usage by {period === "day" ? "Day" : period === "week" ? "Week" : "Month"}
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            {totals.tokens.toLocaleString()} tokens · ${totals.cost.toFixed(2)} cost
+          <h3 className="text-sm font-medium">Token Usage</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {totalTokens.toLocaleString()} tokens
           </p>
         </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger>
-            <Button variant="outline" size="sm" className="h-8">
-              <Calendar className="size-4 mr-2" />
-              {periodLabels[period]}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {(Object.keys(periodLabels) as Period[]).map((p) => (
-              <DropdownMenuItem key={p} onClick={() => setPeriod(p)}>
-                {periodLabels[p]} {period === p && "✓"}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Range tabs */}
+        <div className="flex gap-1 p-1 rounded-md bg-muted">
+          {(["24h", "7d", "30d"] as Range[]).map(r => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                range === r 
+                  ? "bg-card text-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {Object.keys(modelColors).length === 0 ? (
-        <div className="h-64 flex items-center justify-center text-muted-foreground">
+      {/* Chart */}
+      {chartData.length === 0 || models.length === 0 ? (
+        <div className="h-56 flex items-center justify-center text-sm text-muted-foreground">
           No data available
         </div>
       ) : (
-        <div className="h-72">
+        <div className="h-56">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={filteredData}
-              barGap={2}
-              margin={{ top: 20, right: 10, left: -20, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis
-                dataKey="period"
-                tickLine={false}
+            <BarChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(230 10% 16%)" vertical={false} />
+              <XAxis 
+                dataKey="period" 
+                tickFormatter={formatPeriod}
+                tick={{ fontSize: 11, fill: "hsl(220 8% 55%)" }}
                 axisLine={false}
-                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                tickFormatter={formatDate}
+                tickLine={false}
               />
-              <YAxis
-                tickLine={false}
+              <YAxis 
+                tickFormatter={v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v}
+                tick={{ fontSize: 11, fill: "hsl(220 8% 55%)" }}
                 axisLine={false}
-                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                tickLine={false}
               />
               <Tooltip
-                content={<CustomTooltip period={period} />}
-                cursor={{ fill: "hsl(var(--muted))", opacity: 0.5 }}
+                contentStyle={{ 
+                  background: "hsl(230 12% 10%)", 
+                  border: "1px solid hsl(230 10% 16%)",
+                  borderRadius: "6px",
+                  fontSize: "12px"
+                }}
+                labelFormatter={formatPeriod}
+                formatter={(v: number, name: string) => [v.toLocaleString(), name]}
               />
-              {Object.entries(modelColors).map(([model, color]) => (
-                <Bar
-                  key={model}
-                  dataKey={`models.${model}`}
-                  stackId="a"
-                  fill={color}
+              {models.map((model, i) => (
+                <Bar 
+                  key={model} 
+                  dataKey={`model_${i}`} 
+                  stackId="a" 
+                  fill={colorMap[model]} 
+                  name={model}
                   radius={[2, 2, 0, 0]}
                 />
               ))}
@@ -197,15 +141,13 @@ export function ModelUsageChart({ data, loading }: ModelUsageChartProps) {
         </div>
       )}
 
-      {Object.keys(modelColors).length > 0 && (
-        <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-border">
-          {Object.entries(modelColors).map(([model, color]) => (
-            <div key={model} className="flex items-center gap-2">
-              <div
-                className="w-3 h-3 rounded-sm"
-                style={{ backgroundColor: color }}
-              />
-              <span className="text-xs text-muted-foreground">{model}</span>
+      {/* Legend */}
+      {models.length > 0 && (
+        <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t border-border">
+          {models.map(m => (
+            <div key={m} className="flex items-center gap-2">
+              <div className="size-2.5 rounded-sm" style={{ background: colorMap[m] }} />
+              <span className="text-xs text-muted-foreground">{m}</span>
             </div>
           ))}
         </div>

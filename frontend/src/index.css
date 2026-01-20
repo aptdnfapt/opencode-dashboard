@@ -4,59 +4,92 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --border: 240 5.9% 90%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --radius: 0.75rem;
-  }
+    /* Stripe Dark - Cool blue-gray palette */
+    --background: 230 15% 5%;          /* #0a0b0f - deepest bg */
+    --foreground: 220 10% 96%;         /* #f4f5f7 - primary text */
+    
+    --card: 230 12% 8%;                /* #111318 - card bg */
+    --card-foreground: 220 10% 96%;
+    
+    --popover: 230 12% 10%;            /* #161922 - dropdowns */
+    --popover-foreground: 220 10% 96%;
+    
+    --muted: 230 10% 14%;              /* #1f2229 - muted bg */
+    --muted-foreground: 220 8% 55%;    /* #848896 - secondary text */
+    
+    --border: 230 10% 16%;             /* #252831 - borders */
+    --input: 230 10% 16%;
+    
+    --primary: 245 75% 67%;            /* #635bff - Stripe indigo */
+    --primary-foreground: 0 0% 100%;
+    
+    --secondary: 230 12% 12%;
+    --secondary-foreground: 220 10% 96%;
+    
+    --accent: 245 75% 67%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 72% 63%;          /* #f45b69 - error red */
+    --destructive-foreground: 0 0% 100%;
+    
+    --ring: 245 75% 67%;
+    --radius: 0.5rem;
 
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --border: 240 3.7% 15.9%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
+    /* Status colors */
+    --success: 160 72% 42%;            /* #1fb871 */
+    --warning: 38 95% 60%;             /* #f5a623 */
+    --info: 200 95% 50%;               /* #06a5f0 */
+
+    /* Chart palette - muted, professional */
+    --chart-1: #635bff;  /* indigo - primary */
+    --chart-2: #0ea5e9;  /* sky blue */
+    --chart-3: #10b981;  /* emerald */
+    --chart-4: #f59e0b;  /* amber */
+    --chart-5: #ec4899;  /* pink */
+    --chart-6: #8b5cf6;  /* violet */
+    --chart-7: #06b6d4;  /* cyan */
+    --chart-8: #f43f5e;  /* rose */
   }
 }
 
-@keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
-    opacity: 1;
-  }
-  50% {
-    box-shadow: 0 0 15px currentColor, 0 0 25px currentColor;
-    opacity: 0.8;
-  }
-}
-
-.animate-shimmer {
-  animation: shimmer linear infinite;
+* {
+  border-color: hsl(var(--border));
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
   background: hsl(var(--background));
   color: hsl(var(--foreground));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar - thin, subtle */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
 }
