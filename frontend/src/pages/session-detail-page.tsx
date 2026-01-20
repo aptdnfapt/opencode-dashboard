@@ -167,10 +167,10 @@ export function SessionDetailPage() {
     return (
       <div className="min-h-screen">
         <div className="h-14 border-b border-border" />
-        <div className="p-6 space-y-4">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
+        <div className="p-4 sm:p-6 space-y-4">
+          <Skeleton className="h-6 sm:h-8 w-48" />
+          <Skeleton className="h-24 sm:h-32 w-full" />
+          <Skeleton className="h-24 sm:h-32 w-full" />
         </div>
       </div>
     )

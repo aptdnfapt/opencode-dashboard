@@ -114,7 +114,7 @@ export function SessionsPage() {
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
             {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className="h-32 rounded-lg" />
+              <Skeleton key={i} className="h-24 sm:h-32 rounded-lg" />
             ))}
           </div>
         ) : sessions.length === 0 ? (

@@ -858,3 +858,52 @@ Modern best practices for mobile timeline components include:
 ### Result
 Mobile users now have a fully responsive timeline experience that makes excellent use of limited screen real estate. The timeline adapts gracefully from tight `p-4` padding with compact 10px text and 2.5 icons on mobile phones (375px+) to spacious layouts with 24px padding, 12px text, and 3 icons on tablets and desktops. All elements scale proportionally, ensuring the timeline content is dense enough to show more activity without scrolling on mobile while remaining spacious and readable on larger screens. The content text maintains a minimum of 12px size (`text-xs` mobile, `text-sm` desktop) to ensure readability, while labels and metadata use smaller 10px text for better density. This brings the Session Detail Page timeline in line with 2025 mobile-first design standards, matching the responsive patterns established in the modal timeline (Iteration #7) and all other iterations (sidebar, stats headers, session cards, charts, login page, settings page). Users on mobile can now view more timeline events without excessive scrolling, while desktop users get a spacious, comfortable reading experience.
 
+## Iteration #13
+
+**Target:** Skeleton Loading States (Mobile-First Responsive Heights)
+
+**Files Updated:**
+- `frontend/src/pages/sessions-page.tsx` - Responsive card skeleton heights
+- `frontend/src/pages/session-detail-page.tsx` - Responsive page loading skeletons
+
+**Summary:**
+
+### Research Findings
+Through research on modern 2025 responsive design best practices (multiple production-grade codebases from GitHub including Pulse, Habitheat, pyrodactyl, and others), I identified Skeleton loading states as a critical UI/UX issue. While the modal skeleton (session-detail.tsx) was already responsive (Iteration #7), the page-level skeletons in session-detail-page.tsx and sessions-page.tsx used fixed heights (`h-8`, `h-32`) across all device sizes. On mobile devices (375px width), these fixed heights waste valuable screen real estate and make loading states appear unnecessarily large.
+
+Modern best practices for responsive skeleton loading states include:
+- **Progressive height scaling:** Use `h-24 sm:h-32` pattern - 25% smaller on mobile, standard on desktop
+- **Responsive container padding:** Scale container padding from `p-4` (16px) to `p-6` (24px) to match skeleton proportions
+- **Maintain visual consistency:** Ensure skeleton heights reflect actual content proportions after loading
+- **Mobile-optimized density:** Reduce vertical space by ~25% on mobile for better content density
+- **Touch-friendly sizing:** Maintain minimum visible height while optimizing for space constraints
+- **Consistent with other elements:** Match responsive patterns established across the application
+
+### Implementation Details
+
+**Mobile (< 640px):**
+- Sessions page card skeleton: `h-24` (96px) instead of `h-32` (128px) - saves 25% vertical space
+- Session detail page header skeleton: `h-6` (24px) instead of `h-8` (32px) - 25% smaller
+- Session detail page content skeletons: `h-24` (96px) instead of `h-32` (128px) - 25% smaller
+- Container padding: `p-4` (16px) for session detail page - tighter mobile spacing
+- Grid layout: Sessions page maintains `grid-cols-1` on mobile for single-column card layout
+
+**Small (sm: >= 640px):**
+- Sessions page card skeleton: `sm:h-32` (128px) for standard card height
+- Session detail page header skeleton: `sm:h-8` (32px) for standard header height
+- Session detail page content skeletons: `sm:h-32` (128px) for standard content height
+- Container padding: `sm:p-6` (24px) for session detail page - standard desktop spacing
+
+**Technical Improvements:**
+- All skeleton heights use responsive `h-24 sm:h-32` pattern (content skeletons)
+- Header skeleton uses responsive `h-6 sm:h-8` pattern
+- Session detail page container uses responsive `p-4 sm:p-6` pattern for consistency
+- Sessions page card skeletons match responsive pattern established in SessionCard component
+- Skeleton heights now align with actual content heights after loading (SessionCard ~24 items, content ~32 lines equivalent)
+- All responsive classes use Tailwind's `sm:` breakpoint (640px)
+- Skeleton loading states take up ~25% less vertical space on mobile devices
+- Maintains visual consistency between loading state and loaded content
+
+### Result
+Mobile users now see compact, information-dense skeleton loading states that make excellent use of limited screen real estate. The skeletons adapt gracefully from tight `h-24` heights with `p-4` padding on mobile phones (375px+) to standard `h-32` heights with `p-6` padding on tablets and desktops. All skeleton heights scale proportionally across device sizes, ensuring the loading states reflect actual content density. This brings all skeleton loading states in line with 2025 mobile-first design standards, matching the responsive patterns established in the modal skeleton (Iteration #7) and all previous iterations (sidebar, stats headers, session cards, charts, login page, settings page, timelines). Users on mobile now experience more compact loading states that don't waste valuable screen space, while desktop users see full-sized skeletons that match actual content proportions.
+
