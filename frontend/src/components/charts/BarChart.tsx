@@ -206,16 +206,16 @@ export function BarChart({
       <svg ref={svgRef} />
       {tooltip && (
         <div
-          className="absolute pointer-events-none bg-[hsl(230,12%,10%)] border border-[hsl(230,10%,18%)] rounded-md px-3 py-2 text-xs z-10"
+          className="absolute pointer-events-none bg-[hsl(230,12%,10%)] border border-[hsl(230,10%,18%)] rounded-md px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-xs z-10"
           style={{ left: tooltip.x, top: tooltip.y }}
         >
-          <div className="text-white font-medium mb-1">.{tooltip.label}</div>
-          <div className="flex justify-between gap-4">
+          <div className="text-white font-medium mb-0.5 sm:mb-1">.{tooltip.label}</div>
+          <div className="flex justify-between gap-3 sm:gap-4">
             <span className="text-gray-400">{valueLabel}</span>
             <span className="text-emerald-400">+{tooltip.value}</span>
           </div>
           {tooltip.secondary !== undefined && (
-            <div className="flex justify-between gap-4">
+            <div className="flex justify-between gap-3 sm:gap-4">
               <span className="text-gray-400">{secondaryLabel}</span>
               <span className="text-red-400">-{tooltip.secondary}</span>
             </div>

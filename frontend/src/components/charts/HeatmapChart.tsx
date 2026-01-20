@@ -189,7 +189,7 @@ export function HeatmapChart({
       <svg ref={svgRef} />
       {tooltip && (
         <div
-          className="absolute pointer-events-none bg-[hsl(230,12%,10%)] border border-[hsl(230,10%,18%)] rounded-md px-3 py-2 text-xs z-10"
+          className="absolute pointer-events-none bg-[hsl(230,12%,10%)] border border-[hsl(230,10%,18%)] rounded-md px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-xs z-10"
           style={{ left: tooltip.x, top: tooltip.y }}
         >
           <div className="text-white font-medium">{tooltip.date}</div>

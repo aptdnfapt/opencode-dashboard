@@ -174,11 +174,11 @@ export function StackedBarChart({
       
       {/* Legend */}
       {allModels.length > 0 && (
-        <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-white/10">
+        <div className="flex flex-wrap gap-2 sm:gap-3 mt-2.5 sm:mt-3 pt-2.5 sm:pt-3 border-t border-white/10">
           {allModels.map(m => (
-            <div key={m} className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm" style={{ background: colorMap[m] }} />
-              <span className="text-xs text-gray-400 truncate max-w-[150px]">{m}</span>
+            <div key={m} className="flex items-center gap-1.5 sm:gap-2">
+              <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-sm" style={{ background: colorMap[m] }} />
+              <span className="text-[10px] sm:text-xs text-gray-400 truncate max-w-[120px] sm:max-w-[150px]">{m}</span>
             </div>
           ))}
         </div>
@@ -187,15 +187,15 @@ export function StackedBarChart({
       {/* Tooltip */}
       {tooltip && (
         <div
-          className="absolute pointer-events-none bg-[hsl(230,12%,10%)] border border-[hsl(230,10%,18%)] rounded-md px-3 py-2 text-xs z-10 min-w-[140px]"
+          className="absolute pointer-events-none bg-[hsl(230,12%,10%)] border border-[hsl(230,10%,18%)] rounded-md px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-xs z-10 min-w-[130px] sm:min-w-[140px]"
           style={{ left: tooltip.x, top: tooltip.y }}
         >
-          <div className="text-gray-400 mb-2">{tooltip.period}</div>
+          <div className="text-gray-400 mb-1.5 sm:mb-2">{tooltip.period}</div>
           {tooltip.models.map(m => (
-            <div key={m.name} className="flex items-center justify-between gap-3 mb-1">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-sm" style={{ background: m.color }} />
-                <span className="text-white truncate max-w-[80px]">{m.name.split('/').pop()}</span>
+            <div key={m.name} className="flex items-center justify-between gap-2 sm:gap-3 mb-0.5 sm:mb-1">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-sm" style={{ background: m.color }} />
+                <span className="text-white truncate max-w-[70px] sm:max-w-[80px]">{m.name.split('/').pop()}</span>
               </div>
               <span className="text-gray-300 font-mono">{m.value}</span>
             </div>

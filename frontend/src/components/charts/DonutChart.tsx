@@ -158,17 +158,17 @@ export function DonutChart({
       <svg ref={svgRef} />
       
       {/* Center text */}
-      <div 
+      <div
         className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
         style={{ top: 0, left: 0 }}
       >
-        <span 
-          className="text-2xl font-semibold font-mono transition-colors duration-150"
+        <span
+          className="text-xl sm:text-2xl font-semibold font-mono transition-colors duration-150"
           style={{ color: centerText.color }}
         >
           {centerText.value}
         </span>
-        <span className="text-[10px] text-gray-500 uppercase tracking-wider mt-1">
+        <span className="text-[9px] sm:text-[10px] text-gray-500 uppercase tracking-wider mt-1">
           {centerText.label}
         </span>
       </div>
@@ -176,7 +176,7 @@ export function DonutChart({
       {/* Tooltip */}
       {tooltip && (
         <div
-          className="absolute pointer-events-none bg-[hsl(230,12%,10%)] border border-[hsl(230,10%,18%)] rounded-md px-3 py-2 text-xs z-10"
+          className="absolute pointer-events-none bg-[hsl(230,12%,10%)] border border-[hsl(230,10%,18%)] rounded-md px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-xs z-10"
           style={{ left: tooltip.x, top: tooltip.y }}
         >
           <div className="text-white font-medium mb-1">{tooltip.label}</div>

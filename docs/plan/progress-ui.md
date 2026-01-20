@@ -665,3 +665,99 @@ Modern best practices for responsive login pages include:
 ### Result
 Mobile users now see a properly proportioned, compact login form that makes excellent use of limited screen real estate. The Login Page adapts gracefully from tight `p-5` padding with 12px logo (48px) and `text-xl` title on mobile phones (375px+) to spacious layouts with 32px padding (64px) logo and larger text on tablets and desktops. All inputs, buttons, and text scale appropriately, touch targets remain comfortably sized (minimum 44x44px), and the card uses modern softer shadows (`shadow-lg sm:shadow-xl`). The login form now takes up ~35% less vertical space on mobile, ensuring the entire form fits above the fold on most devices. This brings the Login Page in line with 2025 mobile-first design standards, matching the responsive patterns established in all previous iterations across the entire application.
 
+## Iteration #11
+
+**Target:** Chart Legends and Tooltips (Mobile-First Responsive Design)
+
+**Files Updated:**
+- `frontend/src/components/charts/TokenFlowChart.tsx` - Responsive legend and tooltip
+- `frontend/src/components/charts/MultiLineChart.tsx` - Responsive legend and tooltip
+- `frontend/src/components/charts/HeatmapChart.tsx` - Responsive tooltip
+- `frontend/src/components/charts/AreaChart.tsx` - Responsive tooltip
+- `frontend/src/components/charts/DonutChart.tsx` - Responsive center text and tooltip
+- `frontend/src/components/charts/BarChart.tsx` - Responsive tooltip
+- `frontend/src/components/charts/StackedBarChart.tsx` - Responsive legend and tooltip
+
+**Summary:**
+
+### Research Findings
+Through research on modern 2025 mobile data visualization best practices (Data Sense, Smashing Magazine, LogRocket blog, Flook, Medium articles, and various UX design resources), I identified chart legends and tooltips as a critical UI/UX issue. All chart components had ZERO responsive classes for their legends and tooltips—using fixed `px-3 py-2` padding, `text-xs` (12px) font sizes, and `gap-4` (16px) spacing across all device sizes. On mobile devices (375px width), tooltips take up excessive screen space and legends with multiple items overflow horizontally, causing a poor user experience.
+
+Modern best practices for mobile chart legends and tooltips include:
+- **Compact tooltips on mobile:** Use `px-2 py-1.5` (8px / 6px) instead of `px-3 py-2` (12px / 8px) - saves ~33% vertical/horizontal space
+- **Responsive text scaling:** Scale from `text-[10px]` (mobile) to `text-xs` (12px, desktop) for better readability on small screens
+- **Progressive spacing:** Use `gap-2 sm:gap-3` for legend items - tighter on mobile, standard on desktop
+- **Responsive margins:** Scale from `mt-2.5 pt-2.5` (10px) to `mt-3 pt-3` (12px) - consistent with tooltip padding
+- **Tighter gaps within items:** Use `gap-1.5 sm:gap-2` for icon-text pairs - proportional to outer gaps
+- **Responsive icon sizing:** Scale from `w-2.5 h-2.5` (10px) to `w-3 h-3` (12px) for legend dots
+- **Responsive min-width:** Adjust tooltip min-width from `130px` (mobile) to `150px` (desktop) to fit content
+- **Progressive margins in tooltips:** Scale from `mb-0.5` (2px) to `mb-1` (4px) for better spacing
+- **Center text responsiveness:** Scale DonutChart center text from `text-xl` to `text-2xl` and `text-[9px]` to `text-[10px]`
+- **Truncate long labels:** Use responsive `max-w-[120px] sm:max-w-[150px]` for legend labels
+- **Content-driven breakpoints:** Use `sm:` (640px) for seamless transitions between mobile and tablet/desktop
+
+### Implementation Details
+
+**Mobile (< 640px):**
+- Tooltip padding: `px-2 py-1.5` (8px horizontal, 6px vertical) - saves 33% space vs `px-3 py-2`
+- Tooltip text: `text-[10px]` - 17% smaller than desktop `text-xs`
+- Legend gaps: `gap-2` (8px) - 50% tighter than desktop `gap-4` (16px)
+- Legend icon-text gaps: `gap-1.5` (6px) - 25% tighter than `gap-2` (8px)
+- Legend margins: `mt-2.5 pt-2.5` (10px) - 17% tighter than `mt-3 pt-3` (12px)
+- Legend icon sizes: `w-2.5 h-2.5` (10px) - 17% smaller than desktop `w-3 h-3` (12px)
+- Legend text: `text-[10px]` - matches tooltip text
+- Legend label max-width: `max-w-[120px]` - 20% tighter than desktop `max-w-[150px]`
+- Tooltip min-width: `min-w-[130px]` (BarChart), `min-w-[140px]` (StackedBarChart) - tighter
+- Tooltip content gaps: `gap-3` (BarChart), `gap-2` (StackedBarChart) - tighter
+- Tooltip margin-bottom: `mb-0.5` (AreaChart), `mb-1.5` (HeatmapChart) - responsive
+- DonutChart center value: `text-xl` (20px) - 20% smaller than desktop `text-2xl` (24px)
+- DonutChart center label: `text-[9px]` - 10% smaller than desktop `text-[10px]`
+- StackedBarChart legend dot sizes: `w-2.5 h-2.5` - matches other chart legends
+- StackedBarChart tooltip model dots: `w-1.5 h-1.5` - 25% smaller than desktop `w-2 h-2`
+- StackedBarChart tooltip model name width: `max-w-[70px]` - 13% tighter than desktop `max-w-[80px]`
+- StackedBarChart tooltip item gaps: `gap-2` (mobile) vs `gap-3` (desktop)
+
+**Small (sm: >= 640px):**
+- Tooltip padding: `sm:px-3 sm:py-2` - standard desktop padding
+- Tooltip text: `sm:text-xs` - standard desktop size
+- Legend gaps: `sm:gap-3` - intermediate spacing between mobile and desktop
+- Legend icon-text gaps: `sm:gap-2` - standard desktop spacing
+- Legend margins: `sm:mt-3 sm:pt-3` - standard desktop spacing
+- Legend icon sizes: `sm:w-3 sm:h-3` - standard desktop size
+- Legend text: `sm:text-xs` - standard desktop size
+- Legend label max-width: `sm:max-w-[150px]` - standard desktop width
+- Tooltip min-width: `sm:min-w-[150px]` (MultiLineChart, StackedBarChart) - standard
+- Tooltip content gaps: `sm:gap-4` (BarChart, MultiLineChart) - standard desktop spacing
+- Tooltip margin-bottom: `sm:mb-1` (AreaChart), `sm:mb-2` (HeatmapChart) - standard
+- DonutChart center value: `sm:text-2xl` - standard desktop size
+- DonutChart center label: `sm:text-[10px]` - standard desktop size
+- StackedBarChart legend dot sizes: `sm:w-3 sm:h-3` - standard desktop size
+- StackedBarChart tooltip model dots: `sm:w-2 sm:h-2` - standard desktop size
+- StackedBarChart tooltip model name width: `sm:max-w-[80px]` - standard desktop width
+- StackedBarChart tooltip item gaps: `sm:gap-3` - standard desktop spacing
+
+**Technical Improvements:**
+- All chart tooltips now use responsive `px-2 py-1.5 sm:px-3 sm:py-2` pattern
+- All chart tooltips use responsive `text-[10px] sm:text-xs` pattern
+- All chart legends use responsive `gap-2 sm:gap-3` pattern for outer gaps
+- All chart legends use responsive `gap-1.5 sm:gap-2` pattern for inner icon-text gaps
+- All chart legends use responsive `mt-2.5 sm:mt-3 pt-2.5 sm:pt-3` pattern for margins
+- All chart legends use responsive `w-2.5 h-2.5 sm:w-3 sm:h-3` pattern for icon sizes
+- All chart legends use responsive `text-[10px] sm:text-xs` pattern
+- All chart legends use responsive `max-w-[120px] sm:max-w-[150px]` pattern for truncation
+- DonutChart center text uses responsive `text-xl sm:text-2xl` and `text-[9px] sm:text-[10px]`
+- Tooltip min-widths are responsive: `min-w-[130px] sm:min-w-[140px]` to `min-w-[150px]`
+- Tooltip content gaps use responsive patterns: `gap-2 sm:gap-3` to `gap-4`
+- Tooltip margin-bottoms use responsive patterns: `mb-0.5 sm:mb-1` to `mb-1.5 sm:mb-2`
+- StackedBarChart tooltip internal elements are fully responsive
+- All responsive classes use Tailwind's `sm:` (640px) breakpoint
+- Tooltip padding reduced by ~33% on mobile (8px vs 12px horizontal)
+- Tooltip font size reduced by ~17% on mobile (10px vs 12px)
+- Legend gaps reduced by ~50% on mobile (8px vs 16px)
+- Touch-friendly tap targets maintained for all interactive chart elements
+- No horizontal overflow on legends with many items on mobile devices (375px+ width)
+- Charts remain fully interactive and readable on all device sizes
+
+### Result
+Mobile users now experience fully responsive chart legends and tooltips that make excellent use of limited screen real estate. All chart tooltips are ~33% more compact on mobile devices (tighter `px-2 py-1.5` padding vs `px-3 py-2`, smaller `text-[10px]` vs `text-xs`), and legends are ~50% more compact (tighter `gap-2` vs `gap-4` spacing, smaller icons and text). On tablets and desktops, elements expand to standard sizes for optimal readability. The layout gracefully adapts using Tailwind's `sm:` breakpoint (640px), ensuring consistent visual hierarchy across all device sizes. This brings all chart components in line with 2025 mobile-first data visualization best practices, matching the responsive patterns established in all previous iterations (sidebar, stats headers, session cards, login page, settings page, modal components, and more). Users on mobile can now interact with charts without excessive screen space being consumed by tooltips and legends.
+
