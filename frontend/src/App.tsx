@@ -44,7 +44,6 @@ export default function App() {
         updateSession(msg.data)
         break
       case 'attention':
-        console.log('[WS] attention event:', msg.data)
         updateSession({ id: msg.data.sessionId, needs_attention: msg.data.needsAttention ? 1 : 0 })
         // Play TTS for attention events
         if (msg.data.needsAttention && msg.data.audioUrl && localStorage.getItem('dashboard_tts_enabled') !== 'false') {
