@@ -1,6 +1,6 @@
 // frontend/src/pages/analytics-page.tsx
 // New analytics dashboard with D3 charts
-import { useState, useEffect, useCallback, useMemo, memo } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { AreaChart } from "@/components/charts/AreaChart"
 import { DonutChart } from "@/components/charts/DonutChart"
 import { BarChart } from "@/components/charts/BarChart"
@@ -165,34 +165,34 @@ export function AnalyticsPage() {
 
   return (
     <div className="min-h-screen">
-      {/* Header Stats Bar - hidden on mobile */}
-      <header className="hidden lg:sticky lg:top-0 lg:z-40 lg:border-b lg:border-border lg:bg-card/95 lg:backdrop-blur-sm lg:block">
-        <div className="px-6 py-4">
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      {/* Header Stats Bar - fully responsive */}
+      <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur-sm">
+        <div className="px-4 py-3 sm:px-6 sm:py-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
             <StatItem 
-              icon={<DollarSign className="size-4" />}
+              icon={<DollarSign className="size-3.5 sm:size-4" />}
               label="Total Spend"
               value={formatCost(summary.total_cost)}
               color="text-emerald-400"
             />
             <StatItem 
-              icon={<Zap className="size-4" />}
+              icon={<Zap className="size-3.5 sm:size-4" />}
               label="Requests"
               value={summary.total_requests.toLocaleString()}
             />
             <StatItem 
-              icon={<Coins className="size-4" />}
+              icon={<Coins className="size-3.5 sm:size-4" />}
               label="Total Tokens"
               value={formatTokens(summary.total_tokens)}
             />
             <StatItem 
-              icon={<ArrowDownToLine className="size-4" />}
+              icon={<ArrowDownToLine className="size-3.5 sm:size-4" />}
               label="Input"
               value={formatTokens(summary.total_input)}
               color="text-indigo-400"
             />
             <StatItem 
-              icon={<ArrowUpFromLine className="size-4" />}
+              icon={<ArrowUpFromLine className="size-3.5 sm:size-4" />}
               label="Output"
               value={formatTokens(summary.total_output)}
               color="text-sky-400"
@@ -332,11 +332,11 @@ function StatItem({ icon, label, value, color }: {
   color?: string 
 }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="text-muted-foreground">{icon}</div>
-      <div>
-        <div className={`text-lg font-semibold font-mono ${color || "text-foreground"}`}>{value}</div>
-        <div className="text-xs text-muted-foreground">{label}</div>
+    <div className="flex items-center gap-2.5 sm:gap-3">
+      <div className="text-muted-foreground shrink-0">{icon}</div>
+      <div className="min-w-0">
+        <div className={`text-base sm:text-lg font-semibold font-mono truncate ${color || "text-foreground"}`}>{value}</div>
+        <div className="text-[10px] sm:text-xs text-muted-foreground truncate">{label}</div>
       </div>
     </div>
   )
