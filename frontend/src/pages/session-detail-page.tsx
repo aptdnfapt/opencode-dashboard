@@ -238,46 +238,46 @@ export function SessionDetailPage() {
       </header>
 
       {/* Timeline */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden p-6 relative">
+      <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 relative">
         {sessionTimeline.length === 0 ? (
           <div className="text-center py-20">
             <Activity className="size-8 mx-auto mb-3 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">No activity yet</p>
           </div>
         ) : (
-          <div className="space-y-1 w-full max-w-full">
+          <div className="space-y-1 sm:space-y-2 w-full max-w-full">
             {sessionTimeline.map((event, index) => {
               const config = eventConfig[event.event_type] || { icon: Activity, color: "text-muted-foreground" }
               const Icon = config.icon
               const isLast = index === sessionTimeline.length - 1
 
               return (
-                <div key={event.id} className="flex gap-3">
+                <div key={event.id} className="flex gap-2 sm:gap-3">
                   {/* Timeline line + icon */}
-                  <div className="flex flex-col items-center w-6 shrink-0">
-                    <div className={`size-6 rounded-full bg-muted flex items-center justify-center ${config.color}`}>
-                      <Icon className="size-3" />
+                  <div className="flex flex-col items-center w-5 sm:w-6 shrink-0">
+                    <div className={`size-5 sm:size-6 rounded-full bg-muted flex items-center justify-center ${config.color}`}>
+                      <Icon className="size-2.5 sm:size-3" />
                     </div>
-                    {!isLast && <div className="w-px flex-1 bg-border my-1" />}
+                    {!isLast && <div className="w-px flex-1 bg-border my-0.5 sm:my-1" />}
                   </div>
 
                   {/* Content */}
-                  <div className="flex-1 min-w-0 pb-4 overflow-hidden">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <div className="flex-1 min-w-0 pb-3 sm:pb-4 overflow-hidden">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1 sm:mb-1.5">
+                      <span className="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-muted-foreground">
                         {event.event_type}
                       </span>
                       {event.tool_name && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted font-mono">
+                        <span className="text-[10px] sm:text-xs px-1 py-0.5 sm:px-1.5 sm:py-0.5 rounded bg-muted font-mono">
                           {event.tool_name}
                         </span>
                       )}
-                      <span className="text-xs text-muted-foreground ml-auto">
+                      <span className="text-[10px] sm:text-xs text-muted-foreground ml-auto">
                         {formatTime(event.timestamp)}
                       </span>
                     </div>
 
-                    <div className="rounded-md bg-muted p-3 text-sm overflow-x-auto max-w-full">
+                    <div className="rounded-md bg-muted p-2.5 sm:p-3 text-xs sm:text-sm overflow-x-auto max-w-full">
                       {event.event_type === "message" || event.event_type === "user" ? (
                         <div className="prose prose-sm prose-invert max-w-none break-words overflow-hidden">
                           <ReactMarkdown
@@ -288,8 +288,8 @@ export function SessionDetailPage() {
                                   <code
                                     className={
                                       isInline
-                                        ? "bg-background px-1 py-0.5 rounded text-xs break-all"
-                                        : "block bg-background p-3 rounded overflow-x-auto text-xs whitespace-pre-wrap break-all"
+                                        ? "bg-background px-0.5 py-0.5 sm:px-1 sm:py-0.5 rounded text-[10px] sm:text-xs break-all"
+                                        : "block bg-background p-2.5 sm:p-3 rounded overflow-x-auto text-[10px] sm:text-xs whitespace-pre-wrap break-all"
                                     }
                                   >
                                     {children}
@@ -302,14 +302,14 @@ export function SessionDetailPage() {
                           </ReactMarkdown>
                         </div>
                       ) : event.event_type === "tool" || event.event_type === "bash" ? (
-                        <div className="font-mono text-xs break-all whitespace-pre-wrap">
+                        <div className="font-mono text-[10px] sm:text-xs break-all whitespace-pre-wrap">
                           <span className="text-muted-foreground mr-2">$</span>
                           {event.summary}
                         </div>
                       ) : event.event_type === "error" ? (
-                        <div className="text-rose-400 text-xs">{event.summary}</div>
+                        <div className="text-rose-400 text-[10px] sm:text-xs">{event.summary}</div>
                       ) : (
-                        <p className="text-xs whitespace-pre-wrap">{event.summary}</p>
+                        <p className="text-[10px] sm:text-xs whitespace-pre-wrap">{event.summary}</p>
                       )}
                     </div>
                   </div>
