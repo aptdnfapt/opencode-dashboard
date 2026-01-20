@@ -118,62 +118,62 @@ export function SettingsPage() {
     <div className="min-h-screen">
       {/* Header */}
       <header className="sticky top-0 z-40 h-14 border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="h-full px-6 flex items-center">
+        <div className="h-full px-4 sm:px-6 flex items-center">
           <h1 className="text-sm font-medium">Settings</h1>
         </div>
       </header>
 
-      <div className="p-6 max-w-2xl">
+      <div className="p-4 sm:p-6 max-w-2xl sm:max-w-3xl">
         {/* Theme section */}
-        <div className="rounded-lg border border-border bg-card p-6">
-          <h2 className="text-sm font-medium mb-1">Appearance</h2>
-          <p className="text-xs text-muted-foreground mb-4">Choose your preferred theme</p>
+        <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
+          <h2 className="text-xs sm:text-sm font-medium mb-1">Appearance</h2>
+          <p className="text-[11px] sm:text-xs text-muted-foreground mb-3 sm:mb-4">Choose your preferred theme</p>
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {themes.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 onClick={() => setTheme(id)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                className={`flex items-center gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-md text-[11px] sm:text-sm transition-colors ${
                   theme === id
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground hover:text-foreground'
                 }`}
               >
-                <Icon className="size-4" />
+                <Icon className="size-3.5 sm:size-4" />
                 {label}
               </button>
             ))}
           </div>
 
-          <p className="text-xs text-muted-foreground mt-4">
+          <p className="text-[11px] sm:text-xs text-muted-foreground mt-3 sm:mt-4">
             Current: <span className="capitalize">{resolvedTheme}</span>
           </p>
         </div>
 
         {/* Sound Notifications section */}
-        <div className="rounded-lg border border-border bg-card p-6 mt-4">
-          <h2 className="text-sm font-medium mb-1">Sound Notifications</h2>
-          <p className="text-xs text-muted-foreground mb-4">
+        <div className="rounded-lg border border-border bg-card p-4 sm:p-6 mt-3 sm:mt-4">
+          <h2 className="text-xs sm:text-sm font-medium mb-1">Sound Notifications</h2>
+          <p className="text-[11px] sm:text-xs text-muted-foreground mb-3 sm:mb-4">
             Play a bing sound when a session becomes idle or needs attention
           </p>
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={handleSoundToggle}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-md text-[11px] sm:text-sm transition-colors ${
                 soundEnabled
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:text-foreground'
               }`}
             >
-              {soundEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+              {soundEnabled ? <Volume2 className="size-3.5 sm:size-4" /> : <VolumeX className="size-3.5 sm:size-4" />}
               {soundEnabled ? 'Enabled' : 'Disabled'}
             </button>
 
             <button
               onClick={testSound}
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-md text-[11px] sm:text-sm bg-muted text-muted-foreground hover:text-foreground transition-colors"
             >
               Test Sound
             </button>
@@ -181,34 +181,34 @@ export function SettingsPage() {
         </div>
 
         {/* Browser Notifications section */}
-        <div className="rounded-lg border border-border bg-card p-6 mt-4">
-          <h2 className="text-sm font-medium mb-1">Browser Notifications</h2>
-          <p className="text-xs text-muted-foreground mb-4">
+        <div className="rounded-lg border border-border bg-card p-4 sm:p-6 mt-3 sm:mt-4">
+          <h2 className="text-xs sm:text-sm font-medium mb-1">Browser Notifications</h2>
+          <p className="text-[11px] sm:text-xs text-muted-foreground mb-3 sm:mb-4">
             Show browser notification when a session becomes idle or needs attention (requires HTTPS)
           </p>
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={handleNotificationsToggle}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-md text-[11px] sm:text-sm transition-colors ${
                 notificationsEnabled
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:text-foreground'
               }`}
             >
-              {notificationsEnabled ? <Bell className="size-4" /> : <BellOff className="size-4" />}
+              {notificationsEnabled ? <Bell className="size-3.5 sm:size-4" /> : <BellOff className="size-3.5 sm:size-4" />}
               {notificationsEnabled ? 'Enabled' : 'Disabled'}
             </button>
 
             <button
               onClick={testNotification}
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-md text-[11px] sm:text-sm bg-muted text-muted-foreground hover:text-foreground transition-colors"
             >
               Test Notification
             </button>
           </div>
 
-          <p className="text-xs text-muted-foreground mt-4">
+          <p className="text-[11px] sm:text-xs text-muted-foreground mt-3 sm:mt-4">
             {typeof Notification !== 'undefined' && Notification.permission === 'granted' 
               ? 'Permission granted'
               : 'Requires HTTPS and browser permission'}
@@ -216,34 +216,34 @@ export function SettingsPage() {
         </div>
 
         {/* TTS section */}
-        <div className="rounded-lg border border-border bg-card p-6 mt-4">
-          <h2 className="text-sm font-medium mb-1">Voice Announcements</h2>
-          <p className="text-xs text-muted-foreground mb-4">
+        <div className="rounded-lg border border-border bg-card p-4 sm:p-6 mt-3 sm:mt-4">
+          <h2 className="text-xs sm:text-sm font-medium mb-1">Voice Announcements</h2>
+          <p className="text-[11px] sm:text-xs text-muted-foreground mb-3 sm:mb-4">
             Speak session title when it goes idle (uses Kokoro TTS model)
           </p>
           
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={handleTTSToggle}
-              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-md text-[11px] sm:text-sm transition-colors ${
                 ttsEnabled
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:text-foreground'
               }`}
             >
-              {ttsEnabled ? <Volume2 className="size-4" /> : <VolumeX className="size-4" />}
+              {ttsEnabled ? <Volume2 className="size-3.5 sm:size-4" /> : <VolumeX className="size-3.5 sm:size-4" />}
               {ttsEnabled ? 'Enabled' : 'Disabled'}
             </button>
 
             <button
               onClick={testTTS}
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-sm bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-md text-[11px] sm:text-sm bg-muted text-muted-foreground hover:text-foreground transition-colors"
             >
               Test TTS
             </button>
           </div>
 
-          <p className="text-xs text-muted-foreground mt-4">
+          <p className="text-[11px] sm:text-xs text-muted-foreground mt-3 sm:mt-4">
             When a session becomes idle, you'll hear: "[session title] is idle"
           </p>
         </div>
