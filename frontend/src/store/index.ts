@@ -38,6 +38,7 @@ interface Filters {
   hostname: string | null
   status: string | null
   search: string
+  directory: string
 }
 
 interface DashboardStore {
@@ -70,7 +71,7 @@ export const useStore = create<DashboardStore>((set, get) => ({
   selectedSession: null,
   timeline: new Map(),
   messages: new Map(),
-  filters: { hostname: null, status: null, search: '' },
+  filters: { hostname: null, status: null, search: '', directory: '' },
   theme: 'system',
   wsConnected: false,
 

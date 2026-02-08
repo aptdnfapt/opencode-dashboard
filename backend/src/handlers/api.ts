@@ -42,10 +42,29 @@ export function createApiHandler(app: Hono, db: Database) {
       }
     })
   })
+  // GET /api/projects - list distinct directories with aggregated stats
+  app.get('/api/projects', (c: Context) => {
+    const projects = db.prepare(`
+      SELECT 
+        directory,
+        COUNT(*) as session_count,
+        SUM(token_total) as total_tokens,
+        SUM(cost_total) as total_cost,
+        MAX(updated_at) as last_activity,
+        SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_count
+      FROM sessions 
+      WHERE directory IS NOT NULL
+      GROUP BY directory
+      ORDER BY last_activity DESC
+    `).all()
+    
+    return c.json(projects)
+  })
+
   // GET /api/sessions - list sessions with optional filters
   // Sessions not updated for 60s while "active" are marked as "stale"
   app.get('/api/sessions', (c: Context) => {
-    const { hostname, status, search, date } = c.req.query()
+    const { hostname, status, search, date, directory } = c.req.query()
     const STALE_THRESHOLD = 60 * 1000 // 1 minute
     const now = Date.now()
 
@@ -55,6 +74,10 @@ export function createApiHandler(app: Hono, db: Database) {
     if (hostname) {
       sql += ' AND hostname = ?'
       params.push(hostname)
+    }
+    if (directory) {
+      sql += ' AND directory = ?'
+      params.push(directory)
     }
     // Don't filter by status yet - we'll compute it dynamically
     if (search) {
@@ -620,5 +643,28 @@ export function createApiHandler(app: Hono, db: Database) {
     `).all() as { model_id: string }[]
     
     return c.json(models.map(m => m.model_id))
+  })
+
+  // GET /api/analytics/by-project - project-level analytics with time range
+  app.get('/api/analytics/by-project', (c: Context) => {
+    const range = c.req.query('range') || '7d'
+    // Calculate timestamp for range (7d = 7 days ago, etc)
+    const days = range === '24h' ? 1 : range === '30d' ? 30 : range === '1y' ? 365 : 7
+    const since = Date.now() - (days * 24 * 60 * 60 * 1000)
+    
+    const projects = db.prepare(`
+      SELECT 
+        s.directory,
+        COUNT(DISTINCT s.id) as sessions,
+        COALESCE(SUM(t.tokens_in + t.tokens_out), 0) as tokens,
+        COALESCE(SUM(t.cost), 0) as cost
+      FROM sessions s
+      LEFT JOIN token_usage t ON s.id = t.session_id AND t.timestamp >= ?
+      WHERE s.directory IS NOT NULL
+      GROUP BY s.directory
+      ORDER BY cost DESC
+    `).all(since)
+    
+    return c.json(projects)
   })
 }

@@ -8,7 +8,7 @@ describe('Dashboard Store', () => {
     useStore.setState({
       sessions: [],
       selectedSession: null,
-      filters: { hostname: null, status: null, search: '' },
+      filters: { hostname: null, status: null, search: '', directory: '' },
       theme: 'system',
       wsConnected: false,
       timeline: new Map()
@@ -44,7 +44,7 @@ describe('Dashboard Store', () => {
         { id: 's1', hostname: 'vps1', title: 'A', status: 'active' },
         { id: 's2', hostname: 'vps2', title: 'B', status: 'active' }
       ] as any,
-      filters: { hostname: 'vps1', status: null, search: '' }
+      filters: { hostname: 'vps1', status: null, search: '', directory: '' }
     })
 
     const filtered = useStore.getState().getFilteredSessions()
@@ -58,7 +58,7 @@ describe('Dashboard Store', () => {
         { id: 's1', hostname: 'vps1', title: 'Fix bug', status: 'active' },
         { id: 's2', hostname: 'vps1', title: 'Add feature', status: 'active' }
       ] as any,
-      filters: { hostname: null, status: null, search: 'bug' }
+      filters: { hostname: null, status: null, search: 'bug', directory: '' }
     })
 
     const filtered = useStore.getState().getFilteredSessions()
