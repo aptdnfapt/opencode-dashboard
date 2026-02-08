@@ -77,13 +77,7 @@ export default function App() {
     }
   }, [playQueuedAudio])
 
-  // Clear audio queue - exposed for potential future use
-  const _clearAudioQueue = useCallback(() => {
-    audioQueueRef.current = []
-    currentAudioRef.current?.pause()
-    currentAudioRef.current = null
-    isPlayingRef.current = false
-  }, [])
+
 
   const handleLogin = (_password: string) => {
     setIsAuthenticated(true)
@@ -126,65 +120,76 @@ export default function App() {
   }, [])
 
   // Global WebSocket handler - stable callback using getState() to avoid dependency churn
-  const handleWSMessage = useCallback((msg: any) => {
+  const handleWSMessage = useCallback((msg: { type: string; data?: Record<string, unknown> }) => {
     // Get store actions directly from getState() for stable callback
     const { addSession, updateSession, addTimelineEvent } = useStore.getState()
+    const data = msg.data || {}
     
     switch (msg.type) {
       case 'session.created':
-        addSession(msg.data)
+        if (data.id) addSession(data as unknown as Parameters<typeof addSession>[0])
         break
       case 'session.updated':
-        updateSession(msg.data)
+        if (data.id) updateSession(data as unknown as Parameters<typeof updateSession>[0])
         break
       case 'attention': {
-        updateSession({ id: msg.data.sessionId, needs_attention: msg.data.needsAttention ? 1 : 0 })
-        const isSubagentAttention = msg.data.isSubagent === true
-        if (msg.data.needsAttention) {
-          // Bing sound (default on)
-          playBing()
-          // Browser notification (default on, requires HTTPS)
-          const session = sessionsRef.current.find(s => s.id === msg.data.sessionId)
-          const prefix = isSubagentAttention ? '[Subagent] ' : ''
-          showNotification(`${prefix}${session?.title || 'Session'} needs attention`, 'A session requires your input')
-        }
-        // Queue TTS for attention events (opt-in, must be explicitly 'true')
-        if (msg.data.needsAttention && msg.data.audioUrl && localStorage.getItem('dashboard_tts_enabled') === 'true') {
-          queueAudio(msg.data.audioUrl as string)
+        const sessionId = data.sessionId as string | undefined
+        const needsAttention = data.needsAttention as boolean | undefined
+        const isSubagent = data.isSubagent as boolean | undefined
+        const audioUrl = data.audioUrl as string | undefined
+        
+        if (sessionId) {
+          updateSession({ id: sessionId, needs_attention: needsAttention ? 1 : 0 })
+          if (needsAttention) {
+            playBing()
+            const session = sessionsRef.current.find(s => s.id === sessionId)
+            const prefix = isSubagent ? '[Subagent] ' : ''
+            showNotification(`${prefix}${session?.title || 'Session'} needs attention`, 'A session requires your input')
+          }
+          if (needsAttention && audioUrl && localStorage.getItem('dashboard_tts_enabled') === 'true') {
+            queueAudio(audioUrl)
+          }
         }
         break
       }
       case 'idle': {
-        updateSession({ id: msg.data.sessionId, status: 'idle' })
-        const isSubagentIdle = msg.data.isSubagent === true
-        // Bing sound (default on)
-        playBing()
-        // Browser notification (default on, requires HTTPS)
-        const session = sessionsRef.current.find(s => s.id === msg.data.sessionId)
-        const prefix = isSubagentIdle ? '[Subagent] ' : ''
-        showNotification(`${prefix}${session?.title || 'Session'} is idle`, 'The session is waiting for input')
-        // Queue TTS audio if provided by server (opt-in, must be explicitly 'true')
-        if (msg.data.audioUrl && localStorage.getItem('dashboard_tts_enabled') === 'true') {
-          queueAudio(msg.data.audioUrl as string)
+        const sessionId = data.sessionId as string | undefined
+        const isSubagent = data.isSubagent as boolean | undefined
+        const audioUrl = data.audioUrl as string | undefined
+        
+        if (sessionId) {
+          updateSession({ id: sessionId, status: 'idle' })
+          playBing()
+          const session = sessionsRef.current.find(s => s.id === sessionId)
+          const prefix = isSubagent ? '[Subagent] ' : ''
+          showNotification(`${prefix}${session?.title || 'Session'} is idle`, 'The session is waiting for input')
+          if (audioUrl && localStorage.getItem('dashboard_tts_enabled') === 'true') {
+            queueAudio(audioUrl)
+          }
         }
         break
       }
-      case 'error':
-        updateSession({ id: msg.data.sessionId, status: 'error' })
+      case 'error': {
+        const sessionId = data.sessionId as string | undefined
+        if (sessionId) updateSession({ id: sessionId, status: 'error' })
         break
-      case 'timeline':
-        // Add timeline event to store for the specific session
-        addTimelineEvent(msg.data.sessionId as string, {
-          id: Date.now(),
-          session_id: msg.data.sessionId as string,
-          timestamp: Date.now(),
-          event_type: msg.data.eventType as string,
-          summary: msg.data.summary as string,
-          tool_name: msg.data.tool as string | undefined
-        })
+      }
+      case 'timeline': {
+        const sessionId = data.sessionId as string | undefined
+        if (sessionId) {
+          addTimelineEvent(sessionId, {
+            id: Date.now(),
+            session_id: sessionId,
+            timestamp: Date.now(),
+            event_type: (data.eventType as string) || '',
+            summary: (data.summary as string) || '',
+            tool_name: data.tool as string | undefined
+          })
+        }
         break
+      }
     }
-  }, [queueAudio, playBing, showNotification]) // Reduced deps - store actions via getState()
+  }, [queueAudio, playBing, showNotification])
 
   const password = localStorage.getItem('dashboard_password') || ''
   useWebSocket(password, handleWSMessage, setWsConnected)
