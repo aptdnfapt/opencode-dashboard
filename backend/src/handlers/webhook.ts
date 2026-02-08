@@ -155,14 +155,23 @@ export function createWebhookHandler(app: Hono, db: Database) {
             
             wsManager.broadcastAttention(event.sessionId!, true, attentionAudioUrl, isSubagentAttention)
           } else {
-            // Any other event clears needs_attention (permission was handled)
-            const currentSession = db.prepare('SELECT needs_attention FROM sessions WHERE id = ?').get(event.sessionId) as { needs_attention: number } | null
-            if (currentSession?.needs_attention === 1) {
-              db.prepare('UPDATE sessions SET needs_attention = 0, status = ? WHERE id = ?')
-                .run('active', event.sessionId)
-              // Broadcast status change to active
-              wsManager.broadcastSessionUpdated({ id: event.sessionId, status: 'active', needs_attention: 0 })
-              wsManager.broadcastAttention(event.sessionId!, false)
+            // Any activity clears needs_attention and sets status to active
+            const currentSession = db.prepare('SELECT needs_attention, status FROM sessions WHERE id = ?')
+              .get(event.sessionId) as { needs_attention: number; status: string } | null
+            
+            if (currentSession) {
+              const wasIdle = currentSession.status === 'idle'
+              const hadAttention = currentSession.needs_attention === 1
+              
+              if (wasIdle || hadAttention) {
+                db.prepare('UPDATE sessions SET needs_attention = 0, status = ? WHERE id = ?')
+                  .run('active', event.sessionId)
+                // Broadcast status change to active
+                wsManager.broadcastSessionUpdated({ id: event.sessionId, status: 'active', needs_attention: 0 })
+                if (hadAttention) {
+                  wsManager.broadcastAttention(event.sessionId!, false)
+                }
+              }
             }
           }
           break

@@ -6,6 +6,7 @@
   import SessionCard from '$lib/components/SessionCard.svelte'
   import StatCard from '$lib/components/StatCard.svelte'
   import ProjectSidebar from '$lib/components/ProjectSidebar.svelte'
+  import SessionFilters from '$lib/components/SessionFilters.svelte'
   
   let loading = $state(true)
   let error = $state<string | null>(null)
@@ -64,23 +65,8 @@
   </div>
 
   <!-- Filter bar -->
-  <div class="flex items-center gap-3 mb-4">
-    <input
-      type="text"
-      placeholder="Search sessions..."
-      class="flex-1 max-w-xs px-3 py-2 text-sm rounded-md bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[var(--fg-primary)] placeholder:text-[var(--fg-muted)] focus:outline-none focus:border-[var(--accent-blue)]"
-      oninput={(e) => store.setFilter('search', e.currentTarget.value)}
-    />
-    <select
-      class="px-3 py-2 text-sm rounded-md bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[var(--fg-primary)] focus:outline-none focus:border-[var(--accent-blue)]"
-      onchange={(e) => store.setFilter('status', e.currentTarget.value)}
-    >
-      <option value="">All status</option>
-      <option value="active">Active</option>
-      <option value="idle">Idle</option>
-      <option value="error">Error</option>
-      <option value="stale">Stale</option>
-    </select>
+  <div class="mb-4">
+    <SessionFilters sessions={store.sessions} />
   </div>
 
   <!-- Sessions grid -->

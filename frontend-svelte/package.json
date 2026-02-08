@@ -11,6 +11,9 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
 	},
+	"dependencies": {
+		"marked": "^15.0.0"
+	},
 	"devDependencies": {
 		"chart.js": "^4.4.7",
 		"@sveltejs/adapter-auto": "^7.0.0",

@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation'
   import { page } from '$app/stores'
   import { wsService } from '$lib/websocket.svelte'
+  import { themeStore } from '$lib/theme.svelte'
   import Sidebar from '$lib/components/Sidebar.svelte'
   
   let { children } = $props()
@@ -33,6 +34,9 @@
   })
   
   onMount(() => {
+    // Initialize theme from localStorage
+    themeStore.init()
+    
     // Only connect WS if authenticated
     if (localStorage.getItem('dashboard_authenticated') === 'true') {
       wsService.connect()

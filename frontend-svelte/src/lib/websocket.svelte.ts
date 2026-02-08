@@ -2,6 +2,8 @@
 
 import { store } from './store.svelte'
 import type { WSMessage, Session, TimelineEvent } from './types'
+import { playBing, queueAudio } from './audio'
+import { showNotification } from './notifications'
 
 // WS_URL computed lazily to avoid SSR window access
 function getWsUrl(): string {
@@ -180,6 +182,18 @@ class WebSocketService {
             id: msg.data.sessionId as string,
             needs_attention: msg.data.needsAttention ? 1 : 0
           })
+          
+          // Play bing + show notification
+          if (msg.data.needsAttention) {
+            playBing()
+            const title = (msg.data.title as string) || 'Session'
+            showNotification('Attention Required', `${title} needs your attention`)
+            
+            // Queue TTS if audioUrl provided
+            if (msg.data.audioUrl) {
+              queueAudio(msg.data.audioUrl as string)
+            }
+          }
         }
         break
 
@@ -189,6 +203,16 @@ class WebSocketService {
             id: msg.data.sessionId as string,
             status: 'idle'
           })
+          
+          // Play bing + show notification
+          playBing()
+          const title = (msg.data.title as string) || 'Session'
+          showNotification('Session Idle', `${title} is now idle`)
+          
+          // Queue TTS if audioUrl provided
+          if (msg.data.audioUrl) {
+            queueAudio(msg.data.audioUrl as string)
+          }
         }
         break
 

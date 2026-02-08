@@ -11,9 +11,8 @@
     loading = true
     
     try {
-      // Validate password against backend
-      const apiUrl = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3001`
-      const res = await fetch(`${apiUrl}/api/sessions`, {
+      // Validate password against backend (use relative URL for Vite proxy)
+      const res = await fetch('/api/sessions', {
         headers: { 'X-API-Key': password }
       })
       
