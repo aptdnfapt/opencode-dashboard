@@ -5,34 +5,34 @@
 @layer base {
   :root {
     /* Stripe Dark - Cool blue-gray palette */
-    --background: 230 15% 5%;          /* #0a0b0f - deepest bg */
-    --foreground: 220 10% 96%;         /* #f4f5f7 - primary text */
+    --background: 0 0% 100%;          /* #0a0b0f - deepest bg */
+    --foreground: 0 0% 3.9%;         /* #f4f5f7 - primary text */
     
-    --card: 230 12% 8%;                /* #111318 - card bg */
-    --card-foreground: 220 10% 96%;
+    --card: 0 0% 100%;                /* #111318 - card bg */
+    --card-foreground: 0 0% 3.9%;
     
-    --popover: 230 12% 10%;            /* #161922 - dropdowns */
-    --popover-foreground: 220 10% 96%;
+    --popover: 0 0% 100%;            /* #161922 - dropdowns */
+    --popover-foreground: 0 0% 3.9%;
     
-    --muted: 230 10% 14%;              /* #1f2229 - muted bg */
-    --muted-foreground: 220 8% 55%;    /* #848896 - secondary text */
+    --muted: 0 0% 96.1%;              /* #1f2229 - muted bg */
+    --muted-foreground: 0 0% 45.1%;    /* #848896 - secondary text */
     
-    --border: 230 10% 16%;             /* #252831 - borders */
-    --input: 230 10% 16%;
+    --border: 0 0% 89.8%;             /* #252831 - borders */
+    --input: 0 0% 89.8%;
     
-    --primary: 245 75% 67%;            /* #635bff - Stripe indigo */
-    --primary-foreground: 0 0% 100%;
+    --primary: 0 0% 9%;            /* #635bff - Stripe indigo */
+    --primary-foreground: 0 0% 98%;
     
-    --secondary: 230 12% 12%;
-    --secondary-foreground: 220 10% 96%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
     
-    --accent: 245 75% 67%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
     
-    --destructive: 0 72% 63%;          /* #f45b69 - error red */
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;          /* #f45b69 - error red */
+    --destructive-foreground: 0 0% 98%;
     
-    --ring: 245 75% 67%;
+    --ring: 0 0% 3.9%;
     --radius: 0.5rem;
 
     /* Status colors */
@@ -41,14 +41,48 @@
     --info: 200 95% 50%;               /* #06a5f0 */
 
     /* Chart palette - muted, professional */
-    --chart-1: #635bff;  /* indigo - primary */
-    --chart-2: #0ea5e9;  /* sky blue */
-    --chart-3: #10b981;  /* emerald */
-    --chart-4: #f59e0b;  /* amber */
-    --chart-5: #ec4899;  /* pink */
+    --chart-1: 12 76% 61%;  /* indigo - primary */
+    --chart-2: 173 58% 39%;  /* sky blue */
+    --chart-3: 197 37% 24%;  /* emerald */
+    --chart-4: 43 74% 66%;  /* amber */
+    --chart-5: 27 87% 67%;  /* pink */
     --chart-6: #8b5cf6;  /* violet */
     --chart-7: #06b6d4;  /* cyan */
-    --chart-8: #f43f5e;  /* rose */
+    --chart-8: #f43f5e;  /* rose */  --sidebar-background: 0 0% 98%;  --sidebar-foreground: 240 5.3% 26.1%;  --sidebar-primary: 240 5.9% 10%;  --sidebar-primary-foreground: 0 0% 98%;  --sidebar-accent: 240 4.8% 95.9%;  --sidebar-accent-foreground: 240 5.9% 10%;  --sidebar-border: 220 13% 91%;  --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -92,4 +126,13 @@ html {
 *:focus-visible {
   outline: 2px solid hsl(var(--primary));
   outline-offset: 2px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
