@@ -132,6 +132,7 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
             send({
               type: "session.created",
               sessionId: session.id,
+              parentSessionId: session.parentID,
               title: session.title || "Untitled Session"
             })
           }

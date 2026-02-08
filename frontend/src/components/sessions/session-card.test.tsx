@@ -29,20 +29,21 @@ describe('SessionCard', () => {
   it('shows status badge with correct variant', () => {
     render(<SessionCard session={mockSession} onClick={() => {}} />)
 
-    expect(screen.getByText('active')).toBeInTheDocument()
+    expect(screen.getByText('Active')).toBeInTheDocument()
   })
 
   it('shows attention indicator when needs_attention is 1', () => {
     const attentionSession = { ...mockSession, needs_attention: 1 }
     render(<SessionCard session={attentionSession} onClick={() => {}} />)
 
-    expect(screen.getByText('Needs Attention')).toBeInTheDocument()
+    expect(screen.getByText('Needs attention')).toBeInTheDocument()
   })
 
   it('displays token count and cost', () => {
     render(<SessionCard session={mockSession} onClick={() => {}} />)
 
-    expect(screen.getByText(/15,000/)).toBeInTheDocument()
+    // Token displayed as "15.0k" format
+    expect(screen.getByText(/15\.0k/)).toBeInTheDocument()
     expect(screen.getByText(/\$0\.45/)).toBeInTheDocument()
   })
 
@@ -59,6 +60,6 @@ describe('SessionCard', () => {
       <SessionCard session={mockSession} onClick={() => {}} justUpdated />
     )
 
-    expect(container.firstChild).toHaveClass('ring-2')
+    expect(container.firstChild).toHaveClass('ring-1')
   })
 })

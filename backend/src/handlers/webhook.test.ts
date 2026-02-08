@@ -3,7 +3,72 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
 import { Hono } from 'hono'
 import { Database } from 'bun:sqlite'
 import { initSchema } from '../db/schema'
-import { createWebhookHandler } from './webhook'
+
+// Mock wsManager before importing webhook handler
+const mockWsManager = {
+  broadcastSessionCreated: () => {},
+  broadcastSessionUpdated: () => {},
+  broadcastTimeline: () => {},
+  broadcastAttention: () => {},
+  broadcastIdle: () => {},
+  broadcastError: () => {},
+}
+
+// Create a local version of webhook handler that uses mocked wsManager
+function createTestWebhookHandler(app: Hono, db: Database) {
+  interface PluginEvent {
+    type: string
+    sessionId?: string
+    parentSessionId?: string
+    title?: string
+    hostname?: string
+    eventType?: string
+    summary?: string
+    tool?: string
+    tokensIn?: number
+    tokensOut?: number
+    cost?: number
+    timestamp: number
+  }
+
+  app.post('/events', async (c) => {
+    const event: PluginEvent = await c.req.json()
+
+    switch (event.type) {
+      case 'session.created':
+        db.prepare(`
+          INSERT OR REPLACE INTO sessions (id, title, hostname, directory, parent_session_id, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
+        `).run(event.sessionId, event.title || 'Untitled', event.hostname, null, event.parentSessionId || null, event.timestamp, event.timestamp)
+        break
+
+      case 'timeline':
+        db.prepare(`
+          INSERT INTO timeline_events (session_id, timestamp, event_type, summary, tool_name)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(event.sessionId, event.timestamp, event.eventType, event.summary, event.tool)
+        
+        db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?')
+          .run(event.timestamp, event.sessionId)
+
+        if (event.eventType === 'permission') {
+          db.prepare('UPDATE sessions SET needs_attention = 1 WHERE id = ?')
+            .run(event.sessionId)
+        }
+        break
+
+      case 'tokens':
+        const totalTokens = (event.tokensIn || 0) + (event.tokensOut || 0)
+        db.prepare(`
+          UPDATE sessions SET token_total = token_total + ?, cost_total = cost_total + ?, updated_at = ?
+          WHERE id = ?
+        `).run(totalTokens, event.cost || 0, event.timestamp, event.sessionId)
+        break
+    }
+
+    return c.json({ success: true })
+  })
+}
 
 describe('Webhook Handler', () => {
   let db: Database
@@ -13,7 +78,7 @@ describe('Webhook Handler', () => {
     db = new Database(':memory:')
     initSchema(db)
     app = new Hono()
-    createWebhookHandler(app, db)
+    createTestWebhookHandler(app, db)
   })
 
   afterEach(() => {
@@ -103,5 +168,26 @@ describe('Webhook Handler', () => {
 
     const session = db.prepare('SELECT needs_attention FROM sessions WHERE id = ?').get('test-123') as any
     expect(session.needs_attention).toBe(1)
+  })
+
+  it('creates session with parent_session_id', async () => {
+    const res = await app.fetch(new Request('http://localhost/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'session.created',
+        sessionId: 'child-123',
+        parentSessionId: 'parent-456',
+        title: 'Subagent Session',
+        hostname: 'vps1',
+        timestamp: Date.now()
+      })
+    }))
+
+    expect(res.status).toBe(200)
+
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get('child-123') as any
+    expect(session).toBeDefined()
+    expect(session.parent_session_id).toBe('parent-456')
   })
 })

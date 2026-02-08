@@ -13,6 +13,7 @@ export function initSchema(db: Database): void {
       title TEXT NOT NULL,
       hostname TEXT NOT NULL,
       directory TEXT,
+      parent_session_id TEXT,
       status TEXT DEFAULT 'active',
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
@@ -87,7 +88,10 @@ export function initSchema(db: Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_token_session ON token_usage(session_id)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_token_model ON token_usage(model_id, timestamp)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_token_agent ON token_usage(agent, timestamp)')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_token_timestamp ON token_usage(timestamp DESC)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status, updated_at)')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session_id)')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_directory ON sessions(directory)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_file_edits_session ON file_edits(session_id)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_file_edits_ext ON file_edits(file_extension)')
 }

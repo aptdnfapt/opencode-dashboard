@@ -68,11 +68,15 @@ if (import.meta.main) {
       open(ws) { wsManager.register(ws) },
       close(ws) { wsManager.unregister(ws) },
       message(ws, msg) {
-        const data = JSON.parse(msg.toString())
-        if (data.type === 'auth') {
-          const valid = !process.env.FRONTEND_PASSWORD || data.password === process.env.FRONTEND_PASSWORD
-          ws.send(JSON.stringify({ type: 'auth', success: valid }))
-          if (!valid) ws.close()
+        try {
+          const data = JSON.parse(msg.toString())
+          if (data.type === 'auth') {
+            const valid = !process.env.FRONTEND_PASSWORD || data.password === process.env.FRONTEND_PASSWORD
+            ws.send(JSON.stringify({ type: 'auth', success: valid }))
+            if (!valid) ws.close()
+          }
+        } catch (err) {
+          console.warn('Invalid WebSocket message:', err)
         }
       }
     }

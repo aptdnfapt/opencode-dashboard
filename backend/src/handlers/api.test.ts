@@ -15,12 +15,12 @@ describe('API Endpoints', () => {
     app = new Hono()
     createApiHandler(app, db)
 
-    // Seed test data
+    // Seed test data (11 columns: id, title, hostname, directory, parent_session_id, status, created_at, updated_at, needs_attention, token_total, cost_total)
     const now = Date.now()
-    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run('s1', 'Session 1', 'vps1', '/home', 'active', now, now, 0, 1000, 0.05)
-    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run('s2', 'Session 2', 'vps2', '/home', 'idle', now, now, 1, 500, 0.02)
+    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('s1', 'Session 1', 'vps1', '/home', null, 'active', now, now, 0, 1000, 0.05)
+    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('s2', 'Session 2', 'vps2', '/home', null, 'idle', now, now, 1, 500, 0.02)
   })
 
   afterEach(() => db.close())

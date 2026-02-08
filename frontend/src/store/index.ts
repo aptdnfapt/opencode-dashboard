@@ -7,6 +7,7 @@ export interface Session {
   title: string
   hostname: string
   directory?: string
+  parent_session_id?: string
   status: 'active' | 'idle' | 'error' | 'old'
   created_at: number
   updated_at: number

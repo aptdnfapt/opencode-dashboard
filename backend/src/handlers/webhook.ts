@@ -8,6 +8,7 @@ import { generateIdleAnnouncement, isTTSReady, generateSignedUrl } from '../serv
 interface PluginEvent {
   type: string
   sessionId?: string
+  parentSessionId?: string
   title?: string
   hostname?: string
   eventType?: string
@@ -34,7 +35,8 @@ interface PluginEvent {
 
 export function createWebhookHandler(app: Hono, db: Database) {
   // Ensure session exists - auto-create if missing (for resumed old sessions)
-  function ensureSession(sessionId: string, hostname?: string, timestamp?: number) {
+  // Returns true if session was newly created, false if it already existed
+  function ensureSession(sessionId: string, hostname?: string, timestamp?: number): boolean {
     const exists = db.prepare('SELECT 1 FROM sessions WHERE id = ?').get(sessionId)
     if (!exists) {
       db.prepare(`
@@ -48,7 +50,12 @@ export function createWebhookHandler(app: Hono, db: Database) {
           ON CONFLICT(hostname) DO UPDATE SET last_seen = ?
         `).run(hostname, Date.now(), Date.now())
       }
+      
+      // Broadcast newly auto-created session
+      wsManager.broadcastSessionCreated({ id: sessionId, title: 'Resumed Session', hostname: hostname || 'unknown' })
+      return true
     }
+    return false
   }
 
   app.post('/events', async (c) => {
@@ -69,9 +76,9 @@ export function createWebhookHandler(app: Hono, db: Database) {
       switch (event.type) {
         case 'session.created':
           db.prepare(`
-            INSERT OR REPLACE INTO sessions (id, title, hostname, directory, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, 'active', ?, ?)
-          `).run(event.sessionId, event.title || 'Untitled', event.hostname, event.instance || null, event.timestamp, event.timestamp)
+            INSERT OR REPLACE INTO sessions (id, title, hostname, directory, parent_session_id, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
+          `).run(event.sessionId, event.title || 'Untitled', event.hostname, event.instance || null, event.parentSessionId || null, event.timestamp, event.timestamp)
 
           // Upsert instance
           db.prepare(`
@@ -146,6 +153,8 @@ export function createWebhookHandler(app: Hono, db: Database) {
             if (currentSession?.needs_attention === 1) {
               db.prepare('UPDATE sessions SET needs_attention = 0, status = ? WHERE id = ?')
                 .run('active', event.sessionId)
+              // Broadcast status change to active
+              wsManager.broadcastSessionUpdated({ id: event.sessionId, status: 'active', needs_attention: 0 })
               wsManager.broadcastAttention(event.sessionId!, false)
             }
           }
@@ -183,6 +192,12 @@ export function createWebhookHandler(app: Hono, db: Database) {
             UPDATE sessions SET token_total = token_total + ?, cost_total = cost_total + ?, updated_at = ?
             WHERE id = ?
           `).run(totalTokens, event.cost || 0, event.timestamp, event.sessionId)
+
+          // Broadcast token/cost update to frontend
+          const updatedSession = db.prepare('SELECT id, token_total, cost_total FROM sessions WHERE id = ?').get(event.sessionId) as { id: string, token_total: number, cost_total: number } | null
+          if (updatedSession) {
+            wsManager.broadcastSessionUpdated(updatedSession)
+          }
           break
 
         case 'file.edit':

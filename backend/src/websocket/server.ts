@@ -26,8 +26,13 @@ export class WebSocketManager {
   broadcast(message: BroadcastMessage): void {
     const data = JSON.stringify(message)
     for (const client of this.clients) {
-      if (client.readyState === 1) { // WebSocket.OPEN = 1
-        client.send(data)
+      try {
+        if (client.readyState === 1) { // WebSocket.OPEN = 1
+          client.send(data)
+        }
+      } catch (err) {
+        console.warn('Broadcast failed, removing client:', err)
+        this.clients.delete(client)
       }
     }
   }
