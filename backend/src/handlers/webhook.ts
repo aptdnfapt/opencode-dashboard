@@ -2,7 +2,7 @@
 // Webhook handler - receives events from OpenCode plugin
 import type { Hono } from 'hono'
 import type { Database } from 'bun:sqlite'
-import { wsManager } from '../websocket/server'
+import { wsManager, type TimelineEventData } from '../websocket/server'
 import { generateIdleAnnouncement, isTTSReady, generateSignedUrl } from '../services/tts'
 
 interface PluginEvent {
@@ -122,21 +122,32 @@ export function createWebhookHandler(app: Hono, db: Database) {
           wsManager.broadcastError(event.sessionId!, (event as any).error || 'Unknown error')
           break
 
-        case 'timeline':
+        case 'timeline': {
           // Auto-create session if missing (resumed old session)
           ensureSession(event.sessionId!, event.hostname, event.timestamp)
           
-          // Insert timeline event
-          db.prepare(`
-            INSERT INTO timeline_events (session_id, timestamp, event_type, summary, tool_name)
-            VALUES (?, ?, ?, ?, ?)
-          `).run(event.sessionId, event.timestamp, event.eventType, event.summary, event.tool)
+          // Insert timeline event and get the inserted row ID
+          const insertResult = db.prepare(`
+            INSERT INTO timeline_events (session_id, timestamp, event_type, summary, tool_name, provider_id, model_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `).run(event.sessionId, event.timestamp, event.eventType, event.summary, event.tool, event.providerId || null, event.modelId || null)
 
           // Update session timestamp
           db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?')
             .run(event.timestamp, event.sessionId)
 
-          wsManager.broadcastTimeline(event.sessionId!, event.eventType!, event.summary || '')
+          // Broadcast full timeline event data
+          const timelineEvent: TimelineEventData = {
+            id: Number(insertResult.lastInsertRowid),
+            sessionId: event.sessionId!,
+            timestamp: event.timestamp,
+            eventType: event.eventType!,
+            summary: event.summary || '',
+            toolName: event.tool || null,
+            providerId: event.providerId || null,
+            modelId: event.modelId || null
+          }
+          wsManager.broadcastTimeline(timelineEvent)
 
           // Set needs_attention on permission events
           if (event.eventType === 'permission') {
@@ -175,6 +186,7 @@ export function createWebhookHandler(app: Hono, db: Database) {
             }
           }
           break
+        }
 
         case 'tokens':
           // Auto-create session if missing (resumed old session)

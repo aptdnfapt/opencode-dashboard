@@ -134,8 +134,126 @@ export interface CostBreakdown {
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
 
-export interface WSMessage {
-  type: 'session.created' | 'session.updated' | 'timeline' | 'attention' | 'idle' | 'error' | 'auth'
-  data?: Record<string, unknown>
-  success?: boolean
+// WebSocket message data types for discriminated union
+export interface TimelineWSData {
+  id: number
+  sessionId: string
+  timestamp: number
+  eventType: string
+  summary: string
+  toolName: string | null
+  providerId: string | null
+  modelId: string | null
+}
+
+export interface SessionCreatedWSData {
+  id: string
+  title: string
+  hostname: string
+  directory: string | null
+  parent_session_id: string | null
+  status: 'active' | 'idle' | 'error' | 'stale'
+  created_at: number
+  updated_at: number
+  needs_attention: number
+  token_total: number
+  cost_total: number
+}
+
+export interface SessionUpdatedWSData {
+  id: string
+  title?: string
+  hostname?: string
+  directory?: string | null
+  status?: 'active' | 'idle' | 'error' | 'stale'
+  updated_at?: number
+  needs_attention?: number
+  token_total?: number
+  cost_total?: number
+}
+
+export interface AttentionWSData {
+  sessionId: string
+  needsAttention: boolean
+  title?: string
+  audioUrl?: string
+}
+
+export interface IdleWSData {
+  sessionId: string
+  title?: string
+  audioUrl?: string
+}
+
+export interface ErrorWSData {
+  sessionId: string
+  message?: string
+}
+
+export interface AuthWSData {
+  success: boolean
+}
+
+// Discriminated union for all WebSocket messages
+export type WSMessage =
+  | { type: 'session.created'; data: SessionCreatedWSData }
+  | { type: 'session.updated'; data: SessionUpdatedWSData }
+  | { type: 'timeline'; data: TimelineWSData }
+  | { type: 'attention'; data: AttentionWSData }
+  | { type: 'idle'; data: IdleWSData }
+  | { type: 'error'; data: ErrorWSData }
+  | { type: 'auth'; success: boolean }
+
+// Type guards for runtime validation
+export function isTimelineWSData(data: unknown): data is TimelineWSData {
+  if (typeof data !== 'object' || data === null) return false
+  const d = data as Record<string, unknown>
+  return (
+    typeof d.id === 'number' &&
+    typeof d.sessionId === 'string' &&
+    typeof d.timestamp === 'number' &&
+    typeof d.eventType === 'string' &&
+    typeof d.summary === 'string' &&
+    (d.toolName === null || typeof d.toolName === 'string')
+  )
+}
+
+export function isSessionCreatedWSData(data: unknown): data is SessionCreatedWSData {
+  if (typeof data !== 'object' || data === null) return false
+  const d = data as Record<string, unknown>
+  return (
+    typeof d.id === 'string' &&
+    typeof d.title === 'string' &&
+    typeof d.hostname === 'string'
+  )
+}
+
+export function isSessionUpdatedWSData(data: unknown): data is SessionUpdatedWSData {
+  if (typeof data !== 'object' || data === null) return false
+  const d = data as Record<string, unknown>
+  return typeof d.id === 'string'
+}
+
+export function isAttentionWSData(data: unknown): data is AttentionWSData {
+  if (typeof data !== 'object' || data === null) return false
+  const d = data as Record<string, unknown>
+  return typeof d.sessionId === 'string' && typeof d.needsAttention === 'boolean'
+}
+
+export function isIdleWSData(data: unknown): data is IdleWSData {
+  if (typeof data !== 'object' || data === null) return false
+  const d = data as Record<string, unknown>
+  return typeof d.sessionId === 'string'
+}
+
+export function isErrorWSData(data: unknown): data is ErrorWSData {
+  if (typeof data !== 'object' || data === null) return false
+  const d = data as Record<string, unknown>
+  return typeof d.sessionId === 'string'
+}
+
+export function isAuthMessage(msg: unknown): msg is { type: 'auth'; success: boolean } {
+  if (typeof msg !== 'object' || msg === null) return false
+  const m = msg as Record<string, unknown>
+  return m.type === 'auth' && typeof m.success === 'boolean'
 }

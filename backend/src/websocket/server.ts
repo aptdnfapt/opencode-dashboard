@@ -6,6 +6,18 @@ interface BroadcastMessage {
   data: Record<string, unknown>
 }
 
+// Full timeline event data for broadcasting
+export interface TimelineEventData {
+  id: number
+  sessionId: string
+  timestamp: number
+  eventType: string
+  summary: string
+  toolName: string | null
+  providerId: string | null
+  modelId: string | null
+}
+
 export class WebSocketManager {
   private clients = new Set<WebSocket>()
 
@@ -46,8 +58,8 @@ export class WebSocketManager {
     this.broadcast({ type: 'session.updated', data: session })
   }
 
-  broadcastTimeline(sessionId: string, eventType: string, summary: string): void {
-    this.broadcast({ type: 'timeline', data: { sessionId, eventType, summary } })
+  broadcastTimeline(event: TimelineEventData): void {
+    this.broadcast({ type: 'timeline', data: event })
   }
 
   broadcastAttention(sessionId: string, needsAttention: boolean, audioUrl?: string, isSubagent?: boolean): void {

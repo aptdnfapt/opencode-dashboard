@@ -1,19 +1,36 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { getProjects } from '$lib/api'
   import { store } from '$lib/store.svelte'
   import type { Project } from '$lib/types'
 
-  // Reactive state using Svelte 5 runes
-  let projects = $state<Project[]>([])
-  let loading = $state(true)
-  let error = $state<string | null>(null)
-  
   // Collapsed state - init from localStorage
   let collapsed = $state(false)
   
   // Selected project directory (bound to store filter)
   let selectedDirectory = $derived(store.filters.directory)
+  
+  // Derive projects from store.sessions (reactive to WebSocket updates)
+  // Groups sessions by directory and counts active/total
+  let projects = $derived.by(() => {
+    const dirMap = new Map<string, { session_count: number; active_count: number }>()
+    
+    for (const session of store.sessions) {
+      const dir = session.directory || 'unknown'
+      const existing = dirMap.get(dir) || { session_count: 0, active_count: 0 }
+      existing.session_count++
+      if (session.status === 'active') existing.active_count++
+      dirMap.set(dir, existing)
+    }
+    
+    // Convert to Project array, sorted by session count desc
+    return Array.from(dirMap.entries())
+      .map(([directory, counts]) => ({
+        directory,
+        session_count: counts.session_count,
+        active_count: counts.active_count
+      }))
+      .sort((a, b) => b.session_count - a.session_count)
+  })
 
   onMount(() => {
     // Restore collapsed state from localStorage
@@ -21,20 +38,7 @@
     if (saved !== null) {
       collapsed = saved === 'true'
     }
-    
-    // Fetch projects
-    loadProjects()
   })
-
-  async function loadProjects() {
-    try {
-      projects = await getProjects()
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to load'
-    } finally {
-      loading = false
-    }
-  }
 
   function toggleCollapse() {
     collapsed = !collapsed
@@ -52,10 +56,8 @@
     return parts[parts.length - 1] || directory
   }
 
-  // Total session count across all projects
-  let totalSessions = $derived(
-    projects.reduce((sum, p) => sum + p.session_count, 0)
-  )
+  // Total session count (reactive via store.sessions)
+  let totalSessions = $derived(store.sessions.length)
 </script>
 
 <!-- Collapsible project sidebar -->
@@ -89,15 +91,6 @@
 
   <!-- Project list -->
   <div class="flex-1 overflow-y-auto p-2">
-    {#if loading}
-      {#if !collapsed}
-        <div class="text-xs text-[var(--fg-muted)] px-2 py-1">Loading...</div>
-      {/if}
-    {:else if error}
-      {#if !collapsed}
-        <div class="text-xs text-[var(--accent-red)] px-2 py-1">{error}</div>
-      {/if}
-    {:else}
       <!-- All Projects option -->
       <button
         onclick={() => selectProject(null)}
@@ -150,6 +143,5 @@
           No projects found
         </div>
       {/if}
-    {/if}
   </div>
 </aside>

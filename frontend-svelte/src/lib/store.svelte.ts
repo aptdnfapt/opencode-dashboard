@@ -2,6 +2,9 @@
 
 import type { Session, TimelineEvent, ConnectionStatus } from './types'
 
+// Limit timeline events to prevent unbounded growth
+const MAX_TIMELINE_EVENTS = 1000
+
 // Global reactive state using Svelte 5 runes
 class DashboardStore {
   // Sessions state
@@ -59,32 +62,50 @@ class DashboardStore {
   addSession(session: Session) {
     const idx = this.sessions.findIndex(s => s.id === session.id)
     if (idx >= 0) {
-      this.sessions[idx] = { ...this.sessions[idx], ...session }
+      // Use .map() to trigger Svelte 5 reactivity (immutable update)
+      this.sessions = this.sessions.map((s, i) =>
+        i === idx ? { ...s, ...session } : s
+      )
     } else {
       this.sessions = [session, ...this.sessions]
     }
   }
 
   updateSession(partial: Partial<Session> & { id: string }) {
-    const idx = this.sessions.findIndex(s => s.id === partial.id)
-    if (idx >= 0) {
-      this.sessions[idx] = { ...this.sessions[idx], ...partial }
-    }
+    // Use .map() to trigger Svelte 5 reactivity (immutable update)
+    this.sessions = this.sessions.map(s =>
+      s.id === partial.id ? { ...s, ...partial } : s
+    )
   }
 
   removeSession(id: string) {
     this.sessions = this.sessions.filter(s => s.id !== id)
+    // Create new Map without the deleted key (triggers reactivity)
+    const newTimelines = new Map(this.timelines)
+    newTimelines.delete(id)
+    this.timelines = newTimelines
   }
 
   setTimeline(sessionId: string, events: TimelineEvent[]) {
-    this.timelines.set(sessionId, events)
+    // Create new Map to trigger reactivity
+    const newTimelines = new Map(this.timelines)
+    newTimelines.set(sessionId, events)
+    this.timelines = newTimelines
   }
 
   addTimelineEvent(sessionId: string, event: TimelineEvent) {
     const existing = this.timelines.get(sessionId) || []
     // Dedupe by id
     if (!existing.some(e => e.id === event.id)) {
-      this.timelines.set(sessionId, [...existing, event])
+      let updated = [...existing, event]
+      // Trim to MAX_TIMELINE_EVENTS (keep most recent)
+      if (updated.length > MAX_TIMELINE_EVENTS) {
+        updated = updated.slice(-MAX_TIMELINE_EVENTS)
+      }
+      // Create new Map to trigger reactivity
+      const newTimelines = new Map(this.timelines)
+      newTimelines.set(sessionId, updated)
+      this.timelines = newTimelines
     }
   }
 

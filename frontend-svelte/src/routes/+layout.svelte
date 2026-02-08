@@ -5,15 +5,42 @@
   import { page } from '$app/stores'
   import { wsService } from '$lib/websocket.svelte'
   import { themeStore } from '$lib/theme.svelte'
-  import Sidebar from '$lib/components/Sidebar.svelte'
+  import TopBar from '$lib/components/TopBar.svelte'
+  import SessionTree from '$lib/components/SessionTree.svelte'
+  import StatusBar from '$lib/components/StatusBar.svelte'
+  import { PanelLeftClose, PanelLeft } from 'lucide-svelte'
   
   let { children } = $props()
   let isAuthenticated = $state(false)
   let isChecking = $state(true)
+  let sidebarCollapsed = $state(false)
+  
+  // Load sidebar state from localStorage
+  function loadSidebarState() {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sidebar-collapsed')
+      sidebarCollapsed = saved === 'true'
+    }
+  }
+  
+  // Toggle sidebar and persist
+  function toggleSidebar() {
+    sidebarCollapsed = !sidebarCollapsed
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebar-collapsed', String(sidebarCollapsed))
+    }
+  }
+  
+  // Keyboard shortcut handler (Cmd+B / Ctrl+B)
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+      e.preventDefault()
+      toggleSidebar()
+    }
+  }
   
   // Check auth state on mount and route change
   $effect(() => {
-    // Subscribe to page changes
     const currentPath = $page.url.pathname as string
     const isLoginPage = currentPath === '/login'
     
@@ -22,22 +49,21 @@
       isAuthenticated = auth
       isChecking = false
       
-      // Redirect to login if not authenticated (except on login page)
       if (!auth && !isLoginPage) {
         goto('/login')
-      }
-      // Redirect to home if authenticated and on login page
-      else if (auth && isLoginPage) {
+      } else if (auth && isLoginPage) {
         goto('/')
       }
     }
   })
   
   onMount(() => {
-    // Initialize theme from localStorage
     themeStore.init()
+    loadSidebarState()
     
-    // Only connect WS if authenticated
+    // Add keyboard listener
+    window.addEventListener('keydown', handleKeydown)
+    
     if (localStorage.getItem('dashboard_authenticated') === 'true') {
       wsService.connect()
     }
@@ -45,6 +71,9 @@
   
   onDestroy(() => {
     wsService.disconnect()
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', handleKeydown)
+    }
   })
 </script>
 
@@ -54,14 +83,52 @@
     <div class="text-[var(--fg-muted)]">Loading...</div>
   </div>
 {:else if $page.url.pathname.startsWith('/login')}
-  <!-- Login page - no sidebar -->
+  <!-- Login page - no layout -->
   {@render children()}
 {:else if isAuthenticated}
-  <!-- Authenticated layout with sidebar -->
-  <div class="flex h-screen overflow-hidden">
-    <Sidebar />
-    <main class="flex-1 overflow-auto">
-      {@render children()}
-    </main>
+  <!-- Main layout: TopBar + Sidebar + Content + StatusBar -->
+  <div class="flex flex-col h-screen overflow-hidden bg-[var(--bg-primary)]">
+    <!-- Top Bar -->
+    <TopBar />
+    
+    <!-- Main area: sidebar + content -->
+    <div class="flex flex-1 overflow-hidden">
+      <!-- Left sidebar with session tree -->
+      <aside 
+        class="h-full flex flex-col bg-[var(--bg-secondary)] border-r border-[var(--border-subtle)] overflow-hidden transition-all duration-300 ease-in-out"
+        style="width: {sidebarCollapsed ? '64px' : '256px'}"
+      >
+        <!-- Sidebar toggle button -->
+        <div class="px-2 py-2 border-b border-[var(--border-subtle)] flex items-center {sidebarCollapsed ? 'justify-center' : 'justify-between'}">
+          {#if !sidebarCollapsed}
+            <span class="text-xs text-[var(--fg-muted)] uppercase tracking-wider">Sessions</span>
+          {/if}
+          <button
+            onclick={toggleSidebar}
+            class="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--fg-muted)] hover:text-[var(--fg-secondary)] transition-colors"
+            title={sidebarCollapsed ? 'Expand sidebar (Cmd+B)' : 'Collapse sidebar (Cmd+B)'}
+          >
+            {#if sidebarCollapsed}
+              <PanelLeft class="w-4 h-4" />
+            {:else}
+              <PanelLeftClose class="w-4 h-4" />
+            {/if}
+          </button>
+        </div>
+        
+        <!-- Session tree -->
+        <div class="flex-1 overflow-hidden">
+          <SessionTree collapsed={sidebarCollapsed} />
+        </div>
+      </aside>
+      
+      <!-- Main content area -->
+      <main class="flex-1 overflow-auto bg-[var(--bg-primary)]">
+        {@render children()}
+      </main>
+    </div>
+    
+    <!-- Status Bar -->
+    <StatusBar />
   </div>
 {/if}

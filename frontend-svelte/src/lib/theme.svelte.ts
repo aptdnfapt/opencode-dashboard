@@ -43,6 +43,7 @@ class ThemeStore {
   
   // Set theme and persist
   setTheme(newTheme: Theme) {
+    if (typeof window === 'undefined') return // SSR guard
     this.theme = newTheme
     localStorage.setItem(STORAGE_KEY, newTheme)
     this.applyTheme()

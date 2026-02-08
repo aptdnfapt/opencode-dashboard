@@ -2,6 +2,15 @@
 
 import { store } from './store.svelte'
 import type { WSMessage, Session, TimelineEvent } from './types'
+import {
+  isTimelineWSData,
+  isSessionCreatedWSData,
+  isSessionUpdatedWSData,
+  isAttentionWSData,
+  isIdleWSData,
+  isErrorWSData,
+  isAuthMessage
+} from './types'
 import { playBing, queueAudio } from './audio'
 import { showNotification } from './notifications'
 
@@ -28,11 +37,19 @@ class WebSocketService {
   private retryCount = 0
   private maxRetries = 5
   private authFailed = false // Don't reconnect if auth failed
+  private intentionalDisconnect = false // Track intentional disconnects
+  private connecting = false // Prevent duplicate connect() calls
+  private authenticated = false // Track auth state
+  private messageQueue: unknown[] = [] // Queue messages until authenticated (validated later)
 
   connect() {
-    // Check both OPEN and CONNECTING to prevent race condition
+    // Prevent race condition: already connecting or connected
+    if (this.connecting) return
     if (this.ws?.readyState === WebSocket.OPEN || 
         this.ws?.readyState === WebSocket.CONNECTING) return
+    
+    this.connecting = true
+    this.intentionalDisconnect = false // Reset on new connection attempt
 
     store.setConnectionStatus('connecting')
     
@@ -41,9 +58,12 @@ class WebSocketService {
       
       this.ws.onopen = () => {
         console.log('[WS] Connected')
+        this.connecting = false // Connection established
         this.reconnectDelay = 1000 // Reset delay on success
         this.retryCount = 0 // Reset retry count on successful connection
         this.authFailed = false // Reset auth flag
+        this.authenticated = false // Reset auth state
+        this.messageQueue = [] // Clear any stale queued messages
         this.startHeartbeat() // Start heartbeat
         
         // Authenticate if password required
@@ -51,14 +71,41 @@ class WebSocketService {
         if (password) {
           this.ws?.send(JSON.stringify({ type: 'auth', password }))
         } else {
+          // No password required, mark as authenticated
+          this.authenticated = true
           store.setConnectionStatus('connected')
         }
       }
 
       this.ws.onmessage = (event) => {
         try {
-          const msg: WSMessage = JSON.parse(event.data)
-          this.handleMessage(msg)
+          const parsed: unknown = JSON.parse(event.data)
+          
+          // Validate basic message structure
+          if (typeof parsed !== 'object' || parsed === null) {
+            console.warn('[WS] Invalid message structure')
+            return
+          }
+          
+          const msgObj = parsed as Record<string, unknown>
+          if (typeof msgObj.type !== 'string') {
+            console.warn('[WS] Message missing type field')
+            return
+          }
+          
+          // Auth messages always processed immediately (use type guard)
+          if (isAuthMessage(parsed)) {
+            this.handleAuthMessage(parsed.success)
+            return
+          }
+          
+          // Queue non-auth messages until authenticated
+          if (!this.authenticated) {
+            this.messageQueue.push(parsed)
+            return
+          }
+          
+          this.handleMessage(parsed)
         } catch (err) {
           console.warn('[WS] Parse error:', err)
         }
@@ -66,9 +113,15 @@ class WebSocketService {
 
       this.ws.onclose = () => {
         console.log('[WS] Disconnected')
+        this.connecting = false // Reset connecting flag
+        this.authenticated = false // Reset auth state
         this.stopHeartbeat() // Clear heartbeat on disconnect
         store.setConnectionStatus('disconnected')
-        this.scheduleReconnect()
+        
+        // Only reconnect if not intentional
+        if (!this.intentionalDisconnect) {
+          this.scheduleReconnect()
+        }
       }
 
       this.ws.onerror = (err) => {
@@ -83,14 +136,30 @@ class WebSocketService {
   }
 
   disconnect() {
+    this.intentionalDisconnect = true // Prevent reconnect in onclose
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
     }
     this.stopHeartbeat() // Clear heartbeat
+    this.connecting = false
+    this.authenticated = false
+    this.messageQueue = []
     this.ws?.close()
     this.ws = null
     store.setConnectionStatus('disconnected')
+  }
+
+  // Allow user to retry after auth failure
+  resetAndReconnect() {
+    this.authFailed = false
+    this.retryCount = 0
+    this.reconnectDelay = 1000
+    this.intentionalDisconnect = false
+    this.connecting = false
+    this.authenticated = false
+    this.messageQueue = []
+    this.connect()
   }
 
   private startHeartbeat() {
@@ -135,40 +204,80 @@ class WebSocketService {
     }, this.reconnectDelay)
   }
 
-  private handleMessage(msg: WSMessage) {
-    switch (msg.type) {
-      case 'auth':
-        if (msg.success) {
-          store.setConnectionStatus('connected')
-        } else {
-          console.error('[WS] Auth failed')
-          this.authFailed = true // Set flag to prevent reconnect
-          store.setConnectionStatus('error')
-          this.disconnect()
+  private handleAuthMessage(success: boolean) {
+    if (success) {
+      this.authenticated = true
+      store.setConnectionStatus('connected')
+      // Process queued messages now that auth succeeded
+      while (this.messageQueue.length > 0) {
+        const queuedMsg = this.messageQueue.shift()
+        if (queuedMsg) {
+          this.handleMessage(queuedMsg)
         }
-        break
+      }
+    } else {
+      console.error('[WS] Auth failed')
+      this.authFailed = true // Set flag to prevent reconnect
+      this.authenticated = false
+      store.setConnectionStatus('error')
+      this.disconnect()
+    }
+  }
 
+  private handleMessage(msg: unknown) {
+    // Validate message is object with type
+    if (typeof msg !== 'object' || msg === null) return
+    const msgObj = msg as Record<string, unknown>
+    const msgType = msgObj.type
+    const data = msgObj.data
+
+    switch (msgType) {
       case 'session.created':
-        if (msg.data?.id) {
-          store.addSession(msg.data as unknown as Session)
+        if (isSessionCreatedWSData(data)) {
+          const session: Session = {
+            id: data.id,
+            title: data.title,
+            hostname: data.hostname,
+            directory: data.directory,
+            parent_session_id: data.parent_session_id,
+            status: data.status,
+            created_at: data.created_at,
+            updated_at: data.updated_at,
+            needs_attention: data.needs_attention,
+            token_total: data.token_total,
+            cost_total: data.cost_total
+          }
+          store.addSession(session)
         }
         break
 
       case 'session.updated':
-        if (msg.data?.id) {
-          store.updateSession(msg.data as Partial<Session> & { id: string })
+        if (isSessionUpdatedWSData(data)) {
+          store.updateSession({
+            id: data.id,
+            ...(data.title !== undefined && { title: data.title }),
+            ...(data.hostname !== undefined && { hostname: data.hostname }),
+            ...(data.directory !== undefined && { directory: data.directory }),
+            ...(data.status !== undefined && { status: data.status }),
+            ...(data.updated_at !== undefined && { updated_at: data.updated_at }),
+            ...(data.needs_attention !== undefined && { needs_attention: data.needs_attention }),
+            ...(data.token_total !== undefined && { token_total: data.token_total }),
+            ...(data.cost_total !== undefined && { cost_total: data.cost_total })
+          })
         }
         break
 
       case 'timeline':
-        if (msg.data?.sessionId) {
+        if (isTimelineWSData(data)) {
+          // Use REAL id/timestamp from backend
+          const eventType = this.validateEventType(data.eventType)
           const event: TimelineEvent = {
-            id: Date.now(),
-            session_id: msg.data.sessionId as string,
-            timestamp: Date.now(),
-            event_type: (msg.data.eventType as TimelineEvent['event_type']) || 'message',
-            summary: (msg.data.summary as string) || '',
-            tool_name: (msg.data.tool as string) || null,
+            id: data.id,
+            session_id: data.sessionId,
+            timestamp: data.timestamp,
+            event_type: eventType,
+            summary: data.summary,
+            tool_name: data.toolName,
             provider_id: null,
             model_id: null
           }
@@ -177,54 +286,63 @@ class WebSocketService {
         break
 
       case 'attention':
-        if (msg.data?.sessionId) {
+        if (isAttentionWSData(data)) {
           store.updateSession({
-            id: msg.data.sessionId as string,
-            needs_attention: msg.data.needsAttention ? 1 : 0
+            id: data.sessionId,
+            needs_attention: data.needsAttention ? 1 : 0
           })
           
           // Play bing + show notification
-          if (msg.data.needsAttention) {
+          if (data.needsAttention) {
             playBing()
-            const title = (msg.data.title as string) || 'Session'
+            const title = data.title ?? 'Session'
             showNotification('Attention Required', `${title} needs your attention`)
             
             // Queue TTS if audioUrl provided
-            if (msg.data.audioUrl) {
-              queueAudio(msg.data.audioUrl as string)
+            if (data.audioUrl) {
+              queueAudio(data.audioUrl)
             }
           }
         }
         break
 
       case 'idle':
-        if (msg.data?.sessionId) {
+        if (isIdleWSData(data)) {
           store.updateSession({
-            id: msg.data.sessionId as string,
+            id: data.sessionId,
             status: 'idle'
           })
           
           // Play bing + show notification
           playBing()
-          const title = (msg.data.title as string) || 'Session'
+          const title = data.title ?? 'Session'
           showNotification('Session Idle', `${title} is now idle`)
           
           // Queue TTS if audioUrl provided
-          if (msg.data.audioUrl) {
-            queueAudio(msg.data.audioUrl as string)
+          if (data.audioUrl) {
+            queueAudio(data.audioUrl)
           }
         }
         break
 
       case 'error':
-        if (msg.data?.sessionId) {
+        if (isErrorWSData(data)) {
           store.updateSession({
-            id: msg.data.sessionId as string,
+            id: data.sessionId,
             status: 'error'
           })
         }
         break
     }
+  }
+
+  // Validate event_type string to TimelineEvent union type
+  private validateEventType(eventType: string): TimelineEvent['event_type'] {
+    const validTypes: TimelineEvent['event_type'][] = ['tool', 'message', 'user', 'error', 'permission']
+    if (validTypes.includes(eventType as TimelineEvent['event_type'])) {
+      return eventType as TimelineEvent['event_type']
+    }
+    return 'message' // Default fallback
   }
 }
 

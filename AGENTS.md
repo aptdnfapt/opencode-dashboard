@@ -151,3 +151,37 @@ Imports (external → local) → Type definitions → Constants/config → Compo
 - Button components support keyboard navigation
 - Notifications use browser Notification API (HTTPS required)
 - Audio playback has opt-in via localStorage settings
+
+
+
+
+## WARNING: Process Management
+BE CAREFUL when starting/restarting dev servers!
+
+**NEVER do these:**
+- `lsof -ti:3000 | xargs kill` - killing by port can kill unrelated processes
+- `pkill -f` with broad patterns
+- Use PTY tools for long-running servers
+
+**ALWAYS do these:**
+- Run servers in background with logs: `bun run dev > /tmp/backend.log 2>&1 &`
+- Save the PID: `echo "Backend PID: $!"`
+- Kill by PID only: `kill <pid>`
+- Check logs with: `tail -f /tmp/backend.log`
+
+**Example - Starting servers:**
+```bash
+# Backend
+cd /home/idc/proj/opencode-dashboard/backend && bun run dev > /tmp/backend.log 2>&1 &
+echo "Backend PID: $!"
+
+# Frontend  
+cd /home/idc/proj/opencode-dashboard/frontend-svelte && bun run dev > /tmp/frontend.log 2>&1 &
+echo "Frontend PID: $!"
+```
+
+**Example - Checking status:**
+```bash
+tail -20 /tmp/backend.log
+tail -20 /tmp/frontend.log
+```

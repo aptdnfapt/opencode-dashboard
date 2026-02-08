@@ -12,6 +12,9 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
 	},
 	"dependencies": {
+		"@types/dompurify": "^3.2.0",
+		"dompurify": "^3.3.1",
+		"lucide-svelte": "^0.563.0",
 		"marked": "^15.0.0"
 	},
 	"devDependencies": {

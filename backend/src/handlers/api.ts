@@ -95,12 +95,18 @@ export function createApiHandler(app: Hono, db: Database) {
     const sessions = db.prepare(sql).all(...(params as (string | number)[])) as any[]
 
     // Compute effective status: active sessions not updated for 60s -> stale
+    // Also get latest model_id from token_usage
     const processed = sessions.map(s => {
       let effectiveStatus = s.status
       if (s.status === 'active' && (now - s.updated_at) > STALE_THRESHOLD) {
         effectiveStatus = 'stale'
       }
-      return { ...s, status: effectiveStatus }
+      // Get latest model for this session
+      const latestToken = db.prepare(
+        'SELECT model_id FROM token_usage WHERE session_id = ? ORDER BY timestamp DESC LIMIT 1'
+      ).get(s.id) as { model_id: string | null } | undefined
+      
+      return { ...s, status: effectiveStatus, model_id: latestToken?.model_id || null }
     })
 
     // Now filter by status if requested
