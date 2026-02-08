@@ -29,7 +29,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('dashboard_password'))
 
-  const { sessions, addSession, updateSession, setWsConnected } = useStore()
+  const { sessions, addSession, updateSession, setWsConnected, addTimelineEvent } = useStore()
 
   // Audio queue refs
   const audioQueueRef = useRef<string[]>([])
@@ -199,8 +199,19 @@ export default function App() {
       case 'error':
         updateSession({ id: msg.data.sessionId, status: 'error' })
         break
+      case 'timeline':
+        // Add timeline event to store for the specific session
+        addTimelineEvent(msg.data.sessionId as string, {
+          id: Date.now(),
+          session_id: msg.data.sessionId as string,
+          timestamp: Date.now(),
+          event_type: msg.data.eventType as string,
+          summary: msg.data.summary as string,
+          tool_name: msg.data.tool as string | undefined
+        })
+        break
     }
-  }, [addSession, updateSession, queueAudio, playBing, showNotification])
+  }, [addSession, updateSession, addTimelineEvent, queueAudio, playBing, showNotification])
 
   const password = localStorage.getItem('dashboard_password') || ''
   useWebSocket(password, handleWSMessage, setWsConnected)

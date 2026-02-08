@@ -13,6 +13,7 @@ const statusConfig = {
   active: { color: 'text-emerald-500', bg: 'bg-emerald-500', label: 'Active' },
   idle: { color: 'text-amber-500', bg: 'bg-amber-500', label: 'Idle' },
   error: { color: 'text-rose-500', bg: 'bg-rose-500', label: 'Error' },
+  stale: { color: 'text-gray-400', bg: 'bg-gray-400', label: 'Stale' },
   old: { color: 'text-muted-foreground', bg: 'bg-muted-foreground', label: 'Old' },
 }
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 
 interface WSMessage {
-  type: 'auth' | 'session.created' | 'session.updated' | 'timeline' | 'attention' | 'idle'
+  type: 'auth' | 'session.created' | 'session.updated' | 'timeline' | 'attention' | 'idle' | 'error'
   success?: boolean
   data?: Record<string, unknown>
 }

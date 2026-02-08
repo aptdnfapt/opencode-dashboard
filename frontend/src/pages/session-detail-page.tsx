@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useStore } from "@/store"
 import { useParams, useNavigate } from "react-router-dom"
-import { useWebSocket } from "@/hooks/useWebSocket"
+
 import ReactMarkdown from "react-markdown"
 import { ArrowLeft, User, Bot, Clock, Terminal, FileText, AlertCircle, CheckCircle, Activity, Server, Coins, Circle, ArrowDown } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -154,9 +154,8 @@ export function SessionDetailPage() {
     }
   }, [sessionId, addTimelineEvent])
 
-  // Connect to WebSocket
-  const password = localStorage.getItem('dashboard_password') || ''
-  useWebSocket(password, handleWSMessage)
+  // Note: WebSocket is handled globally in App.tsx
+  // Timeline events are received there and stored in the global store
 
   const handleBack = () => {
     selectSession(null)

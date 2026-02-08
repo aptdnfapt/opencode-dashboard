@@ -1,5 +1,5 @@
 // frontend/src/pages/sessions-page.tsx
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store'
 import { SessionCard } from '@/components/sessions/session-card'
@@ -62,9 +62,11 @@ export function SessionsPage() {
     navigate(`/session/${session.id}`)
   }, [navigate, selectSession])
 
-  // Stats
-  const activeCount = sessions.filter(s => s.status === 'active').length
-  const attentionCount = sessions.filter(s => s.needs_attention === 1).length
+  // Stats (memoized to avoid re-filtering on every render)
+  const { activeCount, attentionCount } = useMemo(() => ({
+    activeCount: sessions.filter(s => s.status === 'active').length,
+    attentionCount: sessions.filter(s => s.needs_attention === 1).length
+  }), [sessions])
 
   return (
     <div className="min-h-screen">
@@ -126,7 +128,7 @@ export function SessionsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
-            {sessions.map((session) => (
+            {filteredSessions.map((session) => (
               <SessionCard
                 key={session.id}
                 session={session}
