@@ -42,7 +42,7 @@ export async function generateSpeech(text: string, voice: string = 'af_bella'): 
   }
   
   try {
-    const audio = await tts.generate(text, { voice })
+    const audio = await tts.generate(text, { voice: voice as any })
     
     // Get WAV data as Uint8Array then convert to Buffer
     const wavData = audio.toWav()

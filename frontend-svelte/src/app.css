@@ -1,0 +1,73 @@
+@import 'tailwindcss';
+
+/* GitHub Dark inspired palette */
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --bg-hover: #30363d;
+  
+  --border: #30363d;
+  --border-subtle: rgba(240, 246, 252, 0.1);
+  
+  --fg-primary: #e6edf3;
+  --fg-secondary: #8b949e;
+  --fg-muted: #6e7681;
+  
+  --accent-blue: #58a6ff;
+  --accent-green: #3fb950;
+  --accent-amber: #d29922;
+  --accent-red: #f85149;
+  --accent-purple: #a371f7;
+}
+
+html {
+  background: var(--bg-primary);
+  color: var(--fg-primary);
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-primary);
+  min-height: 100vh;
+}
+
+/* Monospace for technical data */
+.mono {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-muted);
+}
+
+/* Status colors */
+.status-active { color: var(--accent-green); }
+.status-idle { color: var(--accent-amber); }
+.status-error { color: var(--accent-red); }
+.status-stale { color: var(--fg-muted); }
+
+/* Pulse animation for live indicators */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.pulse {
+  animation: pulse-dot 2s ease-in-out infinite;
+}

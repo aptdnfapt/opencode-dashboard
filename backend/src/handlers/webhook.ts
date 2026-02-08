@@ -11,6 +11,7 @@ interface PluginEvent {
   parentSessionId?: string
   title?: string
   hostname?: string
+  instance?: string  // directory/working directory
   eventType?: string
   summary?: string
   tool?: string

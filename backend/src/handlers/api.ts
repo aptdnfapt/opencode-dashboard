@@ -35,7 +35,7 @@ export function createApiHandler(app: Hono, db: Database) {
       return c.text('TTS generation failed', 500)
     }
 
-    return new Response(audio, {
+    return new Response(new Uint8Array(audio), {
       headers: {
         'Content-Type': 'audio/wav',
         'Cache-Control': 'public, max-age=3600'
@@ -92,7 +92,7 @@ export function createApiHandler(app: Hono, db: Database) {
     }
 
     sql += ' ORDER BY updated_at DESC'
-    const sessions = db.prepare(sql).all(...params) as any[]
+    const sessions = db.prepare(sql).all(...(params as (string | number)[])) as any[]
 
     // Compute effective status: active sessions not updated for 60s -> stale
     const processed = sessions.map(s => {
@@ -145,7 +145,7 @@ export function createApiHandler(app: Hono, db: Database) {
       params.push(hostname)
     }
 
-    const result = db.prepare(sql).get(...params) as Record<string, number>
+    const result = db.prepare(sql).get(...(params as (string | number)[])) as Record<string, number>
     return c.json(result || { total_sessions: 0, total_tokens: 0, total_cost: 0 })
   })
 
@@ -595,7 +595,7 @@ export function createApiHandler(app: Hono, db: Database) {
 
     sql += ` GROUP BY period, model_id ORDER BY period ASC`
 
-    const rows = db.prepare(sql).all(...params) as { 
+    const rows = db.prepare(sql).all(...(params as (string | number)[])) as { 
       period: string; model_id: string; avg_duration: number; requests: number 
     }[]
 
