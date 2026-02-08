@@ -99,16 +99,19 @@ export function createWebhookHandler(app: Hono, db: Database) {
           db.prepare('UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?')
             .run('idle', event.timestamp, event.sessionId)
           
-          // Get session title for TTS
-          const session = db.prepare('SELECT title FROM sessions WHERE id = ?').get(event.sessionId) as { title: string } | null
+          // Get session title and parent_session_id for TTS
+          const session = db.prepare('SELECT title, parent_session_id FROM sessions WHERE id = ?')
+            .get(event.sessionId) as { title: string; parent_session_id: string | null } | null
+          const isSubagent = !!session?.parent_session_id
           let audioUrl: string | undefined
 
           // Generate signed TTS URL if model is ready
           if (session && isTTSReady()) {
-            audioUrl = generateSignedUrl(session.title + ' is idle', 5) // 5 min expiry
+            const prefix = isSubagent ? 'Subagent ' : ''
+            audioUrl = generateSignedUrl(prefix + session.title + ' is idle', 5) // 5 min expiry
           }
           
-          wsManager.broadcastIdle(event.sessionId!, audioUrl)
+          wsManager.broadcastIdle(event.sessionId!, audioUrl, isSubagent)
           break
         }
 
@@ -139,14 +142,17 @@ export function createWebhookHandler(app: Hono, db: Database) {
             db.prepare('UPDATE sessions SET needs_attention = 1 WHERE id = ?')
               .run(event.sessionId)
 
-            // Get session title for TTS
-            const attentionSession = db.prepare('SELECT title FROM sessions WHERE id = ?').get(event.sessionId) as { title: string } | null
+            // Get session title and parent_session_id for TTS
+            const attentionSession = db.prepare('SELECT title, parent_session_id FROM sessions WHERE id = ?')
+              .get(event.sessionId) as { title: string; parent_session_id: string | null } | null
+            const isSubagentAttention = !!attentionSession?.parent_session_id
             let attentionAudioUrl: string | undefined
             if (attentionSession && isTTSReady()) {
-              attentionAudioUrl = generateSignedUrl(attentionSession.title + ' needs attention', 5) // 5 min expiry
+              const prefix = isSubagentAttention ? 'Subagent ' : ''
+              attentionAudioUrl = generateSignedUrl(prefix + attentionSession.title + ' needs attention', 5) // 5 min expiry
             }
             
-            wsManager.broadcastAttention(event.sessionId!, true, attentionAudioUrl)
+            wsManager.broadcastAttention(event.sessionId!, true, attentionAudioUrl, isSubagentAttention)
           } else {
             // Any other event clears needs_attention (permission was handled)
             const currentSession = db.prepare('SELECT needs_attention FROM sessions WHERE id = ?').get(event.sessionId) as { needs_attention: number } | null

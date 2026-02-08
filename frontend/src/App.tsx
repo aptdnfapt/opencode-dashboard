@@ -131,29 +131,33 @@ export default function App() {
         break
       case 'attention': {
         updateSession({ id: msg.data.sessionId, needs_attention: msg.data.needsAttention ? 1 : 0 })
+        const isSubagentAttention = msg.data.isSubagent === true
         if (msg.data.needsAttention) {
           // Bing sound (default on)
           playBing()
           // Browser notification (default on, requires HTTPS)
           const session = sessionsRef.current.find(s => s.id === msg.data.sessionId)
-          showNotification(`${session?.title || 'Session'} needs attention`, 'A session requires your input')
+          const prefix = isSubagentAttention ? '[Subagent] ' : ''
+          showNotification(`${prefix}${session?.title || 'Session'} needs attention`, 'A session requires your input')
         }
         // Queue TTS for attention events (opt-in, must be explicitly 'true')
         if (msg.data.needsAttention && msg.data.audioUrl && localStorage.getItem('dashboard_tts_enabled') === 'true') {
-          queueAudio(msg.data.audioUrl)
+          queueAudio(msg.data.audioUrl as string)
         }
         break
       }
       case 'idle': {
         updateSession({ id: msg.data.sessionId, status: 'idle' })
+        const isSubagentIdle = msg.data.isSubagent === true
         // Bing sound (default on)
         playBing()
         // Browser notification (default on, requires HTTPS)
         const session = sessionsRef.current.find(s => s.id === msg.data.sessionId)
-        showNotification(`${session?.title || 'Session'} is idle`, 'The session is waiting for input')
+        const prefix = isSubagentIdle ? '[Subagent] ' : ''
+        showNotification(`${prefix}${session?.title || 'Session'} is idle`, 'The session is waiting for input')
         // Queue TTS audio if provided by server (opt-in, must be explicitly 'true')
         if (msg.data.audioUrl && localStorage.getItem('dashboard_tts_enabled') === 'true') {
-          queueAudio(msg.data.audioUrl)
+          queueAudio(msg.data.audioUrl as string)
         }
         break
       }
