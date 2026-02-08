@@ -12,7 +12,12 @@ import { AppLayout } from './components/layout/app-layout'
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('dashboard_password'))
 
-  const { sessions, addSession, updateSession, setWsConnected, addTimelineEvent, wsConnected, filters, setFilters } = useStore()
+  // Only subscribe to values needed for rendering - actions accessed via getState()
+  const sessions = useStore(s => s.sessions)
+  const wsConnected = useStore(s => s.wsConnected)
+  const setWsConnected = useStore(s => s.setWsConnected)
+  const filters = useStore(s => s.filters)
+  const setFilters = useStore(s => s.setFilters)
 
   // Audio queue refs
   const audioQueueRef = useRef<string[]>([])
@@ -120,8 +125,11 @@ export default function App() {
     new Notification(title, { body, icon: '/favicon.ico' })
   }, [])
 
-  // Global WebSocket handler - handles idle TTS from any page
+  // Global WebSocket handler - stable callback using getState() to avoid dependency churn
   const handleWSMessage = useCallback((msg: any) => {
+    // Get store actions directly from getState() for stable callback
+    const { addSession, updateSession, addTimelineEvent } = useStore.getState()
+    
     switch (msg.type) {
       case 'session.created':
         addSession(msg.data)
@@ -176,7 +184,7 @@ export default function App() {
         })
         break
     }
-  }, [addSession, updateSession, addTimelineEvent, queueAudio, playBing, showNotification])
+  }, [queueAudio, playBing, showNotification]) // Reduced deps - store actions via getState()
 
   const password = localStorage.getItem('dashboard_password') || ''
   useWebSocket(password, handleWSMessage, setWsConnected)

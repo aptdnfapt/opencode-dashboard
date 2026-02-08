@@ -1,4 +1,5 @@
 // frontend/src/components/sessions/session-card.tsx
+import React, { useState, useEffect } from 'react'
 import { Circle, Clock, Server, Coins } from 'lucide-react'
 import { cn, formatRelativeTime } from '@/lib/utils'
 import type { Session } from '@/store'
@@ -17,7 +18,14 @@ const statusConfig = {
   old: { color: 'text-muted-foreground', bg: 'bg-muted-foreground', label: 'Old' },
 }
 
-export function SessionCard({ session, onClick, justUpdated }: SessionCardProps) {
+// Memoized SessionCard - only re-renders when relevant props change
+export const SessionCard = React.memo(function SessionCard({ session, onClick, justUpdated }: SessionCardProps) {
+  // Live timestamp refresh - tick every minute to update relative time
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 60000)
+    return () => clearInterval(timer)
+  }, [])
   const status = statusConfig[session.status] || statusConfig.old
   const needsAttention = session.needs_attention === 1
 
@@ -71,4 +79,13 @@ export function SessionCard({ session, onClick, justUpdated }: SessionCardProps)
       </div>
     </article>
   )
-}
+}, (prev, next) => {
+  // Custom comparison - only re-render if these change
+  return prev.session.id === next.session.id 
+    && prev.session.status === next.session.status
+    && prev.session.updated_at === next.session.updated_at
+    && prev.session.needs_attention === next.session.needs_attention
+    && prev.session.cost_total === next.session.cost_total
+    && prev.session.token_total === next.session.token_total
+    && prev.justUpdated === next.justUpdated
+})

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Search, X, SlidersHorizontal } from 'lucide-react'
 import { useStore } from '@/store'
 
@@ -9,7 +9,28 @@ interface SessionFiltersProps {
 export function SessionFilters({ instances }: SessionFiltersProps) {
   const { filters, setFilters } = useStore()
   const [showFilters, setShowFilters] = useState(false)
-  const hasFilters = filters.hostname || filters.status || filters.search
+  
+  // Debounced search - local state for immediate UI, debounce to store
+  const [searchInput, setSearchInput] = useState(filters.search)
+  
+  // Sync local search with store (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== filters.search) {
+        setFilters({ search: searchInput })
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchInput, filters.search, setFilters])
+  
+  // Sync store → local when filters cleared externally
+  useEffect(() => {
+    if (filters.search !== searchInput && filters.search === '') {
+      setSearchInput('')
+    }
+  }, [filters.search])
+  
+  const hasFilters = filters.hostname || filters.status || searchInput
 
   const activeFilterCount = [
     filters.hostname ? 1 : 0,
@@ -18,6 +39,7 @@ export function SessionFilters({ instances }: SessionFiltersProps) {
   ].filter(Boolean).length
 
   const handleClear = () => {
+    setSearchInput('')
     setFilters({ hostname: null, status: null, search: '' })
   }
 
@@ -31,8 +53,8 @@ export function SessionFilters({ instances }: SessionFiltersProps) {
             <input
               type="text"
               placeholder="Search sessions..."
-              value={filters.search}
-              onChange={(e) => setFilters({ search: e.target.value })}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="w-full h-8 pl-8 pr-3 rounded-md border border-border bg-background text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
@@ -98,8 +120,8 @@ export function SessionFilters({ instances }: SessionFiltersProps) {
           <input
             type="text"
             placeholder="Search sessions..."
-            value={filters.search}
-            onChange={(e) => setFilters({ search: e.target.value })}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="w-full h-9 pl-9 pr-3 rounded-md border border-border bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>

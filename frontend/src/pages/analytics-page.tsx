@@ -97,26 +97,32 @@ export function AnalyticsPage() {
     return { 'X-API-Key': password }
   }, [])
 
-  // Fetch all data
+  // Fetch data in staggered batches - critical first, then secondary
   useEffect(() => {
+    // Batch 1: Critical data (summary + main chart)
     Promise.all([
       fetch("/api/analytics/summary-extended", { headers: getHeaders() }).then(r => r.json()),
-      fetch("/api/analytics/cost-by-model", { headers: getHeaders() }).then(r => r.json()),
-      fetch("/api/analytics/cost-by-agent", { headers: getHeaders() }).then(r => r.json()),
-      fetch("/api/analytics/file-stats", { headers: getHeaders() }).then(r => r.json()),
-      fetch("/api/analytics/heatmap", { headers: getHeaders() }).then(r => r.json()),
       fetch("/api/analytics/cost-trend?days=30", { headers: getHeaders() }).then(r => r.json()),
-      fetch("/api/analytics/model-list", { headers: getHeaders() }).then(r => r.json()),
-    ]).then(([sum, models, agents, files, heatmap, cost, modelL]) => {
+    ]).then(([sum, cost]) => {
       setSummary(sum)
+      setCostTrend(cost)
+      setLoading(false) // Show page as soon as critical data loads
+      
+      // Batch 2: Secondary data (after critical completes)
+      return Promise.all([
+        fetch("/api/analytics/cost-by-model", { headers: getHeaders() }).then(r => r.json()),
+        fetch("/api/analytics/cost-by-agent", { headers: getHeaders() }).then(r => r.json()),
+        fetch("/api/analytics/file-stats", { headers: getHeaders() }).then(r => r.json()),
+        fetch("/api/analytics/heatmap", { headers: getHeaders() }).then(r => r.json()),
+        fetch("/api/analytics/model-list", { headers: getHeaders() }).then(r => r.json()),
+      ])
+    }).then(([models, agents, files, heatmap, modelL]) => {
       setCostByModel(models)
       setCostByAgent(agents)
       setFileStats(files)
       setHeatmapData(heatmap)
-      setCostTrend(cost)
       setModelList(modelL)
       setSelectedModels(modelL.slice(0, 4)) // default first 4
-      setLoading(false)
     })
   }, [getHeaders])
 

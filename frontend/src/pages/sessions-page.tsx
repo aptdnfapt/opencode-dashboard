@@ -16,46 +16,61 @@ export function SessionsPage() {
   const sessions = useStore(s => s.sessions)
   const filters = useStore(s => s.filters)
   
-  // Filter sessions (reactive to both sessions and filters changes)
-  const filteredSessions = sessions.filter((s) => {
-    if (filters.hostname && s.hostname !== filters.hostname) return false
-    if (filters.status && s.status !== filters.status) return false
-    if (filters.search && !s.title.toLowerCase().includes(filters.search.toLowerCase())) return false
-    return true
-  })
+  // Sessions are now filtered server-side, use directly
+  const filteredSessions = sessions
 
   const [loading, setLoading] = useState(true)
   const [instances, setInstances] = useState<string[]>([])
 
-  // Fetch initial data
+  // Fetch sessions with server-side filtering
   useEffect(() => {
-    async function fetchData() {
+    async function fetchSessions() {
       try {
         const password = localStorage.getItem('dashboard_password') || ''
         const headers = { 'X-API-Key': password }
 
-        const [sessionsRes, instancesRes] = await Promise.all([
-          fetch('/api/sessions', { headers }),
-          fetch('/api/instances', { headers })
-        ])
+        // Build query params for server-side filtering
+        const params = new URLSearchParams()
+        if (filters.status) params.set('status', filters.status)
+        if (filters.hostname) params.set('hostname', filters.hostname)
+        if (filters.directory) params.set('directory', filters.directory)
+        if (filters.search) params.set('search', filters.search)
 
-        if (!sessionsRes.ok || !instancesRes.ok) {
+        const sessionsRes = await fetch(`/api/sessions?${params}`, { headers })
+
+        if (!sessionsRes.ok) {
           console.error('Auth failed')
           setLoading(false)
           return
         }
 
         const sessionsData = await sessionsRes.json()
-        const instancesData = await instancesRes.json()
         setSessions(sessionsData)
-        setInstances(instancesData.map((i: any) => i.hostname))
       } catch (err) {
-        console.error('Failed to fetch:', err)
+        console.error('Failed to fetch sessions:', err)
       }
       setLoading(false)
     }
-    fetchData()
-  }, [setSessions])
+    fetchSessions()
+  }, [setSessions, filters]) // Re-fetch when filters change
+
+  // Fetch instances once on mount (separate from filtered sessions)
+  useEffect(() => {
+    async function fetchInstances() {
+      try {
+        const password = localStorage.getItem('dashboard_password') || ''
+        const headers = { 'X-API-Key': password }
+        const res = await fetch('/api/instances', { headers })
+        if (res.ok) {
+          const data = await res.json()
+          setInstances(data.map((i: any) => i.hostname))
+        }
+      } catch (err) {
+        console.error('Failed to fetch instances:', err)
+      }
+    }
+    fetchInstances()
+  }, [])
 
   const handleSessionClick = useCallback((session: Session) => {
     selectSession(session)
