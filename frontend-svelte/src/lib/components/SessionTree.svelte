@@ -32,12 +32,13 @@
     return projectColors[Math.abs(hash) % projectColors.length]
   }
   
-  // Compute effective status: idle > 3min = stale
+  // Compute effective status: idle > 3min = stale (unless sub-agents are active)
   function getEffectiveStatus(session: Session): 'active' | 'idle' | 'error' | 'stale' | 'archived' {
     if (session.status === 'archived') return 'archived'
     if (session.status !== 'idle') return session.status
     const idleTime = Date.now() - new Date(session.updated_at).getTime()
-    return idleTime > STALE_THRESHOLD_MS ? 'stale' : 'idle'
+    const hasActiveSubs = store.hasActiveSubAgents(session.id)
+    return (idleTime > STALE_THRESHOLD_MS && !hasActiveSubs) ? 'stale' : 'idle'
   }
   
   // Props for collapsed mode

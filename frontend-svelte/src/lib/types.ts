@@ -150,14 +150,14 @@ export interface SessionCreatedWSData {
   id: string
   title: string
   hostname: string
-  directory: string | null
-  parent_session_id: string | null
-  status: 'active' | 'idle' | 'error' | 'stale' | 'archived'
-  created_at: number
-  updated_at: number
-  needs_attention: number
-  token_total: number
-  cost_total: number
+  directory?: string | null
+  parent_session_id?: string | null
+  status?: 'active' | 'idle' | 'error' | 'stale' | 'archived'
+  created_at?: number
+  updated_at?: number
+  needs_attention?: number
+  token_total?: number
+  cost_total?: number
 }
 
 export interface SessionUpdatedWSData {
@@ -177,12 +177,14 @@ export interface AttentionWSData {
   needsAttention: boolean
   title?: string
   audioUrl?: string
+  isSubagent?: boolean
 }
 
 export interface IdleWSData {
   sessionId: string
   title?: string
   audioUrl?: string
+  isSubagent?: boolean
 }
 
 export interface ErrorWSData {

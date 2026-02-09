@@ -3,7 +3,7 @@
   import { store } from '$lib/store.svelte'
   import { formatRelativeTime, formatTokens, formatCost, getProjectName, cn } from '$lib/utils'
   import { archiveSession, unarchiveSession } from '$lib/api'
-  import { Activity, Clock, CircleCheck, Moon, AlertCircle, MoreVertical, Archive, ArchiveRestore } from 'lucide-svelte'
+  import { Activity, Clock, CircleCheck, Moon, AlertCircle, MoreVertical, Archive, ArchiveRestore, GitBranch } from 'lucide-svelte'
   
   // Idle > 3 min becomes stale
   const STALE_THRESHOLD_MS = 3 * 60 * 1000
@@ -18,13 +18,14 @@
   
   let { session, selected = false }: Props = $props()
   
-  // Compute effective status: idle > 3min → stale
+  // Compute effective status: idle > 3min → stale (unless sub-agents are active)
   let displayStatus = $derived(() => {
     if (session.status === 'archived') return 'archived'
     if (session.status !== 'idle') return session.status
     const updatedAt = new Date(session.updated_at).getTime()
     const now = Date.now()
-    return (now - updatedAt) > STALE_THRESHOLD_MS ? 'stale' : 'idle'
+    const hasActiveSubs = store.hasActiveSubAgents(session.id)
+    return (now - updatedAt) > STALE_THRESHOLD_MS && !hasActiveSubs ? 'stale' : 'idle'
   })
   
   // Archive/unarchive handlers
@@ -143,6 +144,11 @@
     }
   }
   
+  // Count sub-agents for this session
+  let subAgents = $derived(store.sessions.filter(s => s.parent_session_id === session.id))
+  let activeSubAgents = $derived(subAgents.filter(s => s.status === 'active').length)
+  let idleSubAgents = $derived(subAgents.filter(s => s.status !== 'active').length)
+
   let StatusIcon = $derived(getStatusIcon(displayStatus()))
   let statusColor = $derived(getStatusColor(displayStatus()))
 </script>
@@ -222,6 +228,18 @@
     {#if modelName()}
       <span class="text-[var(--fg-muted)]">•</span>
       <span class="mono text-[var(--accent-blue)]">{modelName()}</span>
+    {/if}
+    {#if subAgents.length > 0}
+      <span class="text-[var(--fg-muted)]">•</span>
+      <span class="inline-flex items-center gap-1 mono">
+        <GitBranch class="w-3 h-3 text-[var(--fg-secondary)]" />
+        {#if activeSubAgents > 0}
+          <span class="text-emerald-500">{activeSubAgents}↑</span>
+        {/if}
+        {#if idleSubAgents > 0}
+          <span class="text-[var(--fg-muted)]">{idleSubAgents}✓</span>
+        {/if}
+      </span>
     {/if}
   </div>
 

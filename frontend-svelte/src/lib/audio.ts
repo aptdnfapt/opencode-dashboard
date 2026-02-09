@@ -62,6 +62,36 @@ export function playBing(): void {
 }
 
 /**
+ * Play 1200Hz sine wave chirp — lighter/shorter than main bing
+ * Used when a sub-agent finishes (idle) to distinguish from main agent
+ */
+export function playSubagentBing(): void {
+  if (!isSoundEnabled()) return
+
+  const ctx = getAudioContext()
+  if (!ctx) return
+
+  if (ctx.state === 'suspended') {
+    ctx.resume()
+  }
+
+  // Higher pitch (1200Hz), shorter duration (0.15s), lower volume (0.08)
+  const oscillator = ctx.createOscillator()
+  oscillator.type = 'sine'
+  oscillator.frequency.setValueAtTime(1200, ctx.currentTime)
+
+  const gainNode = ctx.createGain()
+  gainNode.gain.setValueAtTime(0.08, ctx.currentTime)
+  gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15)
+
+  oscillator.connect(gainNode)
+  gainNode.connect(ctx.destination)
+
+  oscillator.start(ctx.currentTime)
+  oscillator.stop(ctx.currentTime + 0.15)
+}
+
+/**
  * Queue TTS audio URL for playback with deduplication
  */
 export function queueAudio(url: string): void {

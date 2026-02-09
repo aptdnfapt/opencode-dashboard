@@ -1,187 +1,182 @@
 # OpenCode Dashboard - Agent Guidelines
 
 ## Package Manager
-**IMPORTANT: Always use `bun` instead of `npm`** for all operations.
+**Always use `bun`** — never `npm` or `yarn`.
+
+## Project Layout
+- `frontend-svelte/` — Active frontend (Svelte 5 + SvelteKit + Tailwind v4)
+- `frontend-archive/` — Archived React frontend (do NOT modify)
+- `backend/` — Hono API server + WebSocket (Bun runtime)
+- `plugin/` — OpenCode plugin that feeds data to the dashboard
 
 ## Commands
 
-### Frontend (run in `/frontend`)
+### Frontend (run in `/frontend-svelte`)
 ```bash
-bun run dev          # Start dev server (http://localhost:5173)
-bun run build        # Build for production (tsc + vite build)
+bun run dev          # Dev server at http://localhost:5173
+bun run build        # Production build (vite build)
 bun run preview      # Preview production build
-bun run lint         # Run ESLint
-bun run typecheck    # Run TypeScript type checking (noEmit)
-bun test             # Run all tests (vitest run)
-bun run test:watch   # Run tests in watch mode
+bun run check        # svelte-kit sync + svelte-check (type checking)
+bun run check:watch  # Type checking in watch mode
 ```
 
 ### Backend (run in `/backend`)
 ```bash
-bun run dev          # Start dev server with watch (http://localhost:3000)
-bun run start        # Start production server
+bun run dev          # Dev server with --watch at http://localhost:3000
+bun run start        # Production server
 bun test             # Run all tests (bun:test)
-bun run test:watch   # Run tests in watch mode
+bun run test:watch   # Tests in watch mode
 ```
 
 ### Running a Single Test
-**Frontend (vitest):**
 ```bash
-cd frontend && bun test path/to/file.test.ts
-```
-
-**Backend (bun test):**
-```bash
+# Backend only (no frontend tests exist yet)
 cd backend && bun test path/to/file.test.ts
 ```
 
-## Code Style Guidelines
+### Pre-commit Checks
+```bash
+cd frontend-svelte && bun run check
+cd backend && bun test
+```
+
+## Code Style
 
 ### Imports
-- Frontend: Use absolute imports with `@/` alias (configured in vite.config.ts)
-  - Example: `import { useStore } from '@/store'`
-  - Example: `import { cn } from '@/lib/utils'`
-- Group imports: external deps → local modules
-- Use named exports for components and utilities
-- React hooks: `import { useState, useEffect } from 'react'`
+- **Frontend:** Use `$lib/` alias for internal imports (SvelteKit convention)
+  - `import { store } from '$lib/store.svelte'`
+  - `import { formatRelativeTime } from '$lib/utils'`
+  - `import type { Session } from '$lib/types'`
+- **Backend:** Standard relative imports
+- **Order:** type imports → external deps → internal modules
+- Always use `import type` for type-only imports
+- Prefer named exports over default exports
 
-### TypeScript Configuration
-- **Frontend:** ES2020 target, strict mode enabled, react-jsx
-- **Backend:** ES2022 target, strict mode enabled, ES2022 modules
-- Always use `type` keyword for type aliases when possible
-- Define interfaces near implementation or in dedicated type files
-- Use `as any` sparingly - prefer proper typing
+### TypeScript
+- Strict mode enabled in both frontend and backend
+- Frontend: ES2020 target, bundler module resolution
+- Backend: ES2022 target, ES2022 modules
+- Use `type` keyword for type aliases; define interfaces near implementation
+- Avoid `as any` — prefer proper typing
 
 ### Naming Conventions
-- **Components:** PascalCase (`SessionCard`, `StatCard`, `MultiLineChart`)
-- **Hooks:** camelCase with `use` prefix (`useWebSocket`, `useStore`)
-- **Utilities:** camelCase (`cn`, `formatRelativeTime`)
-- **Store Actions:** camelCase (`setSessions`, `addSession`, `updateSession`)
-- **Constants/Config:** camelCase (`statusConfig`, `navItems`)
-- **Files:** kebab-case (`session-card.tsx`, `use-websocket.ts`, `api-handler.ts`)
-- **Test Files:** `.test.ts` or `.test.tsx` suffix
+- **Components:** PascalCase files and names (`SessionCard.svelte`, `StatCard.svelte`)
+- **Non-component files:** kebab-case (`store.svelte.ts`, `api.ts`, `utils.ts`)
+- **Functions/variables:** camelCase (`getSessions`, `handleSearch`, `menuOpen`)
+- **Constants:** UPPER_SNAKE_CASE (`MAX_TIMELINE_EVENTS`, `STALE_THRESHOLD_MS`)
+- **Types/Interfaces:** PascalCase (`Session`, `TimelineEvent`, `WSMessage`)
+- **Type guards:** camelCase with `is` prefix (`isTimelineWSData()`)
+- **Classes:** PascalCase (`DashboardStore`, `WebSocketService`)
+- **DB tables/columns:** snake_case (`timeline_events`, `parent_session_id`)
+- **Test files:** `.test.ts` suffix
 
-### Component Structure
-Imports (external → local) → Type definitions → Constants/config → Component definition. Use hooks at top, then handlers, effects, then render.
+### Svelte Component Structure
+```svelte
+<script lang="ts">
+  // 1. Type imports
+  import type { Session } from '$lib/types'
+  // 2. Store/util imports
+  import { store } from '$lib/store.svelte'
+  import { formatRelativeTime } from '$lib/utils'
+
+  // 3. Props
+  interface Props { session: Session; selected?: boolean }
+  let { session, selected = false }: Props = $props()
+
+  // 4. Local state
+  let menuOpen = $state(false)
+
+  // 5. Derived values
+  let displayStatus = $derived(...)
+
+  // 6. Effects
+  $effect(() => { ... })
+
+  // 7. Event handlers
+  async function handleArchive(e: MouseEvent) { ... }
+</script>
+
+<!-- Template -->
+<div>...</div>
+```
 
 ### State Management
-- **Global state:** Use Zustand (see `/frontend/src/store/index.ts`)
-- **Component state:** React hooks (`useState`, `useRef`, `useMemo`, `useCallback`)
-- **Maps for collections:** Use `Map<K, V>` for timeline and messages (not objects)
-- **Immutability:** Always return new objects in state updates
+- **Global:** Svelte 5 runes via `DashboardStore` class in `$lib/store.svelte.ts`
+  - `$state()` for reactive state, `$derived()` for computed values
+  - Singleton: `export const store = new DashboardStore()`
+  - Use `Map<K, V>` for collections (timelines, messages)
+  - Immutable updates: `this.sessions = this.sessions.map(...)`
+- **Component:** `$state()`, `$derived()`, `$props()`, `$effect()`
 
-### Styling (Tailwind CSS)
-- Use `cn()` utility from `@/lib/utils` for conditional classes
-- Semantic color tokens: `bg-background`, `text-foreground`, `border-border`
-- Status colors: `text-emerald-500`, `text-amber-500`, `text-rose-500`
-- Spacing: `p-4`, `gap-3`, `mt-1` (consistent 4px grid)
-- Transitions: `transition-all duration-150`, `transition-colors`
+### Styling (Tailwind CSS v4)
+- CSS custom properties for theming: `var(--bg-primary)`, `var(--fg-primary)`, `var(--border)`
+- Applied via bracket notation: `bg-[var(--bg-secondary)]`, `text-[var(--fg-primary)]`
+- Status colors: `text-emerald-500` (active), `text-amber-500` (idle), `text-rose-500` (error)
+- Consistent 4px grid: `p-3`, `gap-3`, `mt-1`
+- Transitions: `transition-all duration-150`
 
 ### Error Handling
-- Always wrap async operations in try/catch
-- Use `console.warn()` for non-critical errors
-- Avoid exposing sensitive data in error messages
-- For WebSocket errors, log but don't break the app
+- Wrap all async operations in try/catch
+- Use `console.warn()` for non-critical errors (WS failures, audio, notifications)
+- Backend API errors: return `c.json({ error: 'message' }, statusCode)`
+- Early returns for validation failures
+- Never expose sensitive data in error messages
+- WebSocket errors: log and continue, never crash the app
 
-### Testing
-- **Frontend:** Vitest with jsdom, Testing Library
-- **Backend:** Bun's built-in test runner
-- Test structure: `describe()` → `beforeEach()` → `it()`
-- Reset state in `beforeEach()` (especially for Zustand store)
-- Test setup: `/frontend/src/test/setup.ts`
-- Use in-memory SQLite for backend tests
-- Always clean up resources in `afterEach()` (e.g., db.close())
+### Testing (Backend Only)
+- Runner: `bun:test` — imports from `'bun:test'`
+- Structure: `describe()` → `beforeEach()` → `it()`
+- Use in-memory SQLite: `new Database(':memory:')`
+- Seed test data in `beforeEach()`, clean up in `afterEach(() => db.close())`
+- Test API routes via Hono's `app.fetch(new Request(...))`
 
-### Database
-- SQLite with WAL mode enabled (see `/backend/src/db/schema.ts`)
-- All tables have appropriate indexes
-- Use prepared statements for queries
-- Foreign keys defined where applicable
-- Database file: `./data/database.db` (configurable via DATABASE_URL)
+### Database (SQLite)
+- WAL mode enabled (`PRAGMA journal_mode = WAL`)
+- Schema in `backend/src/db/schema.ts` — tables: sessions, timeline_events, token_usage, file_edits, instances
+- Use prepared statements for all queries
+- Timestamps as Unix milliseconds (`Date.now()`)
+- Foreign keys where applicable; indexes on frequently queried columns
 
 ### API & WebSocket
-- **Framework:** Hono (backend), native WebSocket
-- **Endpoints:** Use `/api/*` prefix
-- **Auth:** `X-API-Key` header for /api/* routes (except /api/tts for audio)
-- **WebSocket Auth:** Send `{ type: 'auth', password: '...' }` after connecting
-- **Event types:** `session.created`, `session.updated`, `timeline`, `attention`, `idle`, `error`
-- **Health check:** `GET /health`
+- Framework: Hono — all endpoints under `/api/*`
+- Auth: `X-API-Key` header (except `/api/tts` which uses signed URLs)
+- Health check: `GET /health` (no auth)
+- WebSocket on port 3001 — auth via `{ type: 'auth', password }` message
+- Event types: `session.created`, `session.updated`, `timeline`, `attention`, `idle`, `error`
+- Auto-reconnect with exponential backoff; heartbeat ping every 30s
 
-### ESLint Rules
-- `@typescript-eslint/no-explicit-any`: warn (allow sparingly)
-- `@typescript-eslint/no-unused-vars`: warn (ignore `^_` prefix pattern)
-- `react-hooks/set-state-in-effect`: off (allow before async ops)
+## File Organization
 
-### File Organization
-**Frontend (`/frontend/src/`):**
-- `components/ui/` - Base components (button, input, etc.)
-- `components/dashboard/` - Dashboard-specific components
-- `components/sessions/` - Session-related components
-- `components/charts/` - D3-based chart components
-- `components/eldoraui/` - Animated components
-- `pages/` - Route pages
-- `hooks/` - Custom React hooks
-- `store/` - Zustand store
-- `lib/` - Utilities
-- `test/` - Test setup
+**Frontend (`frontend-svelte/src/`):**
+- `lib/components/` — Svelte components (`SessionCard`, `Heatmap`, `StatusBar`, etc.)
+- `lib/store.svelte.ts` — Global state (Svelte 5 runes)
+- `lib/websocket.svelte.ts` — WebSocket client
+- `lib/types.ts` — Shared TypeScript types
+- `lib/api.ts` — API client functions
+- `lib/utils.ts` — Utilities (formatting, colors)
+- `routes/` — SvelteKit pages (`+page.svelte`, `+layout.svelte`)
 
-**Backend (`/backend/src/`):**
-- `db/` - Database schema and connection
-- `handlers/` - API route handlers
-- `websocket/` - WebSocket server
-- `services/` - External services (TTS, etc.)
+**Backend (`backend/src/`):**
+- `db/` — Schema and connection
+- `handlers/` — API route handlers
+- `websocket/` — WebSocket server + manager
+- `services/` — External services (TTS)
 
-### Git Workflow
-- Both frontend and backend share the root `package.json` for common deps
-- Run lint and typecheck before committing:
-  ```bash
-  cd frontend && bun run lint && bun run typecheck
-  cd backend && bun run typecheck
-  ```
-- Keep tests passing (22 backend tests, all frontend tests)
+## Process Management
+**NEVER** kill processes by port (`lsof -ti:3000 | xargs kill`) or broad `pkill -f` patterns.
 
-### Performance
-- Use `useCallback` and `useMemo` to prevent unnecessary re-renders
-- Use `useRef` for values that don't trigger re-renders (e.g., audio queue)
-- Avoid inline object/array creation in JSX (create outside render)
-- For large lists, consider virtualization
-
-### Accessibility
-- Use semantic HTML elements
-- Button components support keyboard navigation
-- Notifications use browser Notification API (HTTPS required)
-- Audio playback has opt-in via localStorage settings
-
-
-
-
-## WARNING: Process Management
-BE CAREFUL when starting/restarting dev servers!
-
-**NEVER do these:**
-- `lsof -ti:3000 | xargs kill` - killing by port can kill unrelated processes
-- `pkill -f` with broad patterns
-- Use PTY tools for long-running servers
-
-**ALWAYS do these:**
-- Run servers in background with logs: `bun run dev > /tmp/backend.log 2>&1 &`
-- Save the PID: `echo "Backend PID: $!"`
-- Kill by PID only: `kill <pid>`
-- Check logs with: `tail -f /tmp/backend.log`
-
-**Example - Starting servers:**
 ```bash
-# Backend
+# Start servers in background
 cd /home/idc/proj/opencode-dashboard/backend && bun run dev > /tmp/backend.log 2>&1 &
 echo "Backend PID: $!"
 
-# Frontend  
 cd /home/idc/proj/opencode-dashboard/frontend-svelte && bun run dev > /tmp/frontend.log 2>&1 &
 echo "Frontend PID: $!"
-```
 
-**Example - Checking status:**
-```bash
+# Check logs
 tail -20 /tmp/backend.log
 tail -20 /tmp/frontend.log
+
+# Stop by PID only
+kill <pid>
 ```

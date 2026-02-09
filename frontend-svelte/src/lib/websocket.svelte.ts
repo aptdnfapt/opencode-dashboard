@@ -11,7 +11,7 @@ import {
   isErrorWSData,
   isAuthMessage
 } from './types'
-import { playBing, queueAudio } from './audio'
+import { playBing, playSubagentBing, queueAudio } from './audio'
 import { showNotification } from './notifications'
 
 // WS_URL computed lazily to avoid SSR window access
@@ -236,16 +236,16 @@ class WebSocketService {
         if (isSessionCreatedWSData(data)) {
           const session: Session = {
             id: data.id,
-            title: data.title,
-            hostname: data.hostname,
-            directory: data.directory,
-            parent_session_id: data.parent_session_id,
-            status: data.status,
-            created_at: data.created_at,
-            updated_at: data.updated_at,
-            needs_attention: data.needs_attention,
-            token_total: data.token_total,
-            cost_total: data.cost_total
+            title: data.title || 'Untitled',
+            hostname: data.hostname || 'unknown',
+            directory: data.directory ?? null,
+            parent_session_id: data.parent_session_id ?? null,
+            status: data.status || 'active',        // new sessions are always active
+            created_at: data.created_at ?? Date.now(),
+            updated_at: data.updated_at ?? Date.now(),
+            needs_attention: data.needs_attention ?? 0,
+            token_total: data.token_total ?? 0,
+            cost_total: data.cost_total ?? 0
           }
           store.addSession(session)
         }
@@ -313,10 +313,15 @@ class WebSocketService {
             status: 'idle'
           })
           
-          // Play bing + show notification
-          playBing()
+          // Different sound for sub-agents vs main agents
+          if (data.isSubagent) {
+            playSubagentBing()
+          } else {
+            playBing()
+          }
           const title = data.title ?? 'Session'
-          showNotification('Session Idle', `${title} is now idle`)
+          const label = data.isSubagent ? 'Subagent Idle' : 'Session Idle'
+          showNotification(label, `${title} is now idle`)
           
           // Queue TTS if audioUrl provided
           if (data.audioUrl) {

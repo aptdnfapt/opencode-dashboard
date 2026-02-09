@@ -52,8 +52,11 @@ export function createWebhookHandler(app: Hono, db: Database) {
         `).run(hostname, Date.now(), Date.now())
       }
       
-      // Broadcast newly auto-created session
-      wsManager.broadcastSessionCreated({ id: sessionId, title: 'Resumed Session', hostname: hostname || 'unknown' })
+      // Broadcast newly auto-created session (full row from DB)
+      const newAutoSession = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId)
+      if (newAutoSession) {
+        wsManager.broadcastSessionCreated(newAutoSession as Record<string, unknown>)
+      }
       return true
     }
     return false
@@ -96,13 +99,21 @@ export function createWebhookHandler(app: Hono, db: Database) {
             `).run(event.hostname, now, now)
           }
 
-          wsManager.broadcastSessionCreated({ id: sessionId, title: event.title, hostname: event.hostname })
+          // Broadcast full session row so frontend has all fields (status, parent_session_id, directory, etc.)
+          const newSession = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId)
+          if (newSession) {
+            wsManager.broadcastSessionCreated(newSession as Record<string, unknown>)
+          }
           break
 
         case 'session.updated':
           db.prepare('UPDATE sessions SET title = ?, directory = ?, updated_at = ? WHERE id = ?')
             .run(event.title || 'Untitled', event.instance || null, event.timestamp, sessionId)
-          wsManager.broadcastSessionUpdated({ id: sessionId, title: event.title })
+          // Broadcast full session row so frontend gets all fields
+          const updatedFullSession = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId)
+          if (updatedFullSession) {
+            wsManager.broadcastSessionUpdated(updatedFullSession as Record<string, unknown>)
+          }
           break
 
         case 'session.idle': {

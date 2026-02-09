@@ -33,17 +33,23 @@ class DashboardStore {
     return this.sessions.find(s => s.id === this.selectedSessionId) ?? null
   }
 
+  // Check if a session has any active sub-agents
+  hasActiveSubAgents(sessionId: string): boolean {
+    return this.sessions.some(s => s.parent_session_id === sessionId && s.status === 'active')
+  }
+
   // Derived: filtered sessions (handles computed 'stale' status + sorting)
   get filteredSessions() {
     const STALE_THRESHOLD_MS = 3 * 60 * 1000
     const now = Date.now()
     
     const filtered = this.sessions.filter(s => {
-      // Compute effective status: idle > 3min = stale
+      // Compute effective status: idle > 3min = stale (unless sub-agents are active)
       let effectiveStatus = s.status
       if (s.status === 'idle') {
         const idleTime = now - new Date(s.updated_at).getTime()
-        effectiveStatus = idleTime > STALE_THRESHOLD_MS ? 'stale' : 'idle'
+        const hasActiveSubs = this.hasActiveSubAgents(s.id)
+        effectiveStatus = (idleTime > STALE_THRESHOLD_MS && !hasActiveSubs) ? 'stale' : 'idle'
       }
       
       // Hide archived unless explicitly filtered for
@@ -77,11 +83,15 @@ class DashboardStore {
     const active = this.sessions.filter(s => s.status === 'active').length
     const idle = this.sessions.filter(s => {
       if (s.status !== 'idle') return false
-      return (now - new Date(s.updated_at).getTime()) <= STALE_THRESHOLD_MS
+      const idleTime = now - new Date(s.updated_at).getTime()
+      const hasActiveSubs = this.hasActiveSubAgents(s.id)
+      return idleTime <= STALE_THRESHOLD_MS || hasActiveSubs
     }).length
     const stale = this.sessions.filter(s => {
       if (s.status !== 'idle') return false
-      return (now - new Date(s.updated_at).getTime()) > STALE_THRESHOLD_MS
+      const idleTime = now - new Date(s.updated_at).getTime()
+      const hasActiveSubs = this.hasActiveSubAgents(s.id)
+      return idleTime > STALE_THRESHOLD_MS && !hasActiveSubs
     }).length
     const attention = this.sessions.filter(s => s.needs_attention).length
     const totalTokens = this.sessions.reduce((sum, s) => sum + (s.token_total || 0), 0)
