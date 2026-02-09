@@ -9,6 +9,29 @@
   // Stale threshold
   const STALE_THRESHOLD_MS = 3 * 60 * 1000
   
+  // Project color palette - consistent color per project name
+  // Avoiding blue (model) and green (active status)
+  const projectColors = [
+    'var(--accent-amber)',
+    'var(--accent-purple)',
+    '#f97583',  // pink
+    '#ff7b72',  // coral
+    '#ffa657',  // orange
+    '#d2a8ff',  // light purple
+    '#e6b450',  // gold
+    '#ffc0cb',  // light pink
+  ]
+  
+  function getProjectColor(directory: string | null): string {
+    if (!directory) return 'var(--fg-secondary)'
+    let hash = 0
+    for (let i = 0; i < directory.length; i++) {
+      hash = ((hash << 5) - hash) + directory.charCodeAt(i)
+      hash = hash & hash
+    }
+    return projectColors[Math.abs(hash) % projectColors.length]
+  }
+  
   // Compute effective status: idle > 3min = stale
   function getEffectiveStatus(session: Session): 'active' | 'idle' | 'error' | 'stale' | 'archived' {
     if (session.status === 'archived') return 'archived'
@@ -218,7 +241,7 @@
             {/if}
             <!-- Project name -->
             {#if !collapsed}
-              <span class="flex-1 text-base truncate text-[var(--fg-primary)]">{group.name}</span>
+              <span class="flex-1 text-base truncate" style="color: {getProjectColor(group.directory)}">{group.name}</span>
               <!-- Count badge -->
               <span class="text-xs mono px-1.5 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--fg-muted)]">
                 {getProjectSessionCount(group)}
