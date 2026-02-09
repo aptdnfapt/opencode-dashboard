@@ -95,6 +95,30 @@
     }
   })
   
+  // Project color palette - consistent color per project name
+  // Avoiding blue (model) and green (active status)
+  const projectColors = [
+    'var(--accent-amber)',
+    'var(--accent-purple)',
+    '#f97583',  // pink
+    '#ff7b72',  // coral
+    '#ffa657',  // orange
+    '#d2a8ff',  // light purple
+    '#e6b450',  // gold
+    '#ffc0cb',  // light pink
+  ]
+  
+  function getProjectColor(directory: string | null): string {
+    if (!directory) return 'var(--fg-secondary)'
+    // Simple hash to get consistent color per project
+    let hash = 0
+    for (let i = 0; i < directory.length; i++) {
+      hash = ((hash << 5) - hash) + directory.charCodeAt(i)
+      hash = hash & hash
+    }
+    return projectColors[Math.abs(hash) % projectColors.length]
+  }
+
   // Status icon component mapping
   function getStatusIcon(status: string) {
     switch (status) {
@@ -192,7 +216,7 @@
 
   <!-- Project, host & model -->
   <div class="flex items-center gap-2 text-xs text-[var(--fg-secondary)] mb-2 flex-wrap">
-    <span class="mono truncate">{getProjectName(session.directory)}</span>
+    <span class="mono truncate" style="color: {getProjectColor(session.directory)}">{getProjectName(session.directory)}</span>
     <span class="text-[var(--fg-muted)]">•</span>
     <span class="mono">{session.hostname}</span>
     {#if modelName()}
