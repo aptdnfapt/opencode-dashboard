@@ -73,36 +73,45 @@ export function createWebhookHandler(app: Hono, db: Database) {
     const event: PluginEvent = await c.req.json()
     const now = Date.now()
 
+    // Validate sessionId for events that require it
+    const requiresSession = ['session.created', 'session.updated', 'session.idle', 'session.error', 'timeline', 'tokens', 'file.edit']
+    if (requiresSession.includes(event.type) && !event.sessionId) {
+      return c.json({ error: 'Missing sessionId' }, 400)
+    }
+    const sessionId = event.sessionId!  // Safe after validation
+
     try {
       switch (event.type) {
         case 'session.created':
           db.prepare(`
             INSERT OR REPLACE INTO sessions (id, title, hostname, directory, parent_session_id, status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
-          `).run(event.sessionId, event.title || 'Untitled', event.hostname, event.instance || null, event.parentSessionId || null, event.timestamp, event.timestamp)
+          `).run(sessionId, event.title || 'Untitled', event.hostname || 'unknown', event.instance || null, event.parentSessionId || null, event.timestamp, event.timestamp)
 
           // Upsert instance
-          db.prepare(`
-            INSERT INTO instances (hostname, last_seen) VALUES (?, ?)
-            ON CONFLICT(hostname) DO UPDATE SET last_seen = ?
-          `).run(event.hostname, now, now)
+          if (event.hostname) {
+            db.prepare(`
+              INSERT INTO instances (hostname, last_seen) VALUES (?, ?)
+              ON CONFLICT(hostname) DO UPDATE SET last_seen = ?
+            `).run(event.hostname, now, now)
+          }
 
-          wsManager.broadcastSessionCreated({ id: event.sessionId, title: event.title, hostname: event.hostname })
+          wsManager.broadcastSessionCreated({ id: sessionId, title: event.title, hostname: event.hostname })
           break
 
         case 'session.updated':
           db.prepare('UPDATE sessions SET title = ?, directory = ?, updated_at = ? WHERE id = ?')
-            .run(event.title, event.instance || null, event.timestamp, event.sessionId)
-          wsManager.broadcastSessionUpdated({ id: event.sessionId, title: event.title })
+            .run(event.title || 'Untitled', event.instance || null, event.timestamp, sessionId)
+          wsManager.broadcastSessionUpdated({ id: sessionId, title: event.title })
           break
 
         case 'session.idle': {
           db.prepare('UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?')
-            .run('idle', event.timestamp, event.sessionId)
+            .run('idle', event.timestamp, sessionId)
           
           // Get session title and parent_session_id for TTS
           const session = db.prepare('SELECT title, parent_session_id FROM sessions WHERE id = ?')
-            .get(event.sessionId) as { title: string; parent_session_id: string | null } | null
+            .get(sessionId) as { title: string; parent_session_id: string | null } | null
           const isSubagent = !!session?.parent_session_id
           let audioUrl: string | undefined
 
@@ -112,36 +121,36 @@ export function createWebhookHandler(app: Hono, db: Database) {
             audioUrl = generateSignedUrl(prefix + session.title + ' is idle', 5) // 5 min expiry
           }
           
-          wsManager.broadcastIdle(event.sessionId!, audioUrl, isSubagent)
+          wsManager.broadcastIdle(sessionId, audioUrl, isSubagent)
           break
         }
 
         case 'session.error':
           db.prepare('UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?')
-            .run('error', event.timestamp, event.sessionId)
-          wsManager.broadcastError(event.sessionId!, (event as any).error || 'Unknown error')
+            .run('error', event.timestamp, sessionId)
+          wsManager.broadcastError(sessionId, (event as PluginEvent & { error?: string }).error || 'Unknown error')
           break
 
         case 'timeline': {
           // Auto-create session if missing (resumed old session)
-          ensureSession(event.sessionId!, event.hostname, event.timestamp)
+          ensureSession(sessionId, event.hostname, event.timestamp)
           
           // Insert timeline event and get the inserted row ID
           const insertResult = db.prepare(`
             INSERT INTO timeline_events (session_id, timestamp, event_type, summary, tool_name, provider_id, model_id)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-          `).run(event.sessionId, event.timestamp, event.eventType, event.summary, event.tool, event.providerId || null, event.modelId || null)
+          `).run(sessionId, event.timestamp, event.eventType || 'unknown', event.summary || '', event.tool || null, event.providerId || null, event.modelId || null)
 
           // Update session timestamp
           db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?')
-            .run(event.timestamp, event.sessionId)
+            .run(event.timestamp, sessionId)
 
           // Broadcast full timeline event data
           const timelineEvent: TimelineEventData = {
             id: Number(insertResult.lastInsertRowid),
-            sessionId: event.sessionId!,
+            sessionId: sessionId,
             timestamp: event.timestamp,
-            eventType: event.eventType!,
+            eventType: event.eventType || 'unknown',
             summary: event.summary || '',
             toolName: event.tool || null,
             providerId: event.providerId || null,
@@ -152,11 +161,11 @@ export function createWebhookHandler(app: Hono, db: Database) {
           // Set needs_attention on permission events
           if (event.eventType === 'permission') {
             db.prepare('UPDATE sessions SET needs_attention = 1 WHERE id = ?')
-              .run(event.sessionId)
+              .run(sessionId)
 
             // Get session title and parent_session_id for TTS
             const attentionSession = db.prepare('SELECT title, parent_session_id FROM sessions WHERE id = ?')
-              .get(event.sessionId) as { title: string; parent_session_id: string | null } | null
+              .get(sessionId) as { title: string; parent_session_id: string | null } | null
             const isSubagentAttention = !!attentionSession?.parent_session_id
             let attentionAudioUrl: string | undefined
             if (attentionSession && isTTSReady()) {
@@ -164,11 +173,11 @@ export function createWebhookHandler(app: Hono, db: Database) {
               attentionAudioUrl = generateSignedUrl(prefix + attentionSession.title + ' needs attention', 5) // 5 min expiry
             }
             
-            wsManager.broadcastAttention(event.sessionId!, true, attentionAudioUrl, isSubagentAttention)
+            wsManager.broadcastAttention(sessionId, true, attentionAudioUrl, isSubagentAttention)
           } else {
             // Any activity clears needs_attention and sets status to active
             const currentSession = db.prepare('SELECT needs_attention, status FROM sessions WHERE id = ?')
-              .get(event.sessionId) as { needs_attention: number; status: string } | null
+              .get(sessionId) as { needs_attention: number; status: string } | null
             
             if (currentSession) {
               const wasIdle = currentSession.status === 'idle'
@@ -176,11 +185,11 @@ export function createWebhookHandler(app: Hono, db: Database) {
               
               if (wasIdle || hadAttention) {
                 db.prepare('UPDATE sessions SET needs_attention = 0, status = ? WHERE id = ?')
-                  .run('active', event.sessionId)
+                  .run('active', sessionId)
                 // Broadcast status change to active
-                wsManager.broadcastSessionUpdated({ id: event.sessionId, status: 'active', needs_attention: 0 })
+                wsManager.broadcastSessionUpdated({ id: sessionId, status: 'active', needs_attention: 0 })
                 if (hadAttention) {
-                  wsManager.broadcastAttention(event.sessionId!, false)
+                  wsManager.broadcastAttention(sessionId, false)
                 }
               }
             }
@@ -190,7 +199,7 @@ export function createWebhookHandler(app: Hono, db: Database) {
 
         case 'tokens':
           // Auto-create session if missing (resumed old session)
-          ensureSession(event.sessionId!, event.hostname, event.timestamp)
+          ensureSession(sessionId, event.hostname, event.timestamp)
           
           // Insert token record with all fields
           db.prepare(`
@@ -200,7 +209,7 @@ export function createWebhookHandler(app: Hono, db: Database) {
               cost, duration_ms, timestamp
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
-            event.sessionId, 
+            sessionId, 
             event.providerId || null,
             event.modelId || null,
             event.agent || null,
@@ -219,10 +228,10 @@ export function createWebhookHandler(app: Hono, db: Database) {
           db.prepare(`
             UPDATE sessions SET token_total = token_total + ?, cost_total = cost_total + ?, updated_at = ?
             WHERE id = ?
-          `).run(totalTokens, event.cost || 0, event.timestamp, event.sessionId)
+          `).run(totalTokens, event.cost || 0, event.timestamp, sessionId)
 
           // Broadcast token/cost update to frontend
-          const updatedSession = db.prepare('SELECT id, token_total, cost_total FROM sessions WHERE id = ?').get(event.sessionId) as { id: string, token_total: number, cost_total: number } | null
+          const updatedSession = db.prepare('SELECT id, token_total, cost_total FROM sessions WHERE id = ?').get(sessionId) as { id: string, token_total: number, cost_total: number } | null
           if (updatedSession) {
             wsManager.broadcastSessionUpdated(updatedSession)
           }
@@ -230,14 +239,14 @@ export function createWebhookHandler(app: Hono, db: Database) {
 
         case 'file.edit':
           // Auto-create session if missing
-          ensureSession(event.sessionId!, event.hostname, event.timestamp)
+          ensureSession(sessionId, event.hostname, event.timestamp)
           
           // Insert file edit record
           db.prepare(`
             INSERT INTO file_edits (session_id, file_path, file_extension, operation, lines_added, lines_removed, timestamp)
             VALUES (?, ?, ?, ?, ?, ?, ?)
           `).run(
-            event.sessionId,
+            sessionId,
             event.filePath || '',
             event.fileExtension || null,
             event.operation || 'unknown',

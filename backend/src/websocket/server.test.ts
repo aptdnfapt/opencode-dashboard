@@ -28,10 +28,10 @@ describe('WebSocket Manager', () => {
 
     manager.register(mockWs1)
     manager.register(mockWs2)
-    manager.broadcast({ type: 'test', data: { foo: 'bar' } })
+    manager.broadcast({ type: 'session.created', data: { foo: 'bar' } })
 
     expect(received.length).toBe(2)
-    expect(JSON.parse(received[0])).toEqual({ type: 'test', data: { foo: 'bar' } })
+    expect(JSON.parse(received[0])).toEqual({ type: 'session.created', data: { foo: 'bar' } })
   })
 
   it('skips clients with closed connection', () => {
@@ -42,7 +42,7 @@ describe('WebSocket Manager', () => {
 
     manager.register(openWs)
     manager.register(closedWs)
-    manager.broadcast({ type: 'test', data: {} })
+    manager.broadcast({ type: 'session.created', data: {} })
 
     expect(received.length).toBe(1)
   })

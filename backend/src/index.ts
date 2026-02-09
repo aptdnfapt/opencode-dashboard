@@ -65,8 +65,8 @@ if (import.meta.main) {
       return new Response('Upgrade required', { status: 426 })
     },
     websocket: {
-      open(ws) { wsManager.register(ws) },
-      close(ws) { wsManager.unregister(ws) },
+      open(ws) { wsManager.register(ws as unknown as WebSocket) },
+      close(ws) { wsManager.unregister(ws as unknown as WebSocket) },
       message(ws, msg) {
         try {
           const data = JSON.parse(msg.toString())

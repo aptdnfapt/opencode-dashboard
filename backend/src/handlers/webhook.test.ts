@@ -33,27 +33,28 @@ function createTestWebhookHandler(app: Hono, db: Database) {
 
   app.post('/events', async (c) => {
     const event: PluginEvent = await c.req.json()
+    const sessionId = event.sessionId || ''
 
     switch (event.type) {
       case 'session.created':
         db.prepare(`
           INSERT OR REPLACE INTO sessions (id, title, hostname, directory, parent_session_id, status, created_at, updated_at)
           VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
-        `).run(event.sessionId, event.title || 'Untitled', event.hostname, null, event.parentSessionId || null, event.timestamp, event.timestamp)
+        `).run(sessionId, event.title || 'Untitled', event.hostname || 'unknown', null, event.parentSessionId || null, event.timestamp, event.timestamp)
         break
 
       case 'timeline':
         db.prepare(`
           INSERT INTO timeline_events (session_id, timestamp, event_type, summary, tool_name)
           VALUES (?, ?, ?, ?, ?)
-        `).run(event.sessionId, event.timestamp, event.eventType, event.summary, event.tool)
+        `).run(sessionId, event.timestamp, event.eventType || 'unknown', event.summary || '', event.tool || null)
         
         db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?')
-          .run(event.timestamp, event.sessionId)
+          .run(event.timestamp, sessionId)
 
         if (event.eventType === 'permission') {
           db.prepare('UPDATE sessions SET needs_attention = 1 WHERE id = ?')
-            .run(event.sessionId)
+            .run(sessionId)
         }
         break
 
@@ -62,7 +63,7 @@ function createTestWebhookHandler(app: Hono, db: Database) {
         db.prepare(`
           UPDATE sessions SET token_total = token_total + ?, cost_total = cost_total + ?, updated_at = ?
           WHERE id = ?
-        `).run(totalTokens, event.cost || 0, event.timestamp, event.sessionId)
+        `).run(totalTokens, event.cost || 0, event.timestamp, sessionId)
         break
     }
 

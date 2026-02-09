@@ -59,7 +59,7 @@ export class WebSocketManager {
   }
 
   broadcastTimeline(event: TimelineEventData): void {
-    this.broadcast({ type: 'timeline', data: event })
+    this.broadcast({ type: 'timeline', data: event as unknown as Record<string, unknown> })
   }
 
   broadcastAttention(sessionId: string, needsAttention: boolean, audioUrl?: string, isSubagent?: boolean): void {
