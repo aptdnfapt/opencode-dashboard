@@ -2,7 +2,7 @@
   import { cn } from '$lib/utils'
   
   interface Props {
-    status: 'active' | 'idle' | 'error' | 'stale'
+    status: 'active' | 'idle' | 'error' | 'stale' | 'archived'
     size?: 'sm' | 'md'
   }
   
@@ -12,7 +12,8 @@
     active: 'bg-[var(--accent-green)]',
     idle: 'bg-[var(--accent-amber)]',
     error: 'bg-[var(--accent-red)]',
-    stale: 'bg-[var(--fg-muted)]'
+    stale: 'bg-[var(--fg-muted)]',
+    archived: 'bg-zinc-600'
   }
 </script>
 

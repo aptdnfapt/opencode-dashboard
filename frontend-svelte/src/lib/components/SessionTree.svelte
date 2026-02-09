@@ -6,6 +6,17 @@
   import { getProjectName } from '$lib/utils'
   import { ChevronRight, Folder, FolderOpen, GitBranch } from 'lucide-svelte'
   
+  // Stale threshold
+  const STALE_THRESHOLD_MS = 3 * 60 * 1000
+  
+  // Compute effective status: idle > 3min = stale
+  function getEffectiveStatus(session: Session): 'active' | 'idle' | 'error' | 'stale' | 'archived' {
+    if (session.status === 'archived') return 'archived'
+    if (session.status !== 'idle') return session.status
+    const idleTime = Date.now() - new Date(session.updated_at).getTime()
+    return idleTime > STALE_THRESHOLD_MS ? 'stale' : 'idle'
+  }
+  
   // Props for collapsed mode
   let { collapsed = false } = $props()
   
@@ -245,7 +256,7 @@
                       <span class="w-4"></span>
                     {/if}
                     
-                    <StatusDot status={session.status} size="sm" />
+                    <StatusDot status={getEffectiveStatus(session)} size="sm" />
                     <span class="flex-1 text-sm truncate text-[var(--fg-secondary)]">
                       {session.title || session.id.slice(0, 8)}
                     </span>
@@ -267,7 +278,7 @@
                                  {isSelected(child.id) ? 'bg-[var(--bg-tertiary)] border-l-2 border-[var(--accent-purple)]' : ''}"
                         >
                           <GitBranch class="w-3 h-3 text-[var(--fg-muted)]" />
-                          <StatusDot status={child.status} size="sm" />
+                          <StatusDot status={getEffectiveStatus(child)} size="sm" />
                           <span class="flex-1 text-sm truncate text-[var(--fg-muted)]">
                             {child.title || 'subagent'}
                           </span>

@@ -79,6 +79,7 @@
     <option value="idle">Idle</option>
     <option value="error">Error</option>
     <option value="stale">Stale</option>
+    <option value="archived">Archived</option>
   </select>
 
   <!-- Hostname dropdown -->

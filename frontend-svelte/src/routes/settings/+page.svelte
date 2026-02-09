@@ -9,6 +9,7 @@
   let soundEnabled = $state(true)
   let ttsEnabled = $state(false)
   let notificationsEnabled = $state(false)
+  let sortActiveFirst = $state(true)
   
   const themeOptions: { value: Theme; label: string }[] = [
     { value: 'light', label: 'Light' },
@@ -34,8 +35,16 @@
       soundEnabled = soundSetting === null || soundSetting === 'true'
       ttsEnabled = localStorage.getItem('dashboard_tts_enabled') === 'true'
       notificationsEnabled = localStorage.getItem('dashboard_notifications_enabled') === 'true'
+      const sortSetting = localStorage.getItem('dashboard_sort_active_first')
+      sortActiveFirst = sortSetting === null || sortSetting === 'true'
+      store.loadSettings()
     }
   })
+  
+  function toggleSortActiveFirst() {
+    sortActiveFirst = !sortActiveFirst
+    store.setSortActiveFirst(sortActiveFirst)
+  }
   
   function toggleSound() {
     soundEnabled = !soundEnabled
@@ -140,8 +149,8 @@
   <!-- Appearance -->
   <section class="mb-8">
     <h2 class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wide mb-4">Appearance</h2>
-    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4">
-      <div class="flex items-center justify-between">
+    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg divide-y divide-[var(--border-subtle)]">
+      <div class="flex items-center justify-between p-4">
         <div>
           <div class="text-sm text-[var(--fg-primary)]">Theme</div>
           <div class="text-xs text-[var(--fg-secondary)]">
@@ -160,6 +169,20 @@
             </button>
           {/each}
         </div>
+      </div>
+      <div class="flex items-center justify-between p-4">
+        <div>
+          <div class="text-sm text-[var(--fg-primary)]">Sort Active First</div>
+          <div class="text-xs text-[var(--fg-secondary)]">Show running sessions at top of list</div>
+        </div>
+        <button
+          onclick={toggleSortActiveFirst}
+          class="w-12 h-6 rounded-full transition-colors {sortActiveFirst ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
+        >
+          <span 
+            class="block w-5 h-5 rounded-full bg-white shadow transition-transform {sortActiveFirst ? 'translate-x-6' : 'translate-x-0.5'}"
+          ></span>
+        </button>
       </div>
     </div>
   </section>

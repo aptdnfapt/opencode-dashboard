@@ -651,6 +651,34 @@ export function createApiHandler(app: Hono, db: Database) {
     return c.json(models.map(m => m.model_id))
   })
 
+  // PATCH /api/sessions/:id/archive - archive a session
+  app.patch('/api/sessions/:id/archive', (c: Context) => {
+    const id = c.req.param('id')
+    
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id)
+    if (!session) {
+      return c.json({ error: 'Session not found' }, 404)
+    }
+    
+    db.prepare('UPDATE sessions SET status = ? WHERE id = ?').run('archived', id)
+    
+    return c.json({ success: true, id, status: 'archived' })
+  })
+
+  // PATCH /api/sessions/:id/unarchive - restore archived session to idle
+  app.patch('/api/sessions/:id/unarchive', (c: Context) => {
+    const id = c.req.param('id')
+    
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id)
+    if (!session) {
+      return c.json({ error: 'Session not found' }, 404)
+    }
+    
+    db.prepare('UPDATE sessions SET status = ? WHERE id = ?').run('idle', id)
+    
+    return c.json({ success: true, id, status: 'idle' })
+  })
+
   // GET /api/analytics/by-project - project-level analytics with time range
   app.get('/api/analytics/by-project', (c: Context) => {
     const range = c.req.query('range') || '7d'

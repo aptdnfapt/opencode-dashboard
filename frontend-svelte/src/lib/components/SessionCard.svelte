@@ -2,10 +2,14 @@
   import type { Session } from '$lib/types'
   import { store } from '$lib/store.svelte'
   import { formatRelativeTime, formatTokens, formatCost, getProjectName, cn } from '$lib/utils'
-  import { Activity, Clock, CircleCheck, Moon, AlertCircle } from 'lucide-svelte'
+  import { archiveSession, unarchiveSession } from '$lib/api'
+  import { Activity, Clock, CircleCheck, Moon, AlertCircle, MoreVertical, Archive, ArchiveRestore } from 'lucide-svelte'
   
   // Idle > 3 min becomes stale
   const STALE_THRESHOLD_MS = 3 * 60 * 1000
+  
+  // Menu state
+  let menuOpen = $state(false)
   
   interface Props {
     session: Session
@@ -16,11 +20,48 @@
   
   // Compute effective status: idle > 3min → stale
   let displayStatus = $derived(() => {
+    if (session.status === 'archived') return 'archived'
     if (session.status !== 'idle') return session.status
     const updatedAt = new Date(session.updated_at).getTime()
     const now = Date.now()
     return (now - updatedAt) > STALE_THRESHOLD_MS ? 'stale' : 'idle'
   })
+  
+  // Archive/unarchive handlers
+  async function handleArchive(e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    menuOpen = false
+    try {
+      await archiveSession(session.id)
+      store.updateSession({ id: session.id, status: 'archived' })
+    } catch (err) {
+      console.warn('Failed to archive:', err)
+    }
+  }
+  
+  async function handleUnarchive(e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    menuOpen = false
+    try {
+      await unarchiveSession(session.id)
+      store.updateSession({ id: session.id, status: 'idle' })
+    } catch (err) {
+      console.warn('Failed to unarchive:', err)
+    }
+  }
+  
+  function toggleMenu(e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    menuOpen = !menuOpen
+  }
+  
+  // Close menu when clicking outside
+  function handleClickOutside(e: MouseEvent) {
+    menuOpen = false
+  }
   
   // Get timeline events for this session
   let timeline = $derived(store.timelines.get(session.id) || [])
@@ -61,6 +102,7 @@
       case 'idle': return Moon
       case 'error': return AlertCircle
       case 'stale': return Clock
+      case 'archived': return Archive
       default: return CircleCheck
     }
   }
@@ -72,6 +114,7 @@
       case 'idle': return 'text-amber-500'
       case 'error': return 'text-rose-500'
       case 'stale': return 'text-zinc-500'
+      case 'archived': return 'text-zinc-600'
       default: return 'text-zinc-400'
     }
   }
@@ -100,11 +143,51 @@
         {session.title || 'Untitled'}
       </span>
     </div>
-    {#if session.needs_attention}
-      <span class="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-[var(--accent-amber)]/20 text-[var(--accent-amber)]">
-        ATTENTION
-      </span>
-    {/if}
+    <div class="flex items-center gap-1">
+      {#if session.needs_attention}
+        <span class="shrink-0 px-1.5 py-0.5 text-[10px] font-medium rounded bg-[var(--accent-amber)]/20 text-[var(--accent-amber)]">
+          ATTENTION
+        </span>
+      {/if}
+      <!-- 3-dot menu -->
+      <div class="relative">
+        <button
+          type="button"
+          onclick={toggleMenu}
+          class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--fg-muted)] hover:text-[var(--fg-primary)] transition-colors"
+        >
+          <MoreVertical class="w-4 h-4" />
+        </button>
+        {#if menuOpen}
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div 
+            class="absolute right-0 top-full mt-1 z-50 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-md shadow-lg py-1 min-w-[120px]"
+            onclick={(e) => e.stopPropagation()}
+          >
+            {#if session.status === 'archived'}
+              <button
+                type="button"
+                onclick={handleUnarchive}
+                class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+              >
+                <ArchiveRestore class="w-4 h-4" />
+                Restore
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={handleArchive}
+                class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+              >
+                <Archive class="w-4 h-4" />
+                Archive
+              </button>
+            {/if}
+          </div>
+        {/if}
+      </div>
+    </div>
   </div>
 
   <!-- Project, host & model -->

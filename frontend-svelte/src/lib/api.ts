@@ -137,3 +137,22 @@ export async function getFileStats(): Promise<FileStats[]> {
 export async function getHealth(): Promise<{ status: string; clients: number }> {
   return fetchAPI('/health')
 }
+
+// Archive/unarchive session
+export async function archiveSession(id: string): Promise<{ success: boolean }> {
+  const res = await fetch(`/api/sessions/${id}/archive`, {
+    method: 'PATCH',
+    headers: API_KEY ? { 'X-API-Key': API_KEY } : {}
+  })
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  return res.json()
+}
+
+export async function unarchiveSession(id: string): Promise<{ success: boolean }> {
+  const res = await fetch(`/api/sessions/${id}/unarchive`, {
+    method: 'PATCH',
+    headers: API_KEY ? { 'X-API-Key': API_KEY } : {}
+  })
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  return res.json()
+}

@@ -6,7 +6,7 @@ export interface Session {
   hostname: string
   directory: string | null
   parent_session_id: string | null
-  status: 'active' | 'idle' | 'error' | 'stale'
+  status: 'active' | 'idle' | 'error' | 'stale' | 'archived'
   created_at: number
   updated_at: number
   needs_attention: number
@@ -152,7 +152,7 @@ export interface SessionCreatedWSData {
   hostname: string
   directory: string | null
   parent_session_id: string | null
-  status: 'active' | 'idle' | 'error' | 'stale'
+  status: 'active' | 'idle' | 'error' | 'stale' | 'archived'
   created_at: number
   updated_at: number
   needs_attention: number

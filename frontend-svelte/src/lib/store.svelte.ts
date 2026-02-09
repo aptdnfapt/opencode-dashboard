@@ -17,6 +17,9 @@ class DashboardStore {
   // Connection state
   connectionStatus = $state<ConnectionStatus>('disconnected')
   
+  // Settings
+  sortActiveFirst = $state(true)
+  
   // Filters
   filters = $state({
     status: '',
@@ -30,18 +33,21 @@ class DashboardStore {
     return this.sessions.find(s => s.id === this.selectedSessionId) ?? null
   }
 
-  // Derived: filtered sessions (handles computed 'stale' status)
+  // Derived: filtered sessions (handles computed 'stale' status + sorting)
   get filteredSessions() {
     const STALE_THRESHOLD_MS = 3 * 60 * 1000
     const now = Date.now()
     
-    return this.sessions.filter(s => {
+    const filtered = this.sessions.filter(s => {
       // Compute effective status: idle > 3min = stale
       let effectiveStatus = s.status
       if (s.status === 'idle') {
         const idleTime = now - new Date(s.updated_at).getTime()
         effectiveStatus = idleTime > STALE_THRESHOLD_MS ? 'stale' : 'idle'
       }
+      
+      // Hide archived unless explicitly filtered for
+      if (!this.filters.status && effectiveStatus === 'archived') return false
       
       if (this.filters.status && effectiveStatus !== this.filters.status) return false
       if (this.filters.hostname && s.hostname !== this.filters.hostname) return false
@@ -52,6 +58,16 @@ class DashboardStore {
       }
       return true
     })
+    
+    // Sort: active first if enabled, then by updated_at
+    if (this.sortActiveFirst) {
+      return filtered.sort((a, b) => {
+        if (a.status === 'active' && b.status !== 'active') return -1
+        if (b.status === 'active' && a.status !== 'active') return 1
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      })
+    }
+    return filtered
   }
 
   // Derived: stats (idle > 3min = stale)
@@ -138,6 +154,20 @@ class DashboardStore {
 
   clearFilters() {
     this.filters = { status: '', hostname: '', directory: '', search: '' }
+  }
+
+  setSortActiveFirst(value: boolean) {
+    this.sortActiveFirst = value
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dashboard_sort_active_first', String(value))
+    }
+  }
+
+  loadSettings() {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('dashboard_sort_active_first')
+      this.sortActiveFirst = saved === null || saved === 'true'
+    }
   }
 }
 
