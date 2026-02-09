@@ -101,6 +101,8 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
   
   // Track message start times for duration calculation
   const messageStartTimes = new Map<string, number>()
+  // Track which messages we've already sent tokens for (prevent duplicates)
+  const sentTokenMessages = new Set<string>()
   
   // Send event to backend
   function send(payload: any) {
@@ -222,7 +224,9 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
           // Only count tokens when message is FINISHED (has finish field)
           // message.updated fires on every streaming update - we only want final count
           const msg = props?.info
-          if (msg?.role === "assistant" && msg?.tokens && msg?.finish) {
+          if (msg?.role === "assistant" && msg?.tokens && msg?.finish && !sentTokenMessages.has(msg.id)) {
+            // Mark as sent to prevent duplicates
+            sentTokenMessages.add(msg.id)
             // Calculate duration from step-start to now
             const startTime = messageStartTimes.get(msg.id)
             const durationMs = startTime ? Date.now() - startTime : null

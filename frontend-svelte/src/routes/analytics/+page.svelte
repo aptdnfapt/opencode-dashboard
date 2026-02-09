@@ -349,12 +349,17 @@
     })
   }
   
-  // File stats bar chart (lines by language)
+  // File stats bar chart (horizontal stacked - added colored, removed = grayed shade of same color)
   function renderFileStatsChart() {
     if (!fileStatsCanvas || fileStats.length === 0) return
     if (fileStatsChart) fileStatsChart.destroy()
     
     const top8 = fileStats.slice(0, 8)
+    
+    // Different color for each language
+    const langColors = top8.map((_, i) => chartColors[i % chartColors.length])
+    // Grayed shade of same color (30% opacity)
+    const langColorsGray = langColors.map(c => c + '4D')
     
     fileStatsChart = new Chart(fileStatsCanvas, {
       type: 'bar',
@@ -364,13 +369,13 @@
           {
             label: 'Added',
             data: top8.map(d => d.lines_added),
-            backgroundColor: colors.green,
+            backgroundColor: langColors,
             borderRadius: 4
           },
           {
             label: 'Removed',
             data: top8.map(d => d.lines_removed),
-            backgroundColor: colors.red,
+            backgroundColor: langColorsGray,
             borderRadius: 4
           }
         ]
@@ -378,6 +383,7 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        indexAxis: 'y',
         animation: { duration: 500, easing: 'easeOutQuart' },
         plugins: {
           legend: { position: 'top', labels: { color: colors.fgSecondary, usePointStyle: true, pointStyle: 'circle' } },
@@ -393,8 +399,8 @@
           }
         },
         scales: {
-          x: { grid: { color: colors.border + '40' }, ticks: { color: colors.fgMuted } },
-          y: { grid: { color: colors.border + '40' }, ticks: { color: colors.fgMuted } }
+          x: { stacked: true, grid: { color: colors.border + '40' }, ticks: { color: colors.fgMuted } },
+          y: { stacked: true, grid: { display: false }, ticks: { color: colors.fgSecondary } }
         }
       }
     })
