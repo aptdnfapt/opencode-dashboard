@@ -414,6 +414,22 @@ export function createApiHandler(app: Hono, db: Database) {
     })
   })
 
+  // GET /api/analytics/tokens-by-model - token breakdown by model (for donut chart)
+  app.get('/api/analytics/tokens-by-model', (c: Context) => {
+    const models = db.prepare(`
+      SELECT 
+        model_id as label,
+        SUM(tokens_in + tokens_out) as value,
+        SUM(cost) as cost,
+        COUNT(*) as requests
+      FROM token_usage
+      WHERE model_id IS NOT NULL
+      GROUP BY model_id
+      ORDER BY value DESC
+    `).all()
+    return c.json(models)
+  })
+
   // GET /api/analytics/cost-by-model - cost breakdown by model (for donut chart)
   app.get('/api/analytics/cost-by-model', (c: Context) => {
     const models = db.prepare(`

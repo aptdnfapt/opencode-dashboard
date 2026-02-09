@@ -68,6 +68,10 @@ export async function getCostByModel(): Promise<CostBreakdown[]> {
   return fetchAPI('/api/analytics/cost-by-model')
 }
 
+export async function getTokensByModel(): Promise<{ label: string; value: number; cost: number; requests: number }[]> {
+  return fetchAPI('/api/analytics/tokens-by-model')
+}
+
 export async function getCostByAgent(): Promise<CostBreakdown[]> {
   return fetchAPI('/api/analytics/cost-by-agent')
 }

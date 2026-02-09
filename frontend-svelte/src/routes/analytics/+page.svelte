@@ -2,12 +2,12 @@
   import { onMount, onDestroy } from 'svelte'
   import { browser } from '$app/environment'
   import { Chart, registerables } from 'chart.js'
-  import { getAnalyticsSummary, getCostTrend, getCostByModel, getCostByAgent, getHeatmap, getTokenFlow, getProjectAnalytics, getSummaryExtended } from '$lib/api'
+  import { getAnalyticsSummary, getCostTrend, getCostByModel, getCostByAgent, getHeatmap, getTokenFlow, getProjectAnalytics, getSummaryExtended, getTokensByModel, getFileStats } from '$lib/api'
   import { formatTokens, formatCost } from '$lib/utils'
   import StatCard from '$lib/components/StatCard.svelte'
   import Heatmap from '$lib/components/Heatmap.svelte'
   import { store } from '$lib/store.svelte'
-  import { Calendar, TrendingUp, PieChart, BarChart3, Activity, ArrowRightLeft, FolderKanban } from 'lucide-svelte'
+  import { Calendar, TrendingUp, PieChart, BarChart3, Activity, ArrowRightLeft, FolderKanban, Code2 } from 'lucide-svelte'
   
   // Register Chart.js components only in browser (SSR safe)
   if (browser) {
@@ -27,6 +27,8 @@
   let heatmapData = $state<Record<string, number>>({})
   let tokenFlow = $state<{ period: string; input: number; output: number }[]>([])
   let projectAnalytics = $state<{ directory: string; sessions: number; tokens: number; cost: number }[]>([])
+  let tokensByModel = $state<{ label: string; value: number; cost: number; requests: number }[]>([])
+  let fileStats = $state<{ extension: string; lines_added: number; lines_removed: number; edit_count: number }[]>([])
   
   // Time range for trend chart
   let trendRange = $state<7 | 30 | 90>(30)
@@ -38,6 +40,8 @@
   let barChart: Chart | null = null
   let flowChart: Chart | null = null
   let projectChart: Chart | null = null
+  let tokensDonutChart: Chart | null = null
+  let fileStatsChart: Chart | null = null
   
   // Canvas refs
   let lineCanvas: HTMLCanvasElement
@@ -45,6 +49,8 @@
   let barCanvas: HTMLCanvasElement
   let flowCanvas: HTMLCanvasElement
   let projectCanvas: HTMLCanvasElement
+  let tokensDonutCanvas: HTMLCanvasElement
+  let fileStatsCanvas: HTMLCanvasElement
   
   // Dark theme colors matching app.css
   const colors = {
@@ -302,6 +308,98 @@
     })
   }
   
+  // Tokens by model donut chart
+  function renderTokensDonutChart() {
+    if (!tokensDonutCanvas || tokensByModel.length === 0) return
+    if (tokensDonutChart) tokensDonutChart.destroy()
+    
+    tokensDonutChart = new Chart(tokensDonutCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: tokensByModel.map(d => d.label),
+        datasets: [{
+          data: tokensByModel.map(d => d.value),
+          backgroundColor: chartColors.slice(0, tokensByModel.length),
+          borderColor: colors.bgSecondary,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%',
+        animation: { duration: 500, easing: 'easeOutQuart' },
+        plugins: {
+          legend: { position: 'right', labels: { color: colors.fgSecondary, padding: 12, usePointStyle: true, pointStyle: 'circle' } },
+          tooltip: {
+            backgroundColor: colors.bgTertiary,
+            titleColor: colors.fgPrimary,
+            bodyColor: colors.fgSecondary,
+            borderColor: colors.border,
+            borderWidth: 1,
+            callbacks: {
+              label: (ctx) => {
+                const item = tokensByModel[ctx.dataIndex]
+                return `${formatTokens(item.value)} tokens (${formatCost(item.cost)})`
+              }
+            }
+          }
+        }
+      }
+    })
+  }
+  
+  // File stats bar chart (lines by language)
+  function renderFileStatsChart() {
+    if (!fileStatsCanvas || fileStats.length === 0) return
+    if (fileStatsChart) fileStatsChart.destroy()
+    
+    const top8 = fileStats.slice(0, 8)
+    
+    fileStatsChart = new Chart(fileStatsCanvas, {
+      type: 'bar',
+      data: {
+        labels: top8.map(d => d.extension || 'unknown'),
+        datasets: [
+          {
+            label: 'Added',
+            data: top8.map(d => d.lines_added),
+            backgroundColor: colors.green,
+            borderRadius: 4
+          },
+          {
+            label: 'Removed',
+            data: top8.map(d => d.lines_removed),
+            backgroundColor: colors.red,
+            borderRadius: 4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 500, easing: 'easeOutQuart' },
+        plugins: {
+          legend: { position: 'top', labels: { color: colors.fgSecondary, usePointStyle: true, pointStyle: 'circle' } },
+          tooltip: {
+            backgroundColor: colors.bgTertiary,
+            titleColor: colors.fgPrimary,
+            bodyColor: colors.fgSecondary,
+            borderColor: colors.border,
+            borderWidth: 1,
+            callbacks: {
+              label: (ctx) => `${ctx.dataset.label}: ${ctx.raw} lines`
+            }
+          }
+        },
+        scales: {
+          x: { grid: { color: colors.border + '40' }, ticks: { color: colors.fgMuted } },
+          y: { grid: { color: colors.border + '40' }, ticks: { color: colors.fgMuted } }
+        }
+      }
+    })
+  }
+  
   // Load trend data for selected range
   async function loadTrend(days: 7 | 30 | 90) {
     trendRange = days
@@ -327,7 +425,7 @@
   // Initial data load
   onMount(async () => {
     try {
-      const [s, sExt, trend, models, agents, heatmap, flow, projects] = await Promise.all([
+      const [s, sExt, trend, models, agents, heatmap, flow, projects, tokensModels, files] = await Promise.all([
         getAnalyticsSummary(),
         getSummaryExtended(),
         getCostTrend(trendRange),
@@ -335,7 +433,9 @@
         getCostByAgent(),
         getHeatmap(365),
         getTokenFlow(flowRange),
-        getProjectAnalytics('30d')
+        getProjectAnalytics('30d'),
+        getTokensByModel(),
+        getFileStats()
       ])
       summary = s
       summaryExt = sExt
@@ -349,6 +449,8 @@
       }, {} as Record<string, number>)
       tokenFlow = flow
       projectAnalytics = projects
+      tokensByModel = tokensModels
+      fileStats = files
     } catch (err) {
       console.error('Failed to load analytics:', err)
     } finally {
@@ -365,6 +467,8 @@
         renderBarChart()
         renderFlowChart()
         renderProjectChart()
+        renderTokensDonutChart()
+        renderFileStatsChart()
       }, 0)
     }
   })
@@ -376,6 +480,8 @@
     if (barChart) barChart.destroy()
     if (flowChart) flowChart.destroy()
     if (projectChart) projectChart.destroy()
+    if (tokensDonutChart) tokensDonutChart.destroy()
+    if (fileStatsChart) fileStatsChart.destroy()
   })
   
   // Refresh analytics when sessions change
@@ -502,6 +608,24 @@
         {/if}
       </div>
 
+      <!-- Tokens by Model - Donut Chart -->
+      <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4">
+        <div class="flex items-center gap-2 mb-4">
+          <PieChart size={16} class="text-[var(--fg-muted)]" />
+          <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Tokens by Model</h2>
+        </div>
+        {#if tokensByModel.length === 0}
+          <div class="h-64 flex items-center justify-center text-[var(--fg-muted)]">No data</div>
+        {:else}
+          <div class="h-64">
+            <canvas bind:this={tokensDonutCanvas}></canvas>
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <!-- Second row of charts -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
       <!-- Cost by Agent - Bar Chart -->
       <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4">
         <div class="flex items-center gap-2 mb-4">
@@ -513,6 +637,21 @@
         {:else}
           <div class="h-64">
             <canvas bind:this={barCanvas}></canvas>
+          </div>
+        {/if}
+      </div>
+
+      <!-- File Stats by Language - Bar Chart -->
+      <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4">
+        <div class="flex items-center gap-2 mb-4">
+          <Code2 size={16} class="text-[var(--fg-muted)]" />
+          <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Lines by Language</h2>
+        </div>
+        {#if fileStats.length === 0}
+          <div class="h-64 flex items-center justify-center text-[var(--fg-muted)]">No data</div>
+        {:else}
+          <div class="h-64">
+            <canvas bind:this={fileStatsCanvas}></canvas>
           </div>
         {/if}
       </div>
