@@ -4,12 +4,23 @@
   import { formatRelativeTime, formatTokens, formatCost, getProjectName, cn } from '$lib/utils'
   import { Activity, Clock, CircleCheck, Moon, AlertCircle } from 'lucide-svelte'
   
+  // Idle > 3 min becomes stale
+  const STALE_THRESHOLD_MS = 3 * 60 * 1000
+  
   interface Props {
     session: Session
     selected?: boolean
   }
   
   let { session, selected = false }: Props = $props()
+  
+  // Compute effective status: idle > 3min → stale
+  let displayStatus = $derived(() => {
+    if (session.status !== 'idle') return session.status
+    const updatedAt = new Date(session.updated_at).getTime()
+    const now = Date.now()
+    return (now - updatedAt) > STALE_THRESHOLD_MS ? 'stale' : 'idle'
+  })
   
   // Get timeline events for this session
   let timeline = $derived(store.timelines.get(session.id) || [])
@@ -65,8 +76,8 @@
     }
   }
   
-  let StatusIcon = $derived(getStatusIcon(session.status))
-  let statusColor = $derived(getStatusColor(session.status))
+  let StatusIcon = $derived(getStatusIcon(displayStatus()))
+  let statusColor = $derived(getStatusColor(displayStatus()))
 </script>
 
 <a

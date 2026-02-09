@@ -5,6 +5,7 @@
   import { formatTokens, formatCost } from '$lib/utils'
   import SessionCard from '$lib/components/SessionCard.svelte'
   import StatCard from '$lib/components/StatCard.svelte'
+  import SessionFilters from '$lib/components/SessionFilters.svelte'
   
   let loading = $state(true)
   let error = $state<string | null>(null)
@@ -54,6 +55,11 @@
         {/if}
       </p>
     </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="mb-4">
+    <SessionFilters sessions={store.sessions} />
   </div>
 
   <!-- Stats row -->

@@ -30,10 +30,20 @@ class DashboardStore {
     return this.sessions.find(s => s.id === this.selectedSessionId) ?? null
   }
 
-  // Derived: filtered sessions
+  // Derived: filtered sessions (handles computed 'stale' status)
   get filteredSessions() {
+    const STALE_THRESHOLD_MS = 3 * 60 * 1000
+    const now = Date.now()
+    
     return this.sessions.filter(s => {
-      if (this.filters.status && s.status !== this.filters.status) return false
+      // Compute effective status: idle > 3min = stale
+      let effectiveStatus = s.status
+      if (s.status === 'idle') {
+        const idleTime = now - new Date(s.updated_at).getTime()
+        effectiveStatus = idleTime > STALE_THRESHOLD_MS ? 'stale' : 'idle'
+      }
+      
+      if (this.filters.status && effectiveStatus !== this.filters.status) return false
       if (this.filters.hostname && s.hostname !== this.filters.hostname) return false
       if (this.filters.directory && s.directory !== this.filters.directory) return false
       if (this.filters.search) {
@@ -44,14 +54,23 @@ class DashboardStore {
     })
   }
 
-  // Derived: stats
+  // Derived: stats (idle > 3min = stale)
   get stats() {
+    const STALE_THRESHOLD_MS = 3 * 60 * 1000
+    const now = Date.now()
     const active = this.sessions.filter(s => s.status === 'active').length
-    const idle = this.sessions.filter(s => s.status === 'idle').length
+    const idle = this.sessions.filter(s => {
+      if (s.status !== 'idle') return false
+      return (now - new Date(s.updated_at).getTime()) <= STALE_THRESHOLD_MS
+    }).length
+    const stale = this.sessions.filter(s => {
+      if (s.status !== 'idle') return false
+      return (now - new Date(s.updated_at).getTime()) > STALE_THRESHOLD_MS
+    }).length
     const attention = this.sessions.filter(s => s.needs_attention).length
     const totalTokens = this.sessions.reduce((sum, s) => sum + (s.token_total || 0), 0)
     const totalCost = this.sessions.reduce((sum, s) => sum + (s.cost_total || 0), 0)
-    return { active, idle, attention, totalTokens, totalCost, total: this.sessions.length }
+    return { active, idle, stale, attention, totalTokens, totalCost, total: this.sessions.length }
   }
 
   // Actions

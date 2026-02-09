@@ -42,6 +42,11 @@
     <span>
       Idle: <span class="text-[var(--accent-amber)]">{store.stats.idle}</span>
     </span>
+    {#if store.stats.stale > 0}
+      <span>
+        Stale: <span class="text-zinc-500">{store.stats.stale}</span>
+      </span>
+    {/if}
     {#if store.stats.attention > 0}
       <span>
         Attention: <span class="text-[var(--accent-red)]">{store.stats.attention}</span>
