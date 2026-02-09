@@ -230,13 +230,11 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
               messageStartTimes.delete(msg.id)
             }
             
-            // For Anthropic: actual input = input + cache_read (cache_read IS the cached input)
-            // For OpenAI: input already contains full count
+            // OpenCode's msg.tokens.input already excludes cached tokens (adjusted by provider)
+            // Cache read/write are tracked separately - don't add to input or we double-count
             const rawInput = msg.tokens.input || 0
             const cacheRead = msg.tokens.cache?.read || 0
             const cacheWrite = msg.tokens.cache?.write || 0
-            // Total input = raw input + cache read (Anthropic puts cached tokens in cache.read)
-            const totalInput = rawInput + cacheRead
             
             send({
               type: "tokens",
@@ -245,7 +243,7 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
               providerId: msg.providerID,
               modelId: msg.modelID,
               agent: msg.mode || "unknown",  // agent mode: code, ask, plan, etc.
-              tokensIn: totalInput,
+              tokensIn: rawInput,  // Don't add cacheRead - already excluded by opencode
               tokensOut: msg.tokens.output || 0,
               cacheRead: cacheRead,
               cacheWrite: cacheWrite,
