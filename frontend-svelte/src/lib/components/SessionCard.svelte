@@ -156,15 +156,15 @@
 <a
   href="/sessions/{session.id}"
   class={cn(
-    'block w-full text-left p-3 rounded-lg border transition-all duration-200',
-    'hover:bg-[var(--bg-tertiary)] hover:border-[var(--border)] hover:-translate-y-0.5',
+    'flex flex-col w-full h-full text-left p-3 rounded-lg border transition-all duration-200',
+    'hover:bg-[var(--bg-tertiary)] hover:border-[var(--border)]',
     selected 
       ? 'bg-[var(--bg-tertiary)] border-[var(--accent-blue)]' 
       : 'bg-[var(--bg-secondary)] border-[var(--border-subtle)]',
     session.needs_attention ? 'ring-1 ring-[var(--accent-amber)] attention-pulse' : '',
     session.status === 'active' ? 'active-border' : ''
   )}
-  style="box-shadow: var(--shadow-sm); background-image: var(--gradient-subtle);"
+
 >
   <!-- Header row -->
   <div class="flex items-start justify-between gap-2 mb-2">
@@ -222,13 +222,8 @@
     </div>
   </div>
 
-  <!-- Separator between header and meta -->
-  <div class="border-t border-[var(--border-subtle)]/50 my-2"></div>
-
   <!-- Project, host & model -->
   <div class="flex items-center gap-2 text-xs text-[var(--fg-secondary)] mb-2 flex-wrap">
-    <!-- Project color bar instead of dot -->
-    <span class="inline-block w-[3px] h-3.5 rounded-full shrink-0" style="background: {getProjectColor(session.directory)}"></span>
     <span class="mono truncate" style="color: {getProjectColor(session.directory)}">{getProjectName(session.directory)}</span>
     <span class="text-[var(--fg-muted)]">•</span>
     <span class="mono">{session.hostname}</span>
@@ -262,11 +257,8 @@
     </div>
   {/if}
 
-  <!-- Separator before footer -->
-  <div class="border-t border-[var(--border-subtle)]/30 my-2"></div>
-
   <!-- Footer: tokens, cost, time -->
-  <div class="flex items-center justify-between text-xs">
+  <div class="flex items-center justify-between text-xs mt-auto">
     <div class="flex items-center gap-3 text-[var(--fg-muted)]">
       <span class="mono">{formatTokens(session.token_total || 0)} tok</span>
       <span class="mono">{formatCost(session.cost_total || 0)}</span>

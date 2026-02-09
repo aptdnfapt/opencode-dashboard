@@ -116,9 +116,9 @@
     </div>
   {:else}
     <!-- Grid view - main sessions only (no subagents) -->
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-stretch">
       {#each mainSessions as session, i (session.id)}
-        <div style="animation-delay: {Math.min(i * 50, 500)}ms" class="animate-fade-in-up">
+        <div style="animation-delay: {Math.min(i * 50, 500)}ms" class="animate-fade-in-up h-full">
           <SessionCard 
             {session} 
             selected={store.selectedSessionId === session.id}

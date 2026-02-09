@@ -27,15 +27,8 @@
 </script>
 
 <div
-  class="relative p-4 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--border)]"
-  style="box-shadow: var(--shadow-sm); background-image: var(--gradient-subtle);"
+  class="p-4 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-subtle)] overflow-hidden transition-all duration-200 hover:border-[var(--border)]"
 >
-  <!-- Colored left accent strip -->
-  <div
-    class="absolute left-0 top-0 bottom-0 w-[2px] rounded-l-lg"
-    style="background: {accentVars[color]}; opacity: 0.7;"
-  ></div>
-
   <div class="text-xs text-[var(--fg-muted)] uppercase tracking-wider mb-1.5 font-medium">{label}</div>
   <div class={`text-3xl font-bold mono tracking-tight ${colorClasses[color]}`}>{value}</div>
   {#if subvalue}
