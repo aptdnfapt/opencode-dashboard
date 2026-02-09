@@ -156,14 +156,15 @@
 <a
   href="/sessions/{session.id}"
   class={cn(
-    'block w-full text-left p-3 rounded-lg border transition-all duration-150',
-    'hover:bg-[var(--bg-tertiary)] hover:border-[var(--border)]',
+    'block w-full text-left p-3 rounded-lg border transition-all duration-200',
+    'hover:bg-[var(--bg-tertiary)] hover:border-[var(--border)] hover:-translate-y-0.5',
     selected 
       ? 'bg-[var(--bg-tertiary)] border-[var(--accent-blue)]' 
       : 'bg-[var(--bg-secondary)] border-[var(--border-subtle)]',
-    session.needs_attention ? 'ring-1 ring-[var(--accent-amber)]' : '',
+    session.needs_attention ? 'ring-1 ring-[var(--accent-amber)] attention-pulse' : '',
     session.status === 'active' ? 'active-border' : ''
   )}
+  style="box-shadow: var(--shadow-sm); background-image: var(--gradient-subtle);"
 >
   <!-- Header row -->
   <div class="flex items-start justify-between gap-2 mb-2">
@@ -192,7 +193,8 @@
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div 
-            class="absolute right-0 top-full mt-1 z-50 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-md shadow-lg py-1 min-w-[120px]"
+            class="absolute right-0 top-full mt-1 z-50 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg py-1 min-w-[130px]"
+            style="box-shadow: var(--shadow-md);"
             onclick={(e) => e.stopPropagation()}
           >
             {#if session.status === 'archived'}
@@ -220,8 +222,13 @@
     </div>
   </div>
 
+  <!-- Separator between header and meta -->
+  <div class="border-t border-[var(--border-subtle)]/50 my-2"></div>
+
   <!-- Project, host & model -->
   <div class="flex items-center gap-2 text-xs text-[var(--fg-secondary)] mb-2 flex-wrap">
+    <!-- Project color bar instead of dot -->
+    <span class="inline-block w-[3px] h-3.5 rounded-full shrink-0" style="background: {getProjectColor(session.directory)}"></span>
     <span class="mono truncate" style="color: {getProjectColor(session.directory)}">{getProjectName(session.directory)}</span>
     <span class="text-[var(--fg-muted)]">•</span>
     <span class="mono">{session.hostname}</span>
@@ -255,6 +262,9 @@
     </div>
   {/if}
 
+  <!-- Separator before footer -->
+  <div class="border-t border-[var(--border-subtle)]/30 my-2"></div>
+
   <!-- Footer: tokens, cost, time -->
   <div class="flex items-center justify-between text-xs">
     <div class="flex items-center gap-3 text-[var(--fg-muted)]">
@@ -277,12 +287,22 @@
   
   /* Animated gradient border for active sessions */
   @keyframes border-glow {
-    0%, 100% { border-color: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.3); }
-    50% { border-color: #34d399; box-shadow: 0 0 12px rgba(52, 211, 153, 0.5); }
+    0%, 100% { border-color: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.2); }
+    50% { border-color: #34d399; box-shadow: 0 0 10px rgba(52, 211, 153, 0.35); }
   }
   
   .active-border {
-    animation: border-glow 2s ease-in-out infinite;
+    animation: border-glow 2.5s ease-in-out infinite;
     border-color: #10b981;
+  }
+
+  /* Subtle pulsing ring for attention state */
+  @keyframes attention-ring {
+    0%, 100% { box-shadow: 0 0 0 1px var(--accent-amber), 0 0 4px rgba(210, 153, 34, 0.15); }
+    50% { box-shadow: 0 0 0 1px var(--accent-amber), 0 0 8px rgba(210, 153, 34, 0.3); }
+  }
+
+  .attention-pulse {
+    animation: attention-ring 2.5s ease-in-out infinite;
   }
 </style>

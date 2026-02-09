@@ -85,6 +85,12 @@
     if (!lineCanvas || costTrend.length === 0) return
     if (lineChart) lineChart.destroy()
     
+    // Create gradient fill for line chart
+    const ctx = lineCanvas.getContext('2d')!
+    const gradient = ctx.createLinearGradient(0, 0, 0, lineCanvas.clientHeight || 256)
+    gradient.addColorStop(0, colors.green + '30')
+    gradient.addColorStop(1, colors.green + '02')
+    
     lineChart = new Chart(lineCanvas, {
       type: 'line',
       data: {
@@ -93,33 +99,42 @@
           label: 'Cost',
           data: costTrend.map(d => d.cost),
           borderColor: colors.green,
-          backgroundColor: colors.green + '20',
+          backgroundColor: gradient,
           fill: true,
-          tension: 0.3,
-          pointRadius: 2,
-          pointHoverRadius: 5
+          tension: 0.4,
+          pointRadius: 0,
+          pointHoverRadius: 6,
+          pointHoverBackgroundColor: colors.green,
+          pointHoverBorderColor: colors.bgSecondary,
+          pointHoverBorderWidth: 2,
+          borderWidth: 2
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 500, easing: 'easeOutQuart' },
+        animation: { duration: 600, easing: 'easeOutQuart' },
+        interaction: { intersect: false, mode: 'index' },
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: colors.bgTertiary,
+            backgroundColor: '#1c2128',
             titleColor: colors.fgPrimary,
             bodyColor: colors.fgSecondary,
-            borderColor: colors.border,
+            borderColor: 'rgba(240,246,252,0.1)',
             borderWidth: 1,
+            cornerRadius: 8,
+            titleFont: { size: 12 },
+            bodyFont: { size: 11 },
+            padding: 10,
             callbacks: {
               label: (ctx) => `Cost: ${formatCost(ctx.raw as number)}`
             }
           }
         },
         scales: {
-          x: { grid: { color: colors.border + '40' }, ticks: { color: colors.fgMuted, maxTicksLimit: 10 } },
-          y: { grid: { color: colors.border + '40' }, ticks: { color: colors.fgMuted, callback: (v) => '$' + Number(v).toFixed(2) } }
+          x: { grid: { color: 'rgba(240,246,252,0.06)' }, ticks: { color: colors.fgMuted, maxTicksLimit: 10, font: { size: 11 } } },
+          y: { grid: { color: 'rgba(240,246,252,0.06)' }, ticks: { color: colors.fgMuted, font: { size: 11 }, callback: (v) => '$' + Number(v).toFixed(2) } }
         }
       }
     })
@@ -144,16 +159,20 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '60%',
-        animation: { duration: 500, easing: 'easeOutQuart' },
+        cutout: '70%',
+        animation: { duration: 600, easing: 'easeOutQuart' },
         plugins: {
-          legend: { position: 'right', labels: { color: colors.fgSecondary, padding: 12, usePointStyle: true, pointStyle: 'circle' } },
+          legend: { position: 'right', labels: { color: colors.fgSecondary, padding: 16, usePointStyle: true, pointStyle: 'circle', font: { size: 11 } } },
           tooltip: {
-            backgroundColor: colors.bgTertiary,
+            backgroundColor: '#1c2128',
             titleColor: colors.fgPrimary,
             bodyColor: colors.fgSecondary,
-            borderColor: colors.border,
+            borderColor: 'rgba(240,246,252,0.1)',
             borderWidth: 1,
+            cornerRadius: 8,
+            titleFont: { size: 12 },
+            bodyFont: { size: 11 },
+            padding: 10,
             callbacks: {
               label: (ctx) => {
                 const item = costByModel[ctx.dataIndex]
@@ -179,23 +198,27 @@
           label: 'Cost',
           data: costByAgent.map(d => d.value),
           backgroundColor: chartColors.slice(0, costByAgent.length),
-          borderRadius: 4,
-          barThickness: 32
+          borderRadius: 6,
+          barThickness: 28
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         indexAxis: 'y',
-        animation: { duration: 500, easing: 'easeOutQuart' },
+        animation: { duration: 600, easing: 'easeOutQuart' },
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: colors.bgTertiary,
+            backgroundColor: '#1c2128',
             titleColor: colors.fgPrimary,
             bodyColor: colors.fgSecondary,
-            borderColor: colors.border,
+            borderColor: 'rgba(240,246,252,0.1)',
             borderWidth: 1,
+            cornerRadius: 8,
+            titleFont: { size: 12 },
+            bodyFont: { size: 11 },
+            padding: 10,
             callbacks: {
               label: (ctx) => {
                 const item = costByAgent[ctx.dataIndex]
@@ -205,8 +228,8 @@
           }
         },
         scales: {
-          x: { grid: { color: colors.border + '40' }, ticks: { color: colors.fgMuted, callback: (v) => '$' + Number(v).toFixed(2) } },
-          y: { grid: { display: false }, ticks: { color: colors.fgSecondary } }
+          x: { grid: { color: 'rgba(240,246,252,0.06)' }, ticks: { color: colors.fgMuted, font: { size: 11 }, callback: (v) => '$' + Number(v).toFixed(2) } },
+          y: { grid: { display: false }, ticks: { color: colors.fgSecondary, font: { size: 11 } } }
         }
       }
     })
@@ -225,35 +248,41 @@
           {
             label: 'Input',
             data: tokenFlow.map(d => d.input),
-            backgroundColor: colors.blue,
-            borderRadius: 4
+            backgroundColor: colors.blue + 'CC',
+            hoverBackgroundColor: colors.blue,
+            borderRadius: 6
           },
           {
             label: 'Output',
             data: tokenFlow.map(d => d.output),
-            backgroundColor: colors.green,
-            borderRadius: 4
+            backgroundColor: colors.green + 'CC',
+            hoverBackgroundColor: colors.green,
+            borderRadius: 6
           }
         ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 500, easing: 'easeOutQuart' },
+        animation: { duration: 600, easing: 'easeOutQuart' },
         plugins: {
-          legend: { position: 'top', labels: { color: colors.fgSecondary, usePointStyle: true, pointStyle: 'circle' } },
+          legend: { position: 'top', labels: { color: colors.fgSecondary, usePointStyle: true, pointStyle: 'circle', padding: 16, font: { size: 11 } } },
           tooltip: {
-            backgroundColor: colors.bgTertiary,
+            backgroundColor: '#1c2128',
             titleColor: colors.fgPrimary,
             bodyColor: colors.fgSecondary,
-            borderColor: colors.border,
+            borderColor: 'rgba(240,246,252,0.1)',
             borderWidth: 1,
+            cornerRadius: 8,
+            titleFont: { size: 12 },
+            bodyFont: { size: 11 },
+            padding: 10,
             callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatTokens(ctx.raw as number)}` }
           }
         },
         scales: {
-          x: { grid: { color: colors.border + '40' }, ticks: { color: colors.fgMuted } },
-          y: { grid: { color: colors.border + '40' }, ticks: { color: colors.fgMuted, callback: (v) => formatTokens(Number(v)) } }
+          x: { grid: { color: 'rgba(240,246,252,0.06)' }, ticks: { color: colors.fgMuted, font: { size: 11 } } },
+          y: { grid: { color: 'rgba(240,246,252,0.06)' }, ticks: { color: colors.fgMuted, font: { size: 11 }, callback: (v) => formatTokens(Number(v)) } }
         }
       }
     })
@@ -274,7 +303,7 @@
           label: 'Tokens',
           data: top5.map(d => d.tokens),
           backgroundColor: chartColors.slice(0, top5.length),
-          borderRadius: 4,
+          borderRadius: 6,
           barThickness: 28
         }]
       },
@@ -282,15 +311,19 @@
         responsive: true,
         maintainAspectRatio: false,
         indexAxis: 'y',
-        animation: { duration: 500, easing: 'easeOutQuart' },
+        animation: { duration: 600, easing: 'easeOutQuart' },
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: colors.bgTertiary,
+            backgroundColor: '#1c2128',
             titleColor: colors.fgPrimary,
             bodyColor: colors.fgSecondary,
-            borderColor: colors.border,
+            borderColor: 'rgba(240,246,252,0.1)',
             borderWidth: 1,
+            cornerRadius: 8,
+            titleFont: { size: 12 },
+            bodyFont: { size: 11 },
+            padding: 10,
             callbacks: {
               title: (ctx) => top5[ctx[0].dataIndex].directory,
               label: (ctx) => {
@@ -301,8 +334,8 @@
           }
         },
         scales: {
-          x: { grid: { color: colors.border + '40' }, ticks: { color: colors.fgMuted, callback: (v) => formatTokens(Number(v)) } },
-          y: { grid: { display: false }, ticks: { color: colors.fgSecondary } }
+          x: { grid: { color: 'rgba(240,246,252,0.06)' }, ticks: { color: colors.fgMuted, font: { size: 11 }, callback: (v) => formatTokens(Number(v)) } },
+          y: { grid: { display: false }, ticks: { color: colors.fgSecondary, font: { size: 11 } } }
         }
       }
     })
@@ -327,16 +360,20 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '60%',
-        animation: { duration: 500, easing: 'easeOutQuart' },
+        cutout: '70%',
+        animation: { duration: 600, easing: 'easeOutQuart' },
         plugins: {
-          legend: { position: 'right', labels: { color: colors.fgSecondary, padding: 12, usePointStyle: true, pointStyle: 'circle' } },
+          legend: { position: 'right', labels: { color: colors.fgSecondary, padding: 16, usePointStyle: true, pointStyle: 'circle', font: { size: 11 } } },
           tooltip: {
-            backgroundColor: colors.bgTertiary,
+            backgroundColor: '#1c2128',
             titleColor: colors.fgPrimary,
             bodyColor: colors.fgSecondary,
-            borderColor: colors.border,
+            borderColor: 'rgba(240,246,252,0.1)',
             borderWidth: 1,
+            cornerRadius: 8,
+            titleFont: { size: 12 },
+            bodyFont: { size: 11 },
+            padding: 10,
             callbacks: {
               label: (ctx) => {
                 const item = tokensByModel[ctx.dataIndex]
@@ -370,13 +407,13 @@
             label: 'Added',
             data: top8.map(d => d.lines_added),
             backgroundColor: langColors,
-            borderRadius: 4
+            borderRadius: 6
           },
           {
             label: 'Removed',
             data: top8.map(d => d.lines_removed),
             backgroundColor: langColorsGray,
-            borderRadius: 4
+            borderRadius: 6
           }
         ]
       },
@@ -384,23 +421,27 @@
         responsive: true,
         maintainAspectRatio: false,
         indexAxis: 'y',
-        animation: { duration: 500, easing: 'easeOutQuart' },
+        animation: { duration: 600, easing: 'easeOutQuart' },
         plugins: {
-          legend: { position: 'top', labels: { color: colors.fgSecondary, usePointStyle: true, pointStyle: 'circle' } },
+          legend: { position: 'top', labels: { color: colors.fgSecondary, usePointStyle: true, pointStyle: 'circle', padding: 16, font: { size: 11 } } },
           tooltip: {
-            backgroundColor: colors.bgTertiary,
+            backgroundColor: '#1c2128',
             titleColor: colors.fgPrimary,
             bodyColor: colors.fgSecondary,
-            borderColor: colors.border,
+            borderColor: 'rgba(240,246,252,0.1)',
             borderWidth: 1,
+            cornerRadius: 8,
+            titleFont: { size: 12 },
+            bodyFont: { size: 11 },
+            padding: 10,
             callbacks: {
               label: (ctx) => `${ctx.dataset.label}: ${ctx.raw} lines`
             }
           }
         },
         scales: {
-          x: { stacked: true, grid: { color: colors.border + '40' }, ticks: { color: colors.fgMuted } },
-          y: { stacked: true, grid: { display: false }, ticks: { color: colors.fgSecondary } }
+          x: { stacked: true, grid: { color: 'rgba(240,246,252,0.06)' }, ticks: { color: colors.fgMuted, font: { size: 11 } } },
+          y: { stacked: true, grid: { display: false }, ticks: { color: colors.fgSecondary, font: { size: 11 } } }
         }
       }
     })
@@ -542,8 +583,17 @@
   </div>
 
   {#if loading}
-    <div class="flex items-center justify-center py-12">
-      <span class="text-[var(--fg-muted)]">Loading analytics...</span>
+    <!-- Skeleton loading state -->
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
+      {#each Array(6) as _}
+        <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 h-20 animate-pulse"></div>
+      {/each}
+    </div>
+    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 mb-8 h-40 animate-pulse"></div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      {#each Array(4) as _}
+        <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 h-72 animate-pulse"></div>
+      {/each}
     </div>
   {:else}
     <!-- Summary stats -->
@@ -575,13 +625,13 @@
           <ArrowRightLeft size={16} class="text-[var(--fg-muted)]" />
           <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Token Flow</h2>
         </div>
-        <div class="flex gap-1">
+        <div class="inline-flex rounded-lg border border-[var(--border-subtle)] overflow-hidden">
           {#each ['7d', '30d', '90d'] as range}
             <button
               onclick={() => loadFlow(range as '7d' | '30d' | '90d')}
-              class="px-3 py-1 text-xs rounded transition-colors {flowRange === range 
+              class="px-3 py-1.5 text-xs font-medium transition-colors {flowRange === range 
                 ? 'bg-[var(--accent-blue)] text-white' 
-                : 'bg-[var(--bg-tertiary)] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)]'}"
+                : 'bg-[var(--bg-tertiary)] text-[var(--fg-muted)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-hover)]'}"
             >
               {range}
             </button>
@@ -686,13 +736,13 @@
           <TrendingUp size={16} class="text-[var(--fg-muted)]" />
           <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Cost Trend</h2>
         </div>
-        <div class="flex gap-1">
+        <div class="inline-flex rounded-lg border border-[var(--border-subtle)] overflow-hidden">
           {#each [7, 30, 90] as days}
             <button
               onclick={() => loadTrend(days as 7 | 30 | 90)}
-              class="px-3 py-1 text-xs rounded transition-colors {trendRange === days 
+              class="px-3 py-1.5 text-xs font-medium transition-colors {trendRange === days 
                 ? 'bg-[var(--accent-blue)] text-white' 
-                : 'bg-[var(--bg-tertiary)] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)]'}"
+                : 'bg-[var(--bg-tertiary)] text-[var(--fg-muted)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-hover)]'}"
             >
               {days}d
             </button>

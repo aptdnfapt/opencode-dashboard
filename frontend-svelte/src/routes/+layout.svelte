@@ -95,17 +95,27 @@
     <div class="flex flex-1 overflow-hidden">
       <!-- Left sidebar with session tree -->
       <aside 
-        class="h-full flex flex-col bg-[var(--bg-secondary)] border-r border-[var(--border-subtle)] overflow-hidden transition-all duration-300 ease-in-out"
+        class="relative h-full flex flex-col bg-[var(--bg-secondary)] overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
         style="width: {sidebarCollapsed ? '64px' : '256px'}"
       >
+        <!-- Right edge gradient shadow — depth separator -->
+        <div class="absolute right-0 top-0 bottom-0 w-px bg-[var(--border-subtle)]"></div>
+        <div class="absolute right-0 top-0 bottom-0 w-4 pointer-events-none" style="background: linear-gradient(to right, transparent, rgba(0,0,0,0.15));"></div>
+
         <!-- Sidebar toggle button -->
         <div class="px-2 py-2 border-b border-[var(--border-subtle)] flex items-center {sidebarCollapsed ? 'justify-center' : 'justify-between'}">
           {#if !sidebarCollapsed}
-            <span class="text-xs text-[var(--fg-muted)] uppercase tracking-wider">Sessions</span>
+            <span class="flex items-center gap-1.5 text-xs text-[var(--fg-muted)] uppercase tracking-wider font-medium">
+              <!-- Subtle list icon -->
+              <svg class="w-3.5 h-3.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path d="M4 6h16M4 12h16M4 18h10" />
+              </svg>
+              Sessions
+            </span>
           {/if}
           <button
             onclick={toggleSidebar}
-            class="p-1.5 rounded hover:bg-[var(--bg-tertiary)] text-[var(--fg-muted)] hover:text-[var(--fg-secondary)] transition-colors"
+            class="p-1.5 rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--fg-muted)] hover:text-[var(--fg-secondary)] transition-all duration-150"
             title={sidebarCollapsed ? 'Expand sidebar (Cmd+B)' : 'Collapse sidebar (Cmd+B)'}
           >
             {#if sidebarCollapsed}

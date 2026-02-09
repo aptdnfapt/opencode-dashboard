@@ -129,8 +129,12 @@
 
   <!-- Connection -->
   <section class="mb-8">
-    <h2 class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wide mb-4">Connection</h2>
-    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4">
+    <h2 class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wide mb-4 flex items-center gap-2">
+      <!-- WiFi/signal icon -->
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg>
+      Connection
+    </h2>
+    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 transition-colors hover:border-[var(--border)]">
       <div class="flex items-center justify-between">
         <div>
           <div class="text-sm text-[var(--fg-primary)]">WebSocket Status</div>
@@ -148,8 +152,12 @@
 
   <!-- Appearance -->
   <section class="mb-8">
-    <h2 class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wide mb-4">Appearance</h2>
-    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg divide-y divide-[var(--border-subtle)]">
+    <h2 class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wide mb-4 flex items-center gap-2">
+      <!-- Moon/palette icon -->
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      Appearance
+    </h2>
+    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg divide-y divide-[var(--border-subtle)] transition-colors hover:border-[var(--border)]">
       <div class="flex items-center justify-between p-4">
         <div>
           <div class="text-sm text-[var(--fg-primary)]">Theme</div>
@@ -177,10 +185,10 @@
         </div>
         <button
           onclick={toggleSortActiveFirst}
-          class="w-12 h-6 rounded-full transition-colors {sortActiveFirst ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
+          class="w-14 h-7 rounded-full transition-colors {sortActiveFirst ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
         >
           <span 
-            class="block w-5 h-5 rounded-full bg-white shadow transition-transform {sortActiveFirst ? 'translate-x-6' : 'translate-x-0.5'}"
+            class="block w-6 h-6 rounded-full bg-white shadow transition-transform {sortActiveFirst ? 'translate-x-7' : 'translate-x-0.5'}"
           ></span>
         </button>
       </div>
@@ -189,8 +197,12 @@
 
   <!-- Notifications -->
   <section class="mb-8">
-    <h2 class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wide mb-4">Notifications</h2>
-    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg divide-y divide-[var(--border-subtle)]">
+    <h2 class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wide mb-4 flex items-center gap-2">
+      <!-- Bell icon -->
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      Notifications
+    </h2>
+    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg divide-y divide-[var(--border-subtle)] transition-colors hover:border-[var(--border)]">
       <!-- Sound notifications -->
       <div class="flex items-center justify-between p-4">
         <div>
@@ -200,16 +212,16 @@
         <div class="flex items-center gap-2">
           <button
             onclick={testSound}
-            class="px-2 py-1 text-xs rounded bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+            class="px-2.5 py-1 text-xs rounded bg-[var(--bg-tertiary)] border border-[var(--border)] text-[var(--fg-primary)] hover:bg-[var(--bg-hover)] transition-colors"
           >
             Test
           </button>
           <button
             onclick={toggleSound}
-            class="w-12 h-6 rounded-full transition-colors {soundEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
+            class="w-14 h-7 rounded-full transition-colors {soundEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
           >
             <span 
-              class="block w-5 h-5 rounded-full bg-white shadow transition-transform {soundEnabled ? 'translate-x-6' : 'translate-x-0.5'}"
+              class="block w-6 h-6 rounded-full bg-white shadow transition-transform {soundEnabled ? 'translate-x-7' : 'translate-x-0.5'}"
             ></span>
           </button>
         </div>
@@ -223,16 +235,16 @@
         <div class="flex items-center gap-2">
           <button
             onclick={testNotification}
-            class="px-2 py-1 text-xs rounded bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+            class="px-2.5 py-1 text-xs rounded bg-[var(--bg-tertiary)] border border-[var(--border)] text-[var(--fg-primary)] hover:bg-[var(--bg-hover)] transition-colors"
           >
             Test
           </button>
           <button
             onclick={toggleNotifications}
-            class="w-12 h-6 rounded-full transition-colors {notificationsEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
+            class="w-14 h-7 rounded-full transition-colors {notificationsEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
           >
             <span 
-              class="block w-5 h-5 rounded-full bg-white shadow transition-transform {notificationsEnabled ? 'translate-x-6' : 'translate-x-0.5'}"
+              class="block w-6 h-6 rounded-full bg-white shadow transition-transform {notificationsEnabled ? 'translate-x-7' : 'translate-x-0.5'}"
             ></span>
           </button>
         </div>
@@ -246,16 +258,16 @@
         <div class="flex items-center gap-2">
           <button
             onclick={testTTS}
-            class="px-2 py-1 text-xs rounded bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)] transition-colors"
+            class="px-2.5 py-1 text-xs rounded bg-[var(--bg-tertiary)] border border-[var(--border)] text-[var(--fg-primary)] hover:bg-[var(--bg-hover)] transition-colors"
           >
             Test
           </button>
           <button
             onclick={toggleTTS}
-            class="w-12 h-6 rounded-full transition-colors {ttsEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
+            class="w-14 h-7 rounded-full transition-colors {ttsEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
           >
             <span 
-              class="block w-5 h-5 rounded-full bg-white shadow transition-transform {ttsEnabled ? 'translate-x-6' : 'translate-x-0.5'}"
+              class="block w-6 h-6 rounded-full bg-white shadow transition-transform {ttsEnabled ? 'translate-x-7' : 'translate-x-0.5'}"
             ></span>
           </button>
         </div>
@@ -265,8 +277,12 @@
 
   <!-- About -->
   <section class="mb-8">
-    <h2 class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wide mb-4">About</h2>
-    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4">
+    <h2 class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wide mb-4 flex items-center gap-2">
+      <!-- Info circle icon -->
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      About
+    </h2>
+    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 transition-colors hover:border-[var(--border)]">
       <div class="text-sm text-[var(--fg-primary)]">OpenCode Dashboard</div>
       <div class="text-xs mono text-[var(--fg-secondary)] mt-1">Svelte 5 + SvelteKit</div>
     </div>
@@ -274,8 +290,12 @@
 
   <!-- Account -->
   <section>
-    <h2 class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wide mb-4">Account</h2>
-    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4">
+    <h2 class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wide mb-4 flex items-center gap-2">
+      <!-- User icon -->
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Account
+    </h2>
+    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 transition-colors hover:border-[var(--border)]">
       <div class="flex items-center justify-between">
         <div>
           <div class="text-sm text-[var(--fg-primary)]">Sign Out</div>
@@ -283,8 +303,10 @@
         </div>
         <button
           onclick={logout}
-          class="px-3 py-1.5 text-sm rounded bg-[var(--accent-red)] text-white hover:opacity-90 transition-opacity"
+          class="px-3 py-1.5 text-sm rounded bg-[var(--accent-red)] text-white hover:opacity-90 transition-opacity inline-flex items-center gap-2"
         >
+          <!-- Door/exit icon -->
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Logout
         </button>
       </div>

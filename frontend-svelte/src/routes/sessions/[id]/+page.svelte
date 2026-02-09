@@ -59,6 +59,15 @@
     error: 'text-[var(--accent-red)]',
     permission: 'text-[var(--accent-amber)]'
   }
+
+  // Left-border colors for timeline events
+  const eventBorderColors: Record<string, string> = {
+    tool: 'border-l-[var(--accent-blue)]',
+    message: 'border-l-[var(--accent-green)]',
+    user: 'border-l-gray-500',
+    error: 'border-l-[var(--accent-red)]',
+    permission: 'border-l-[var(--accent-amber)]'
+  }
   
   // Configure marked for safe rendering
   marked.setOptions({
@@ -231,7 +240,7 @@
               </button>
             {/if}
             <span class={cn(
-              'px-2 py-1 text-xs font-medium rounded uppercase',
+              'px-2.5 py-1 text-xs font-semibold rounded-full uppercase tracking-wide',
               session.status === 'active' && 'bg-[var(--accent-green)]/20 text-[var(--accent-green)]',
               session.status === 'idle' && 'bg-[var(--accent-amber)]/20 text-[var(--accent-amber)]',
               session.status === 'error' && 'bg-[var(--accent-red)]/20 text-[var(--accent-red)]',
@@ -283,9 +292,12 @@
               <span class="text-[var(--fg-muted)]">No events yet</span>
             </div>
           {:else}
-            <div class="divide-y divide-[var(--border-subtle)]">
+            <div>
               {#each timeline as event (event.id)}
-                <div class="p-3 hover:bg-[var(--bg-tertiary)] transition-colors">
+                <div class={cn(
+                  'py-3 px-3 hover:bg-[var(--bg-tertiary)] transition-colors border-l-2 border-b border-b-[var(--border-subtle)]',
+                  eventBorderColors[event.event_type] || 'border-l-[var(--fg-muted)]'
+                )}>
                   <div class="flex items-start gap-3">
                     <!-- Event icon -->
                     <span class={cn('text-base shrink-0 mono font-bold', eventColors[event.event_type] || 'text-[var(--fg-muted)]')}>
@@ -349,11 +361,11 @@
           {/if}
         </div>
         
-        <!-- Scroll to bottom button -->
+        <!-- Scroll to bottom button — floating pill at bottom-center -->
         {#if showScrollButton}
           <button
             onclick={scrollToBottom}
-            class="absolute bottom-4 right-4 px-3 py-2 bg-[var(--accent-blue)] text-white text-xs font-medium rounded-lg shadow-lg hover:bg-[var(--accent-blue)]/80 transition-all flex items-center gap-2"
+            class="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-[var(--accent-blue)] text-white text-xs font-medium rounded-full shadow-lg shadow-black/25 hover:bg-[var(--accent-blue)]/80 transition-all flex items-center gap-2"
           >
             <span>↓</span>
             <span>Scroll to bottom</span>
@@ -367,14 +379,15 @@
   {#if showSubagents && subagents.length > 0}
     <aside class="w-64 h-full flex flex-col bg-[var(--bg-secondary)] border-l border-[var(--border-subtle)] overflow-hidden transition-all duration-300 ease-in-out">
       <!-- Header -->
-      <div class="px-3 py-2 border-b border-[var(--border-subtle)] flex items-center justify-between">
+      <div class="px-3 py-2.5 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[var(--bg-tertiary)]">
         <div class="flex items-center gap-2">
           <Cpu class="w-4 h-4 text-[var(--accent-purple)]" />
           <span class="text-sm font-medium text-[var(--fg-primary)]">Subagents</span>
+          <span class="text-xs mono text-[var(--fg-muted)] bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded">{subagents.length}</span>
         </div>
         <button
           onclick={() => showSubagents = false}
-          class="p-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--fg-muted)] hover:text-[var(--fg-secondary)] transition-colors"
+          class="p-1 rounded hover:bg-[var(--bg-secondary)] text-[var(--fg-muted)] hover:text-[var(--fg-secondary)] transition-colors"
         >
           <PanelRight class="w-4 h-4" />
         </button>
@@ -385,7 +398,7 @@
         {#each subagents as subagent}
           <a
             href="/sessions/{subagent.id}"
-            class="flex items-center gap-3 px-3 py-2 hover:bg-[var(--bg-tertiary)] transition-colors"
+            class="flex items-center gap-3 px-3 py-2.5 mx-1.5 rounded-md hover:bg-[var(--bg-tertiary)] transition-colors"
           >
             <StatusDot status={subagent.status} size="sm" />
             <div class="flex-1 min-w-0">

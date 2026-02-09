@@ -5,6 +5,7 @@
   --bg-primary: #0d1117;
   --bg-secondary: #161b22;
   --bg-tertiary: #21262d;
+  --bg-elevated: #282e36;
   --bg-hover: #30363d;
   
   --border: #30363d;
@@ -19,6 +20,13 @@
   --accent-amber: #d29922;
   --accent-red: #f85149;
   --accent-purple: #a371f7;
+
+  /* Layered shadows — colored tint, not pure black */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 1px rgba(88, 166, 255, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 2px rgba(88, 166, 255, 0.06);
+
+  /* Subtle gradient for card surfaces */
+  --gradient-subtle: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, transparent 60%);
 }
 
 /* Light theme - GitHub Light inspired */
@@ -26,6 +34,7 @@
   --bg-primary: #ffffff;
   --bg-secondary: #f6f8fa;
   --bg-tertiary: #eaeef2;
+  --bg-elevated: #ffffff;
   --bg-hover: #d0d7de;
   
   --border: #d0d7de;
@@ -40,6 +49,10 @@
   --accent-amber: #9a6700;
   --accent-red: #cf222e;
   --accent-purple: #8250df;
+
+  --shadow-sm: 0 1px 3px rgba(31, 35, 40, 0.1);
+  --shadow-md: 0 4px 12px rgba(31, 35, 40, 0.15);
+  --gradient-subtle: linear-gradient(135deg, rgba(0,0,0,0.02) 0%, transparent 60%);
 }
 
 /* System preference fallback (when no class applied) */
@@ -48,6 +61,7 @@
     --bg-primary: #ffffff;
     --bg-secondary: #f6f8fa;
     --bg-tertiary: #eaeef2;
+    --bg-elevated: #ffffff;
     --bg-hover: #d0d7de;
     
     --border: #d0d7de;
@@ -62,6 +76,10 @@
     --accent-amber: #9a6700;
     --accent-red: #cf222e;
     --accent-purple: #8250df;
+
+    --shadow-sm: 0 1px 3px rgba(31, 35, 40, 0.1);
+    --shadow-md: 0 4px 12px rgba(31, 35, 40, 0.15);
+    --gradient-subtle: linear-gradient(135deg, rgba(0,0,0,0.02) 0%, transparent 60%);
   }
 }
 
@@ -100,6 +118,19 @@ body {
   background: var(--fg-muted);
 }
 
+/* Selection colors */
+::selection {
+  background: rgba(88, 166, 255, 0.25);
+  color: var(--fg-primary);
+}
+
+/* Focus-visible ring — consistent across all interactive elements */
+:focus-visible {
+  outline: 2px solid rgba(88, 166, 255, 0.5);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* Status colors */
 .status-active { color: var(--accent-green); }
 .status-idle { color: var(--accent-amber); }
@@ -114,4 +145,75 @@ body {
 
 .pulse {
   animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Ring pulse — expanding ring for attention states */
+@keyframes ring-pulse {
+  0% { box-shadow: 0 0 0 0 currentColor; }
+  70% { box-shadow: 0 0 0 4px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+.ring-pulse {
+  animation: ring-pulse 2s ease-in-out infinite;
+}
+
+/* Glass surface — frosted panel effect */
+.glass {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Skeleton loading shimmer — used on placeholder cards while data loads */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 25%,
+    var(--bg-hover) 50%,
+    var(--bg-tertiary) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* Staggered card entry — fade up with delay per child */
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.card-stagger {
+  animation: card-enter 0.35s ease-out both;
+}
+
+/* Slow mesh drift for ambient background blobs */
+@keyframes mesh-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(2%, -3%) scale(1.02); }
+  50% { transform: translate(-1%, 2%) scale(0.98); }
+  75% { transform: translate(-3%, -1%) scale(1.01); }
+}
+
+/* Blinking cursor — terminal aesthetic */
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Tooltip entrance — subtle scale + fade */
+@keyframes tooltip-in {
+  from { opacity: 0; transform: translate(-50%, -100%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+}
+
+.tooltip-animate {
+  animation: tooltip-in 0.15s ease-out;
 }
