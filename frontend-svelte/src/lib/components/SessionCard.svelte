@@ -19,12 +19,13 @@
   let { session, selected = false }: Props = $props()
   
   // Compute effective status: idle > 3min → stale (unless sub-agents are active)
+  // Note: directly access store.sessions for Svelte reactivity tracking
   let displayStatus = $derived(() => {
     if (session.status === 'archived') return 'archived'
     if (session.status !== 'idle') return session.status
     const updatedAt = new Date(session.updated_at).getTime()
     const now = Date.now()
-    const hasActiveSubs = store.hasActiveSubAgents(session.id)
+    const hasActiveSubs = store.sessions.some(s => s.parent_session_id === session.id && s.status === 'active')
     return (now - updatedAt) > STALE_THRESHOLD_MS && !hasActiveSubs ? 'stale' : 'idle'
   })
   

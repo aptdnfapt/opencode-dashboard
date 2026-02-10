@@ -33,11 +33,12 @@
   }
   
   // Compute effective status: idle > 3min = stale (unless sub-agents are active)
-  function getEffectiveStatus(session: Session): 'active' | 'idle' | 'error' | 'stale' | 'archived' {
+  // Note: pass sessions array for Svelte reactivity tracking
+  function getEffectiveStatus(session: Session, sessions: Session[]): 'active' | 'idle' | 'error' | 'stale' | 'archived' {
     if (session.status === 'archived') return 'archived'
     if (session.status !== 'idle') return session.status
     const idleTime = Date.now() - new Date(session.updated_at).getTime()
-    const hasActiveSubs = store.hasActiveSubAgents(session.id)
+    const hasActiveSubs = sessions.some(s => s.parent_session_id === session.id && s.status === 'active')
     return (idleTime > STALE_THRESHOLD_MS && !hasActiveSubs) ? 'stale' : 'idle'
   }
   
@@ -280,7 +281,7 @@
                       <span class="w-4"></span>
                     {/if}
                     
-                    <StatusDot status={getEffectiveStatus(session)} size="sm" />
+                    <StatusDot status={getEffectiveStatus(session, store.sessions)} size="sm" />
                     <span class="flex-1 text-sm truncate text-[var(--fg-secondary)]">
                       {session.title || session.id.slice(0, 8)}
                     </span>
@@ -302,7 +303,7 @@
                                  {isSelected(child.id) ? 'bg-[var(--bg-tertiary)] border-l-2 border-[var(--accent-purple)]' : ''}"
                         >
                           <GitBranch class="w-3 h-3 text-[var(--fg-muted)]" />
-                          <StatusDot status={getEffectiveStatus(child)} size="sm" />
+                          <StatusDot status={getEffectiveStatus(child, store.sessions)} size="sm" />
                           <span class="flex-1 text-sm truncate text-[var(--fg-muted)]">
                             {child.title || 'subagent'}
                           </span>

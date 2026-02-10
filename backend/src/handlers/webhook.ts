@@ -234,8 +234,8 @@ export function createWebhookHandler(app: Hono, db: Database) {
             event.timestamp
           )
 
-          // Update session totals
-          const totalTokens = (event.tokensIn || 0) + (event.tokensOut || 0)
+          // Update session totals (cache_read counts - model still processes cached tokens)
+          const totalTokens = (event.tokensIn || 0) + (event.tokensOut || 0) + (event.cacheRead || 0)
           db.prepare(`
             UPDATE sessions SET token_total = token_total + ?, cost_total = cost_total + ?, updated_at = ?
             WHERE id = ?
