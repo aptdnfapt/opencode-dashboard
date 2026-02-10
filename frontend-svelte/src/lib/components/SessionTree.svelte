@@ -3,34 +3,14 @@
   import { page } from '$app/stores'
   import type { Session } from '$lib/types'
   import StatusDot from './StatusDot.svelte'
-  import { getProjectName } from '$lib/utils'
+  import { getProjectName, getProjectColor } from '$lib/utils'
   import { ChevronRight, Folder, FolderOpen, GitBranch } from 'lucide-svelte'
   
   // Stale threshold
   const STALE_THRESHOLD_MS = 3 * 60 * 1000
   
-  // Project color palette - consistent color per project name
-  // Avoiding blue (model) and green (active status)
-  const projectColors = [
-    'var(--accent-amber)',
-    'var(--accent-purple)',
-    '#f97583',  // pink
-    '#ff7b72',  // coral
-    '#ffa657',  // orange
-    '#d2a8ff',  // light purple
-    '#e6b450',  // gold
-    '#ffc0cb',  // light pink
-  ]
-  
-  function getProjectColor(directory: string | null): string {
-    if (!directory) return 'var(--fg-secondary)'
-    let hash = 0
-    for (let i = 0; i < directory.length; i++) {
-      hash = ((hash << 5) - hash) + directory.charCodeAt(i)
-      hash = hash & hash
-    }
-    return projectColors[Math.abs(hash) % projectColors.length]
-  }
+  // All unique project directories for collision-free color assignment
+  let allDirs = $derived(store.sessions.map(s => s.directory).filter(Boolean) as string[])
   
   // Compute effective status: idle > 3min = stale (unless sub-agents are active)
   // Note: pass sessions array for Svelte reactivity tracking
@@ -243,7 +223,7 @@
             {/if}
             <!-- Project name -->
             {#if !collapsed}
-              <span class="flex-1 text-base truncate" style="color: {getProjectColor(group.directory)}">{group.name}</span>
+              <span class="flex-1 text-base truncate" style="color: {getProjectColor(group.directory, allDirs)}">{group.name}</span>
               <!-- Count badge -->
               <span class="text-xs mono px-1.5 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--fg-muted)]">
                 {getProjectSessionCount(group)}

@@ -42,3 +42,41 @@ export function getProjectName(directory: string | null): string {
 export function cn(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(' ')
 }
+
+// 12 visually distinct project colors — no blue/green (reserved for model/status)
+const PROJECT_COLORS = [
+  '#f97583',  // pink
+  '#d2a8ff',  // lavender
+  '#ffa657',  // orange
+  '#e6b450',  // gold
+  '#ff7b72',  // coral
+  '#c4a5de',  // soft purple
+  '#f0883e',  // burnt orange
+  '#e8c46c',  // warm yellow
+  '#db7093',  // pale violet red
+  '#d4976c',  // tan
+  '#c9879f',  // muted rose
+  '#b8a9c9',  // grey purple
+]
+
+// Assigns unique colors per project directory — no overlaps
+// Takes all known directories to build a stable ordered mapping
+const colorCache = new Map<string, string>()
+let lastDirList = ''
+
+export function getProjectColor(directory: string | null, allDirectories: string[]): string {
+  if (!directory) return 'var(--fg-secondary)'
+  
+  // Rebuild cache when directory list changes
+  const dirKey = allDirectories.join('|')
+  if (dirKey !== lastDirList) {
+    colorCache.clear()
+    const sorted = [...new Set(allDirectories)].sort()
+    sorted.forEach((dir, i) => {
+      colorCache.set(dir, PROJECT_COLORS[i % PROJECT_COLORS.length])
+    })
+    lastDirList = dirKey
+  }
+  
+  return colorCache.get(directory) ?? 'var(--fg-secondary)'
+}

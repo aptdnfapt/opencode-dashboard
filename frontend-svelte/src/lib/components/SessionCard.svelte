@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Session } from '$lib/types'
   import { store } from '$lib/store.svelte'
-  import { formatRelativeTime, formatTokens, formatCost, getProjectName, cn } from '$lib/utils'
+  import { formatRelativeTime, formatTokens, formatCost, getProjectName, getProjectColor, cn } from '$lib/utils'
   import { archiveSession, unarchiveSession } from '$lib/api'
   import { Activity, Clock, CircleCheck, Moon, AlertCircle, MoreVertical, Archive, ArchiveRestore, GitBranch } from 'lucide-svelte'
   
@@ -97,29 +97,8 @@
     }
   })
   
-  // Project color palette - consistent color per project name
-  // Avoiding blue (model) and green (active status)
-  const projectColors = [
-    'var(--accent-amber)',
-    'var(--accent-purple)',
-    '#f97583',  // pink
-    '#ff7b72',  // coral
-    '#ffa657',  // orange
-    '#d2a8ff',  // light purple
-    '#e6b450',  // gold
-    '#ffc0cb',  // light pink
-  ]
-  
-  function getProjectColor(directory: string | null): string {
-    if (!directory) return 'var(--fg-secondary)'
-    // Simple hash to get consistent color per project
-    let hash = 0
-    for (let i = 0; i < directory.length; i++) {
-      hash = ((hash << 5) - hash) + directory.charCodeAt(i)
-      hash = hash & hash
-    }
-    return projectColors[Math.abs(hash) % projectColors.length]
-  }
+  // All unique project directories for collision-free color assignment
+  let allDirs = $derived(store.sessions.map(s => s.directory).filter(Boolean) as string[])
 
   // Status icon component mapping
   function getStatusIcon(status: string) {
@@ -163,7 +142,8 @@
       ? 'bg-[var(--bg-tertiary)] border-[var(--accent-blue)]' 
       : 'bg-[var(--bg-secondary)] border-[var(--border-subtle)]',
     session.needs_attention ? 'ring-1 ring-[var(--accent-amber)] attention-pulse' : '',
-    session.status === 'active' ? 'active-border' : ''
+    displayStatus() === 'active' ? 'spinning-border' : '',
+    displayStatus() === 'idle' ? 'idle-blink' : ''
   )}
 
 >
@@ -225,7 +205,7 @@
 
   <!-- Project, host & model -->
   <div class="flex items-center gap-2 text-xs text-[var(--fg-secondary)] mb-2 flex-wrap">
-    <span class="mono truncate" style="color: {getProjectColor(session.directory)}">{getProjectName(session.directory)}</span>
+    <span class="mono truncate" style="color: {getProjectColor(session.directory, allDirs)}">{getProjectName(session.directory)}</span>
     <span class="text-[var(--fg-muted)]">•</span>
     <span class="mono">{session.hostname}</span>
     {#if modelName()}
@@ -278,15 +258,49 @@
     animation: fade-in 0.3s ease-out;
   }
   
-  /* Animated gradient border for active sessions */
-  @keyframes border-glow {
-    0%, 100% { border-color: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.2); }
-    50% { border-color: #34d399; box-shadow: 0 0 10px rgba(52, 211, 153, 0.35); }
+  /* Spinning border for active sessions — conic gradient rotates around card */
+  .spinning-border {
+    position: relative;
+    border-color: transparent;
+    overflow: visible;
   }
-  
-  .active-border {
-    animation: border-glow 2.5s ease-in-out infinite;
-    border-color: #10b981;
+  .spinning-border::before {
+    content: '';
+    position: absolute;
+    inset: -2.5px;
+    border-radius: inherit;
+    padding: 2.5px;
+    background: conic-gradient(
+      from var(--spin-angle, 0deg),
+      #10b981,
+      transparent 40%,
+      transparent 60%,
+      #10b981
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: spin-border 2.5s linear infinite;
+    pointer-events: none;
+    z-index: 1;
+  }
+  @keyframes spin-border {
+    to { --spin-angle: 360deg; }
+  }
+  @property --spin-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  /* Idle session: blinking yellow glow */
+  @keyframes idle-glow {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; border-color: var(--border-subtle); }
+    50% { box-shadow: 0 0 8px rgba(234, 179, 8, 0.3); border-color: rgba(234, 179, 8, 0.5); }
+  }
+  .idle-blink {
+    animation: idle-glow 3s ease-in-out infinite;
   }
 
   /* Subtle pulsing ring for attention state */
