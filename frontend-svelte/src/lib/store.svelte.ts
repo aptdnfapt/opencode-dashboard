@@ -17,6 +17,9 @@ class DashboardStore {
   // Connection state
   connectionStatus = $state<ConnectionStatus>('disconnected')
   
+  // Periodic tick to force stale re-evaluation (bumps every 30s)
+  tick = $state(0)
+  
   // Settings
   sortActiveFirst = $state(true)
   
@@ -40,6 +43,7 @@ class DashboardStore {
 
   // Derived: filtered sessions (handles computed 'stale' status + sorting)
   get filteredSessions() {
+    void this.tick // force re-eval every 30s
     const STALE_THRESHOLD_MS = 3 * 60 * 1000
     const now = Date.now()
     
@@ -78,6 +82,7 @@ class DashboardStore {
 
   // Derived: stats (idle > 3min = stale)
   get stats() {
+    void this.tick // force re-eval every 30s
     const STALE_THRESHOLD_MS = 3 * 60 * 1000
     const now = Date.now()
     const active = this.sessions.filter(s => s.status === 'active').length
@@ -183,3 +188,8 @@ class DashboardStore {
 
 // Singleton export
 export const store = new DashboardStore()
+
+// Bump tick every 30s to force stale re-evaluation
+if (typeof window !== 'undefined') {
+  setInterval(() => { store.tick++ }, 30_000)
+}

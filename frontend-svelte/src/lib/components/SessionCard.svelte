@@ -19,8 +19,9 @@
   let { session, selected = false }: Props = $props()
   
   // Compute effective status: idle > 3min → stale (unless sub-agents are active)
-  // Note: directly access store.sessions for Svelte reactivity tracking
+  // store.tick bumps every 30s to force re-eval of Date.now() stale check
   let displayStatus = $derived(() => {
+    void store.tick
     if (session.status === 'archived') return 'archived'
     if (session.status !== 'idle') return session.status
     const updatedAt = new Date(session.updated_at).getTime()

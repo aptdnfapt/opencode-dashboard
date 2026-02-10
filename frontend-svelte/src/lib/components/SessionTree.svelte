@@ -14,7 +14,8 @@
   
   // Compute effective status: idle > 3min = stale (unless sub-agents are active)
   // Note: pass sessions array for Svelte reactivity tracking
-  function getEffectiveStatus(session: Session, sessions: Session[]): 'active' | 'idle' | 'error' | 'stale' | 'archived' {
+  // store.tick forces re-eval every 30s so stale transitions happen on time
+  function getEffectiveStatus(session: Session, sessions: Session[], _tick: number): 'active' | 'idle' | 'error' | 'stale' | 'archived' {
     if (session.status === 'archived') return 'archived'
     if (session.status !== 'idle') return session.status
     const idleTime = Date.now() - new Date(session.updated_at).getTime()
@@ -261,7 +262,7 @@
                       <span class="w-4"></span>
                     {/if}
                     
-                    <StatusDot status={getEffectiveStatus(session, store.sessions)} size="sm" />
+                    <StatusDot status={getEffectiveStatus(session, store.sessions, store.tick)} size="sm" />
                     <span class="flex-1 text-sm truncate text-[var(--fg-secondary)]">
                       {session.title || session.id.slice(0, 8)}
                     </span>
@@ -283,7 +284,7 @@
                                  {isSelected(child.id) ? 'bg-[var(--bg-tertiary)] border-l-2 border-[var(--accent-purple)]' : ''}"
                         >
                           <GitBranch class="w-3 h-3 text-[var(--fg-muted)]" />
-                          <StatusDot status={getEffectiveStatus(child, store.sessions)} size="sm" />
+                          <StatusDot status={getEffectiveStatus(child, store.sessions, store.tick)} size="sm" />
                           <span class="flex-1 text-sm truncate text-[var(--fg-muted)]">
                             {child.title || 'subagent'}
                           </span>
