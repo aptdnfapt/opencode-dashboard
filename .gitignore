@@ -22,3 +22,5 @@ frontend-svelte/build/
 .vscode/
 .worktrees
 .env
+package-lock.json
+frontend-archive/package-lock.json
