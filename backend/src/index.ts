@@ -89,11 +89,15 @@ if (import.meta.main) {
         // Try exact file (e.g. /assets/app.js, /favicon.png)
         const filePath = join(staticDir, url.pathname)
         const file = Bun.file(filePath)
-        if (await file.exists()) return new Response(file)
+        if (await file.exists()) {
+          return new Response(file, { headers: { 'Content-Type': file.type } })
+        }
 
         // SPA fallback — return index.html for all non-file routes
         const indexFile = Bun.file(join(staticDir, 'index.html'))
-        if (await indexFile.exists()) return new Response(indexFile)
+        if (await indexFile.exists()) {
+          return new Response(indexFile, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+        }
       }
 
       // No static files (dev mode) — let Hono handle
