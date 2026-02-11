@@ -4,7 +4,8 @@
   import type { Session } from '$lib/types'
   import StatusDot from './StatusDot.svelte'
   import { getProjectName, getProjectColor } from '$lib/utils'
-  import { ChevronRight, Folder, FolderOpen, GitBranch } from 'lucide-svelte'
+  import { archiveSession, unarchiveSession } from '$lib/api'
+  import { ChevronRight, Folder, FolderOpen, GitBranch, MoreVertical, Archive, ArchiveRestore } from 'lucide-svelte'
   
   // Stale threshold
   const STALE_THRESHOLD_MS = 3 * 60 * 1000
@@ -29,6 +30,59 @@
   // Track expanded state for projects and sessions
   let expandedProjects = $state<Set<string>>(new Set())
   let expandedSessions = $state<Set<string>>(new Set())
+  
+  // 3-dot menu state — only one open at a time
+  let openMenu = $state<string | null>(null) // "project:dir" or "session:id"
+  
+  function toggleMenu(key: string, e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    openMenu = openMenu === key ? null : key
+  }
+  
+  // Close menu on outside click
+  function handleGlobalClick() {
+    if (openMenu) openMenu = null
+  }
+  
+  // Archive a single session
+  async function handleArchive(sessionId: string, e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    openMenu = null
+    try {
+      await archiveSession(sessionId)
+      store.updateSession({ id: sessionId, status: 'archived' })
+    } catch (err) { console.warn('[Archive] Failed:', err) }
+  }
+  
+  // Unarchive a single session
+  async function handleUnarchive(sessionId: string, e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    openMenu = null
+    try {
+      await unarchiveSession(sessionId)
+      store.updateSession({ id: sessionId, status: 'idle' })
+    } catch (err) { console.warn('[Unarchive] Failed:', err) }
+  }
+  
+  // Archive all sessions in a project folder
+  async function handleArchiveFolder(group: ProjectGroup, e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    openMenu = null
+    const allSessions = [...group.sessions]
+    for (const children of group.childMap.values()) allSessions.push(...children)
+    for (const s of allSessions) {
+      if (s.status !== 'archived') {
+        try {
+          await archiveSession(s.id)
+          store.updateSession({ id: s.id, status: 'archived' })
+        } catch (err) { console.warn('[Archive] Failed:', err) }
+      }
+    }
+  }
   
   // Group sessions by project directory
   interface ProjectGroup {
@@ -182,7 +236,9 @@
   })
 </script>
 
-<div class="h-full flex flex-col overflow-hidden">
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="h-full flex flex-col overflow-hidden" onclick={handleGlobalClick}>
   <!-- Header -->
   {#if !collapsed}
     <div class="px-3 py-2 border-b border-[var(--border-subtle)]">
@@ -206,7 +262,7 @@
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div 
-            class="flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-[var(--bg-tertiary)] transition-colors"
+            class="group flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-[var(--bg-tertiary)] transition-colors"
             onclick={() => toggleProject(group.directory)}
             title={collapsed ? group.name : undefined}
           >
@@ -229,6 +285,31 @@
               <span class="text-xs mono px-1.5 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--fg-muted)]">
                 {getProjectSessionCount(group)}
               </span>
+              <!-- 3-dot menu for folder -->
+              <div class="relative">
+                <button
+                  type="button"
+                  onclick={(e) => toggleMenu(`project:${group.directory}`, e)}
+                  class="p-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--fg-muted)] hover:text-[var(--fg-primary)] transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <MoreVertical class="w-3.5 h-3.5" />
+                </button>
+                {#if openMenu === `project:${group.directory}`}
+                  <div 
+                    class="absolute right-0 top-full mt-1 z-50 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg py-1 min-w-[140px]"
+                    style="box-shadow: var(--shadow-md);"
+                  >
+                    <button
+                      type="button"
+                      onclick={(e) => handleArchiveFolder(group, e)}
+                      class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                    >
+                      <Archive class="w-3.5 h-3.5" />
+                      Archive All
+                    </button>
+                  </div>
+                {/if}
+              </div>
             {/if}
           </div>
           
@@ -243,7 +324,7 @@
                 <div class="select-none">
                   <a 
                     href="/sessions/{session.id}"
-                    class="flex items-center gap-2 px-2 py-1.5 hover:bg-[var(--bg-tertiary)] transition-colors rounded-sm
+                    class="group flex items-center gap-2 px-2 py-1.5 hover:bg-[var(--bg-tertiary)] transition-colors rounded-sm
                            {isSelected(session.id) ? 'bg-[var(--bg-tertiary)] border-l-2 border-[var(--accent-blue)]' : ''}"
                   >
                     <!-- Expand icon (if has children) -->
@@ -272,6 +353,42 @@
                     {#if hasChildren}
                       <span class="text-xs mono text-[var(--fg-muted)]">+{children.length}</span>
                     {/if}
+                    <!-- 3-dot menu for session -->
+                    <div class="relative">
+                      <button
+                        type="button"
+                        onclick={(e) => toggleMenu(`session:${session.id}`, e)}
+                        class="p-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--fg-muted)] hover:text-[var(--fg-primary)] transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        <MoreVertical class="w-3.5 h-3.5" />
+                      </button>
+                      {#if openMenu === `session:${session.id}`}
+                        <div 
+                          class="absolute right-0 top-full mt-1 z-50 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg py-1 min-w-[130px]"
+                          style="box-shadow: var(--shadow-md);"
+                        >
+                          {#if session.status === 'archived'}
+                            <button
+                              type="button"
+                              onclick={(e) => handleUnarchive(session.id, e)}
+                              class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                            >
+                              <ArchiveRestore class="w-3.5 h-3.5" />
+                              Restore
+                            </button>
+                          {:else}
+                            <button
+                              type="button"
+                              onclick={(e) => handleArchive(session.id, e)}
+                              class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                            >
+                              <Archive class="w-3.5 h-3.5" />
+                              Archive
+                            </button>
+                          {/if}
+                        </div>
+                      {/if}
+                    </div>
                   </a>
                   
                   <!-- Child sessions (subagents) -->
@@ -280,7 +397,7 @@
                       {#each children as child}
                         <a 
                           href="/sessions/{child.id}"
-                          class="flex items-center gap-2 pl-3 pr-2 py-1.5 hover:bg-[var(--bg-tertiary)] transition-colors rounded-sm
+                          class="group flex items-center gap-2 pl-3 pr-2 py-1.5 hover:bg-[var(--bg-tertiary)] transition-colors rounded-sm
                                  {isSelected(child.id) ? 'bg-[var(--bg-tertiary)] border-l-2 border-[var(--accent-purple)]' : ''}"
                         >
                           <GitBranch class="w-3 h-3 text-[var(--fg-muted)]" />
@@ -291,6 +408,42 @@
                           {#if child.needs_attention}
                             <span class="w-2 h-2 rounded-full bg-[var(--accent-amber)]"></span>
                           {/if}
+                          <!-- 3-dot menu for child -->
+                          <div class="relative">
+                            <button
+                              type="button"
+                              onclick={(e) => toggleMenu(`session:${child.id}`, e)}
+                              class="p-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--fg-muted)] hover:text-[var(--fg-primary)] transition-colors opacity-0 group-hover:opacity-100"
+                            >
+                              <MoreVertical class="w-3.5 h-3.5" />
+                            </button>
+                            {#if openMenu === `session:${child.id}`}
+                              <div 
+                                class="absolute right-0 top-full mt-1 z-50 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg py-1 min-w-[130px]"
+                                style="box-shadow: var(--shadow-md);"
+                              >
+                                {#if child.status === 'archived'}
+                                  <button
+                                    type="button"
+                                    onclick={(e) => handleUnarchive(child.id, e)}
+                                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                                  >
+                                    <ArchiveRestore class="w-3.5 h-3.5" />
+                                    Restore
+                                  </button>
+                                {:else}
+                                  <button
+                                    type="button"
+                                    onclick={(e) => handleArchive(child.id, e)}
+                                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                                  >
+                                    <Archive class="w-3.5 h-3.5" />
+                                    Archive
+                                  </button>
+                                {/if}
+                              </div>
+                            {/if}
+                          </div>
                         </a>
                       {/each}
                     </div>
