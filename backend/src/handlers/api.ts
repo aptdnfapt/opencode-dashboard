@@ -667,6 +667,40 @@ export function createApiHandler(app: Hono, db: Database) {
     return c.json(models.map(m => m.model_id))
   })
 
+  // PATCH /api/sessions/:id/dismiss - clear needs_attention (stop yellow blink)
+  app.patch('/api/sessions/:id/dismiss', (c: Context) => {
+    const id = c.req.param('id')
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id)
+    if (!session) return c.json({ error: 'Session not found' }, 404)
+
+    db.prepare('UPDATE sessions SET needs_attention = 0 WHERE id = ?').run(id)
+    return c.json({ success: true, id })
+  })
+
+  // DELETE /api/sessions/:id - permanently delete session and all related data
+  app.delete('/api/sessions/:id', (c: Context) => {
+    const id = c.req.param('id')
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id)
+    if (!session) return c.json({ error: 'Session not found' }, 404)
+
+    // Delete related data first (foreign key deps)
+    db.prepare('DELETE FROM timeline_events WHERE session_id = ?').run(id)
+    db.prepare('DELETE FROM token_usage WHERE session_id = ?').run(id)
+    db.prepare('DELETE FROM file_edits WHERE session_id = ?').run(id)
+    // Delete child sessions (subagents)
+    const children = db.prepare('SELECT id FROM sessions WHERE parent_session_id = ?').all(id) as { id: string }[]
+    for (const child of children) {
+      db.prepare('DELETE FROM timeline_events WHERE session_id = ?').run(child.id)
+      db.prepare('DELETE FROM token_usage WHERE session_id = ?').run(child.id)
+      db.prepare('DELETE FROM file_edits WHERE session_id = ?').run(child.id)
+      db.prepare('DELETE FROM sessions WHERE id = ?').run(child.id)
+    }
+    // Delete the session itself
+    db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
+
+    return c.json({ success: true, id })
+  })
+
   // PATCH /api/sessions/:id/archive - archive a session
   app.patch('/api/sessions/:id/archive', (c: Context) => {
     const id = c.req.param('id')

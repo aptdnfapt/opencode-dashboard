@@ -4,8 +4,8 @@
   import type { Session } from '$lib/types'
   import StatusDot from './StatusDot.svelte'
   import { getProjectName, getProjectColor } from '$lib/utils'
-  import { archiveSession, unarchiveSession } from '$lib/api'
-  import { ChevronRight, Folder, FolderOpen, GitBranch, MoreVertical, Archive, ArchiveRestore } from 'lucide-svelte'
+  import { archiveSession, unarchiveSession, dismissSession, deleteSession } from '$lib/api'
+  import { ChevronRight, Folder, FolderOpen, GitBranch, MoreVertical, Archive, ArchiveRestore, BellOff, Trash2 } from 'lucide-svelte'
   
   // Stale threshold
   const STALE_THRESHOLD_MS = 3 * 60 * 1000
@@ -65,6 +65,28 @@
       await unarchiveSession(sessionId)
       store.updateSession({ id: sessionId, status: 'idle' })
     } catch (err) { console.warn('[Unarchive] Failed:', err) }
+  }
+  
+  // Dismiss attention (stop yellow blink)
+  async function handleDismiss(sessionId: string, e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    openMenu = null
+    try {
+      await dismissSession(sessionId)
+      store.updateSession({ id: sessionId, needs_attention: 0 })
+    } catch (err) { console.warn('[Dismiss] Failed:', err) }
+  }
+  
+  // Delete session permanently
+  async function handleDelete(sessionId: string, e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    openMenu = null
+    try {
+      await deleteSession(sessionId)
+      store.removeSession(sessionId)
+    } catch (err) { console.warn('[Delete] Failed:', err) }
   }
   
   // Archive all sessions in a project folder
@@ -367,6 +389,16 @@
                           class="absolute right-0 top-full mt-1 z-50 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg py-1 min-w-[130px]"
                           style="box-shadow: var(--shadow-md);"
                         >
+                          {#if session.needs_attention}
+                            <button
+                              type="button"
+                              onclick={(e) => handleDismiss(session.id, e)}
+                              class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                            >
+                              <BellOff class="w-3.5 h-3.5" />
+                              Dismiss
+                            </button>
+                          {/if}
                           {#if session.status === 'archived'}
                             <button
                               type="button"
@@ -386,6 +418,14 @@
                               Archive
                             </button>
                           {/if}
+                          <button
+                            type="button"
+                            onclick={(e) => handleDelete(session.id, e)}
+                            class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--accent-red)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                          >
+                            <Trash2 class="w-3.5 h-3.5" />
+                            Delete
+                          </button>
                         </div>
                       {/if}
                     </div>
@@ -422,6 +462,16 @@
                                 class="absolute right-0 top-full mt-1 z-50 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg py-1 min-w-[130px]"
                                 style="box-shadow: var(--shadow-md);"
                               >
+                                {#if child.needs_attention}
+                                  <button
+                                    type="button"
+                                    onclick={(e) => handleDismiss(child.id, e)}
+                                    class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                                  >
+                                    <BellOff class="w-3.5 h-3.5" />
+                                    Dismiss
+                                  </button>
+                                {/if}
                                 {#if child.status === 'archived'}
                                   <button
                                     type="button"
@@ -441,6 +491,14 @@
                                     Archive
                                   </button>
                                 {/if}
+                                <button
+                                  type="button"
+                                  onclick={(e) => handleDelete(child.id, e)}
+                                  class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--accent-red)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                                >
+                                  <Trash2 class="w-3.5 h-3.5" />
+                                  Delete
+                                </button>
                               </div>
                             {/if}
                           </div>

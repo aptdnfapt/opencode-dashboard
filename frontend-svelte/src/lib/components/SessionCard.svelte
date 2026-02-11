@@ -2,8 +2,8 @@
   import type { Session } from '$lib/types'
   import { store } from '$lib/store.svelte'
   import { formatRelativeTime, formatTokens, formatCost, getProjectName, getProjectColor, cn } from '$lib/utils'
-  import { archiveSession, unarchiveSession } from '$lib/api'
-  import { Activity, Clock, CircleCheck, Moon, AlertCircle, MoreVertical, Archive, ArchiveRestore, GitBranch } from 'lucide-svelte'
+  import { archiveSession, unarchiveSession, dismissSession, deleteSession } from '$lib/api'
+  import { Activity, Clock, CircleCheck, Moon, AlertCircle, MoreVertical, Archive, ArchiveRestore, GitBranch, BellOff, Trash2 } from 'lucide-svelte'
   
   // Idle > 3 min becomes stale
   const STALE_THRESHOLD_MS = 3 * 60 * 1000
@@ -52,6 +52,30 @@
       store.updateSession({ id: session.id, status: 'idle' })
     } catch (err) {
       console.warn('Failed to unarchive:', err)
+    }
+  }
+  
+  async function handleDismiss(e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    menuOpen = false
+    try {
+      await dismissSession(session.id)
+      store.updateSession({ id: session.id, needs_attention: 0 })
+    } catch (err) {
+      console.warn('Failed to dismiss:', err)
+    }
+  }
+  
+  async function handleDelete(e: MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    menuOpen = false
+    try {
+      await deleteSession(session.id)
+      store.removeSession(session.id)
+    } catch (err) {
+      console.warn('Failed to delete:', err)
     }
   }
   
@@ -179,6 +203,16 @@
             style="box-shadow: var(--shadow-md);"
             onclick={(e) => e.stopPropagation()}
           >
+            {#if session.needs_attention}
+              <button
+                type="button"
+                onclick={handleDismiss}
+                class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+              >
+                <BellOff class="w-4 h-4" />
+                Dismiss
+              </button>
+            {/if}
             {#if session.status === 'archived'}
               <button
                 type="button"
@@ -198,6 +232,14 @@
                 Archive
               </button>
             {/if}
+            <button
+              type="button"
+              onclick={handleDelete}
+              class="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--accent-red)] hover:bg-[var(--bg-tertiary)] transition-colors"
+            >
+              <Trash2 class="w-4 h-4" />
+              Delete
+            </button>
           </div>
         {/if}
       </div>

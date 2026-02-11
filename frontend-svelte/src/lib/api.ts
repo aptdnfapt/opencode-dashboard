@@ -167,3 +167,25 @@ export async function unarchiveSession(id: string): Promise<{ success: boolean }
   if (!res.ok) throw new Error(`API error: ${res.status}`)
   return res.json()
 }
+
+// Dismiss attention (clear yellow blink)
+export async function dismissSession(id: string): Promise<{ success: boolean }> {
+  const key = getApiKey()
+  const res = await fetch(`/api/sessions/${id}/dismiss`, {
+    method: 'PATCH',
+    headers: key ? { 'X-API-Key': key } : {}
+  })
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  return res.json()
+}
+
+// Permanently delete session and all related data
+export async function deleteSession(id: string): Promise<{ success: boolean }> {
+  const key = getApiKey()
+  const res = await fetch(`/api/sessions/${id}`, {
+    method: 'DELETE',
+    headers: key ? { 'X-API-Key': key } : {}
+  })
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  return res.json()
+}
