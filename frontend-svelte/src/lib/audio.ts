@@ -238,16 +238,27 @@ function isTTSEnabled(): boolean {
   return localStorage.getItem('dashboard_tts_enabled') === 'true'
 }
 
+// --- Volume helpers (0-100 int in localStorage → 0.0-1.0 float) ---
+function getAgentVolume(): number {
+  if (typeof window === 'undefined') return 0.5
+  return parseInt(localStorage.getItem('dashboard_agent_volume') || '50') / 100
+}
+
+function getSubagentVolume(): number {
+  if (typeof window === 'undefined') return 0.5
+  return parseInt(localStorage.getItem('dashboard_subagent_volume') || '50') / 100
+}
+
 // --- Public play functions (called by websocket handler) ---
 
 export async function playBing(): Promise<void> {
   if (!isAgentSoundEnabled()) return
-  await playSound(getAgentPreset(), 0.5)
+  await playSound(getAgentPreset(), getAgentVolume())
 }
 
 export async function playSubagentBing(): Promise<void> {
   if (!isSubagentSoundEnabled()) return
-  await playSound(getSubagentPreset(), 0.5)
+  await playSound(getSubagentPreset(), getSubagentVolume())
 }
 
 // --- TTS Queue ---

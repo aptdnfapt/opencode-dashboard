@@ -8,8 +8,10 @@
   
   let agentSoundEnabled = $state(true)
   let agentSoundPreset = $state<SoundPreset>('bing')
+  let agentVolume = $state(50)
   let subagentSoundEnabled = $state(true)
   let subagentSoundPreset = $state<SoundPreset>('ping')
+  let subagentVolume = $state(50)
   let ttsEnabled = $state(false)
   let notificationsEnabled = $state(false)
   let sortActiveFirst = $state(true)
@@ -37,9 +39,11 @@
       const agentSetting = localStorage.getItem('dashboard_agent_sound_enabled')
       agentSoundEnabled = agentSetting === null || agentSetting === 'true'
       agentSoundPreset = (localStorage.getItem('dashboard_agent_sound_preset') as SoundPreset) || 'bing'
+      agentVolume = parseInt(localStorage.getItem('dashboard_agent_volume') || '50')
       const subagentSetting = localStorage.getItem('dashboard_subagent_sound_enabled')
       subagentSoundEnabled = subagentSetting === null || subagentSetting === 'true'
       subagentSoundPreset = (localStorage.getItem('dashboard_subagent_sound_preset') as SoundPreset) || 'ping'
+      subagentVolume = parseInt(localStorage.getItem('dashboard_subagent_volume') || '50')
       ttsEnabled = localStorage.getItem('dashboard_tts_enabled') === 'true'
       notificationsEnabled = localStorage.getItem('dashboard_notifications_enabled') === 'true'
       const sortSetting = localStorage.getItem('dashboard_sort_active_first')
@@ -85,13 +89,33 @@
   function setAgentPreset(preset: SoundPreset) {
     agentSoundPreset = preset
     localStorage.setItem('dashboard_agent_sound_preset', preset)
-    playPreset(preset, 0.5)
+    playPreset(preset, agentVolume / 100)
+  }
+  
+  function setAgentVolume(e: Event) {
+    const val = parseInt((e.target as HTMLInputElement).value)
+    agentVolume = val
+    localStorage.setItem('dashboard_agent_volume', String(val))
+  }
+  
+  function previewAgentVolume() {
+    playPreset(agentSoundPreset, agentVolume / 100)
   }
   
   function setSubagentPreset(preset: SoundPreset) {
     subagentSoundPreset = preset
     localStorage.setItem('dashboard_subagent_sound_preset', preset)
-    playPreset(preset, 0.5)
+    playPreset(preset, subagentVolume / 100)
+  }
+  
+  function setSubagentVolume(e: Event) {
+    const val = parseInt((e.target as HTMLInputElement).value)
+    subagentVolume = val
+    localStorage.setItem('dashboard_subagent_volume', String(val))
+  }
+  
+  function previewSubagentVolume() {
+    playPreset(subagentSoundPreset, subagentVolume / 100)
   }
   
   function testNotification() {
@@ -231,7 +255,7 @@
           </button>
         </div>
         {#if agentSoundEnabled}
-          <div class="flex flex-wrap gap-1.5">
+          <div class="flex flex-wrap gap-1.5 mb-3">
             {#each SOUND_PRESETS as preset}
               <button
                 onclick={() => setAgentPreset(preset.value)}
@@ -242,6 +266,20 @@
                 {preset.label}
               </button>
             {/each}
+          </div>
+          <div class="flex items-center gap-3">
+            <svg class="w-4 h-4 text-[var(--fg-muted)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/></svg>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={agentVolume}
+              oninput={setAgentVolume}
+              onchange={previewAgentVolume}
+              class="volume-slider flex-1"
+            />
+            <svg class="w-4 h-4 text-[var(--fg-muted)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            <span class="text-xs mono text-[var(--fg-muted)] w-8 text-right">{agentVolume}%</span>
           </div>
         {/if}
       </div>
@@ -262,7 +300,7 @@
           </button>
         </div>
         {#if subagentSoundEnabled}
-          <div class="flex flex-wrap gap-1.5">
+          <div class="flex flex-wrap gap-1.5 mb-3">
             {#each SOUND_PRESETS as preset}
               <button
                 onclick={() => setSubagentPreset(preset.value)}
@@ -273,6 +311,20 @@
                 {preset.label}
               </button>
             {/each}
+          </div>
+          <div class="flex items-center gap-3">
+            <svg class="w-4 h-4 text-[var(--fg-muted)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/></svg>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={subagentVolume}
+              oninput={setSubagentVolume}
+              onchange={previewSubagentVolume}
+              class="volume-slider flex-1"
+            />
+            <svg class="w-4 h-4 text-[var(--fg-muted)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            <span class="text-xs mono text-[var(--fg-muted)] w-8 text-right">{subagentVolume}%</span>
           </div>
         {/if}
       </div>
@@ -337,6 +389,39 @@
       <div class="text-xs mono text-[var(--fg-secondary)] mt-1">Svelte 5 + SvelteKit</div>
     </div>
   </section>
+
+  <!-- Volume slider styles -->
+  <style>
+    .volume-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--bg-tertiary);
+      outline: none;
+      cursor: pointer;
+    }
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      cursor: pointer;
+      border: 2px solid var(--bg-primary);
+      box-shadow: 0 0 0 1px var(--border-subtle);
+    }
+    .volume-slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      cursor: pointer;
+      border: 2px solid var(--bg-primary);
+      box-shadow: 0 0 0 1px var(--border-subtle);
+    }
+  </style>
 
   <!-- Account -->
   <section>
