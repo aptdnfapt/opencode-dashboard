@@ -180,3 +180,8 @@ tail -20 /tmp/frontend.log
 # Stop by PID only
 kill <pid>
 ```
+
+
+
+
+dont auto commit 
