@@ -3,10 +3,13 @@
   import { store } from '$lib/store.svelte'
   import { wsService } from '$lib/websocket.svelte'
   import { themeStore, type Theme } from '$lib/theme.svelte'
-  import { playBing } from '$lib/audio'
+  import { playPreset, SOUND_PRESETS, type SoundPreset } from '$lib/audio'
   import { showNotification, requestNotificationPermission } from '$lib/notifications'
   
-  let soundEnabled = $state(true)
+  let agentSoundEnabled = $state(true)
+  let agentSoundPreset = $state<SoundPreset>('bing')
+  let subagentSoundEnabled = $state(true)
+  let subagentSoundPreset = $state<SoundPreset>('ping')
   let ttsEnabled = $state(false)
   let notificationsEnabled = $state(false)
   let sortActiveFirst = $state(true)
@@ -31,8 +34,12 @@
   $effect(() => {
     if (typeof window !== 'undefined') {
       // Sound defaults to enabled if not set
-      const soundSetting = localStorage.getItem('dashboard_sound_enabled')
-      soundEnabled = soundSetting === null || soundSetting === 'true'
+      const agentSetting = localStorage.getItem('dashboard_agent_sound_enabled')
+      agentSoundEnabled = agentSetting === null || agentSetting === 'true'
+      agentSoundPreset = (localStorage.getItem('dashboard_agent_sound_preset') as SoundPreset) || 'bing'
+      const subagentSetting = localStorage.getItem('dashboard_subagent_sound_enabled')
+      subagentSoundEnabled = subagentSetting === null || subagentSetting === 'true'
+      subagentSoundPreset = (localStorage.getItem('dashboard_subagent_sound_preset') as SoundPreset) || 'ping'
       ttsEnabled = localStorage.getItem('dashboard_tts_enabled') === 'true'
       notificationsEnabled = localStorage.getItem('dashboard_notifications_enabled') === 'true'
       const sortSetting = localStorage.getItem('dashboard_sort_active_first')
@@ -46,9 +53,14 @@
     store.setSortActiveFirst(sortActiveFirst)
   }
   
-  function toggleSound() {
-    soundEnabled = !soundEnabled
-    localStorage.setItem('dashboard_sound_enabled', String(soundEnabled))
+  function toggleAgentSound() {
+    agentSoundEnabled = !agentSoundEnabled
+    localStorage.setItem('dashboard_agent_sound_enabled', String(agentSoundEnabled))
+  }
+  
+  function toggleSubagentSound() {
+    subagentSoundEnabled = !subagentSoundEnabled
+    localStorage.setItem('dashboard_subagent_sound_enabled', String(subagentSoundEnabled))
   }
   
   function toggleTTS() {
@@ -70,16 +82,16 @@
     wsService.connect()
   }
   
-  function testSound() {
-    // Temporarily enable sound for test
-    const wasEnabled = localStorage.getItem('dashboard_sound_enabled')
-    localStorage.setItem('dashboard_sound_enabled', 'true')
-    playBing()
-    setTimeout(() => {
-      if (wasEnabled !== null) {
-        localStorage.setItem('dashboard_sound_enabled', wasEnabled)
-      }
-    }, 100)
+  function setAgentPreset(preset: SoundPreset) {
+    agentSoundPreset = preset
+    localStorage.setItem('dashboard_agent_sound_preset', preset)
+    playPreset(preset, 0.3)
+  }
+  
+  function setSubagentPreset(preset: SoundPreset) {
+    subagentSoundPreset = preset
+    localStorage.setItem('dashboard_subagent_sound_preset', preset)
+    playPreset(preset, 0.15)
   }
   
   function testNotification() {
@@ -203,28 +215,67 @@
       Notifications
     </h2>
     <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg divide-y divide-[var(--border-subtle)] transition-colors hover:border-[var(--border)]">
-      <!-- Sound notifications -->
-      <div class="flex items-center justify-between p-4">
-        <div>
-          <div class="text-sm text-[var(--fg-primary)]">Sound Notifications</div>
-          <div class="text-xs text-[var(--fg-secondary)]">Play bing sound on attention/idle events</div>
-        </div>
-        <div class="flex items-center gap-2">
+      <!-- Agent sound -->
+      <div class="p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <div class="text-sm text-[var(--fg-primary)]">Agent Sound</div>
+            <div class="text-xs text-[var(--fg-secondary)]">Main agent idle or needs attention</div>
+          </div>
           <button
-            onclick={testSound}
-            class="px-2.5 py-1 text-xs rounded bg-[var(--bg-tertiary)] border border-[var(--border)] text-[var(--fg-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-          >
-            Test
-          </button>
-          <button
-            onclick={toggleSound}
-            class="w-14 h-7 rounded-full transition-colors {soundEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
+            onclick={toggleAgentSound}
+            class="w-14 h-7 rounded-full transition-colors {agentSoundEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
           >
             <span 
-              class="block w-6 h-6 rounded-full bg-white shadow transition-transform {soundEnabled ? 'translate-x-7' : 'translate-x-0.5'}"
+              class="block w-6 h-6 rounded-full bg-white shadow transition-transform {agentSoundEnabled ? 'translate-x-7' : 'translate-x-0.5'}"
             ></span>
           </button>
         </div>
+        {#if agentSoundEnabled}
+          <div class="flex flex-wrap gap-1.5">
+            {#each SOUND_PRESETS as preset}
+              <button
+                onclick={() => setAgentPreset(preset.value)}
+                class="px-2.5 py-1 text-xs rounded border transition-colors {agentSoundPreset === preset.value
+                  ? 'bg-[var(--accent-blue)] border-[var(--accent-blue)] text-white'
+                  : 'bg-[var(--bg-tertiary)] border-[var(--border-subtle)] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)]'}"
+              >
+                {preset.label}
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+      <!-- Sub-agent sound -->
+      <div class="p-4">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <div class="text-sm text-[var(--fg-primary)]">Sub-agent Sound</div>
+            <div class="text-xs text-[var(--fg-secondary)]">Sub-agent finishes its task</div>
+          </div>
+          <button
+            onclick={toggleSubagentSound}
+            class="w-14 h-7 rounded-full transition-colors {subagentSoundEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
+          >
+            <span 
+              class="block w-6 h-6 rounded-full bg-white shadow transition-transform {subagentSoundEnabled ? 'translate-x-7' : 'translate-x-0.5'}"
+            ></span>
+          </button>
+        </div>
+        {#if subagentSoundEnabled}
+          <div class="flex flex-wrap gap-1.5">
+            {#each SOUND_PRESETS as preset}
+              <button
+                onclick={() => setSubagentPreset(preset.value)}
+                class="px-2.5 py-1 text-xs rounded border transition-colors {subagentSoundPreset === preset.value
+                  ? 'bg-[var(--accent-blue)] border-[var(--accent-blue)] text-white'
+                  : 'bg-[var(--bg-tertiary)] border-[var(--border-subtle)] text-[var(--fg-secondary)] hover:bg-[var(--bg-hover)]'}"
+              >
+                {preset.label}
+              </button>
+            {/each}
+          </div>
+        {/if}
       </div>
       <!-- Browser notifications -->
       <div class="flex items-center justify-between p-4">
