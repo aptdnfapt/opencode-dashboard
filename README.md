@@ -1,6 +1,20 @@
 # OpenCode Dashboard
 
+![Dashboard Preview](example.png)
+
+A way to keep up with multiple agents on multiple projects across multiple systems at the same time.
+
+## How It Works
+
+1. Install the OpenCode plugin on each machine you want to monitor
+2. Plugin sends all events to a central backend server
+3. Backend displays everything on a live, real-time web dashboard
+4. Since it's just a plugin, you can run it on as many systems as you want — all pointing to the same backend
+5. shows you exactly which session is idle via a yellow border glow or which session needs permission or which session is running via a green spinning animation 
+
 > Real-time monitoring dashboard for OpenCode AI coding sessions across multiple VPS instances.
+
+> **Coming soon:** npm package, dedicated plugin registry, and Docker Hub image. For now, install manually via docker compose and cp plugin to plugin dir od opencode 
 
 ## Architecture
 
@@ -53,7 +67,7 @@ docker compose down
 | `FRONTEND_PASSWORD` | runtime | Dashboard login → stored in browser localStorage, sent as `X-API-Key` on API calls + WS auth |
 | `BACKEND_PORT` | runtime | Host port mapping (default: `3000`) |
 | `DATABASE_URL` | runtime | SQLite path (default: `./data/database.db`) |
-| `DISABLE_TTS` | runtime | Set `true` to skip TTS model loading (default in Docker) |
+| `DISABLE_TTS` | runtime | Set `true` to skip TTS model loading (default in Docker) not quite ready . so should disbale for now |
 
 **No build-time secrets.** All env vars are runtime — change them and `docker compose up -d` to apply, no rebuild needed.
 
@@ -79,7 +93,12 @@ Frontend auto-detects dev vs prod based on port — uses `localhost:3000` for AP
 
 ## Plugin Setup
 
-Create `~/.config/opencode/dashboard.toml`:
+
+```bash
+cp ./plugin/dashboard.ts ~/.config/opencode/plugin/
+```
+
+Then create `~/.config/opencode/dashboard.toml`:
 
 ```toml
 url = "http://your-server:3000"
