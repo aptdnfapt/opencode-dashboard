@@ -1,150 +1,113 @@
 # OpenCode Dashboard
 
-> Real-time dashboard for monitoring OpenCode AI coding sessions across multiple VPS instances.
-
-## Tech Stack
-
-**Backend:**
-- Bun runtime
-- Hono (web framework)
-- bun:sqlite (database)
-- WebSocket (real-time updates)
-- bun:test (testing)
-
-**Frontend:**
-- Bun runtime
-- Vite + React + TypeScript
-- Tailwind CSS (square-ui design tokens)
-- Zustand (state management)
-- Lucide React (icons)
+> Real-time monitoring dashboard for OpenCode AI coding sessions across multiple VPS instances.
 
 ## Architecture
 
 ```
-Plugin → POST /events → Backend (Bun + Hono + SQLite)
-                                    ↓
-                              WebSocket Broadcast
-                                    ↓
-Frontend (React) ← ws://localhost:3001
+OpenCode Plugin → POST /events → Backend (Bun + Hono + SQLite)
+                                        ↓
+                                  WebSocket Broadcast
+                                        ↓
+                        Frontend (Svelte 5 SPA) ← ws://.../ws
 ```
 
-## Quick Start
+Single Bun process serves everything: API + WebSocket + static frontend — all on one port.
+
+## Quick Start (Docker)
+
+### 1. Set environment variables
 
 ```bash
-# Install dependencies
+export API_KEY="your-plugin-api-key"            # plugin authenticates with this
+export FRONTEND_PASSWORD="your-dashboard-password"  # dashboard login password
+```
+
+### 2. Build and run
+
+```bash
+docker compose up -d
+```
+
+Dashboard is now live at `http://localhost:3000`
+
+### 3. Rebuild after code changes
+
+```bash
+docker compose up -d --build
+```
+
+Docker layer caching ensures only changed layers rebuild — deps are cached, only the vite build + source copy runs fresh.
+
+### 4. Stop
+
+```bash
+docker compose down
+```
+
+### Environment Variables
+
+| Variable | Where | Description |
+|---|---|---|
+| `API_KEY` | runtime | Plugin → webhook auth (`X-API-Key` header on `/events`) |
+| `FRONTEND_PASSWORD` | runtime | Dashboard login → stored in browser localStorage, sent as `X-API-Key` on API calls + WS auth |
+| `BACKEND_PORT` | runtime | Host port mapping (default: `3000`) |
+| `DATABASE_URL` | runtime | SQLite path (default: `./data/database.db`) |
+| `DISABLE_TTS` | runtime | Set `true` to skip TTS model loading (default in Docker) |
+
+**No build-time secrets.** All env vars are runtime — change them and `docker compose up -d` to apply, no rebuild needed.
+
+### Data Persistence
+
+SQLite database is bind-mounted from `./backend/data/` on the host to `/app/backend/data/` in the container. Data survives container restarts and rebuilds.
+
+## Development (without Docker)
+
+```bash
+# Install deps
 cd backend && bun install
-cd frontend && bun install
+cd frontend-svelte && bun install
 
-# Start servers
-cd backend && bun run dev  # http://0.0.0.0:3000
-cd frontend && bun run dev # http://0.0.0.0:5173
+# Terminal 1: backend (API + WS on :3000)
+cd backend && bun run dev
+
+# Terminal 2: frontend with HMR (Vite on :5173)
+cd frontend-svelte && bun run dev
 ```
 
-## API Endpoints
+Frontend auto-detects dev vs prod based on port — uses `localhost:3000` for API/WS when running on vite's port.
 
-**Sessions:**
-- `GET /api/sessions` - List all sessions (filters: hostname, status, search)
-- `GET /api/sessions/:id` - Get session with timeline
-
-**Analytics:**
-- `GET /api/analytics/summary` - Total sessions, tokens, cost
-- `GET /api/analytics/models` - Token usage by model
-- `GET /api/analytics/daily` - Daily usage calendar
-
-**Other:**
-- `GET /api/instances` - List VPS instances
-- `POST /events` - Webhook for plugin events
-- `GET /health` - Health check
-
-## WebSocket Events
-
-**Send:**
-```json
-{ "type": "auth", "password": "your-password" }
-```
-
-**Receive:**
-```json
-{ "type": "session.created", "data": { "id": "...", "title": "...", "hostname": "..." } }
-{ "type": "session.updated", "data": { "id": "...", "title": "..." } }
-{ "type": "timeline", "data": { "sessionId": "...", "eventType": "...", "summary": "..." } }
-{ "type": "attention", "data": { "sessionId": "...", "needsAttention": true } }
-{ "type": "idle", "data": { "sessionId": "..." } }
-```
-
-## Testing
-
-```bash
-# Backend tests
-cd backend && bun test
-
-# Frontend tests
-cd frontend && bun test
-```
-
-## Environment Variables
-
-```env
-BACKEND_PORT=3000
-API_KEY=your-plugin-api-key
-FRONTEND_PASSWORD=your-dashboard-password
-DATABASE_URL=./data/database.db
-```
-
-## Authentication
-
-The dashboard uses two separate passwords for different access levels:
-
-### API_KEY (Plugin → Webhook)
-- Used by the OpenCode plugin to send data to the webhook
-- Validates `X-API-Key` header on `/events` endpoint
-- If not set, allows localhost requests without auth (no-config mode)
-
-### FRONTEND_PASSWORD (Dashboard UI → API)
-- Used to protect the dashboard frontend
-- Validates `X-API-Key` header on all `/api/*` endpoints and WebSocket connection
-- Required to access the web interface
-
-### Setting up Plugin Config
+## Plugin Setup
 
 Create `~/.config/opencode/dashboard.toml`:
 
 ```toml
-url = "http://localhost:3000"
+url = "http://your-server:3000"
 apiKey = "your-api-key"
-hostname = "my-vps-hostname"
+hostname = "my-vps"
 ```
 
-Or per-project `.opencode/dashboard.toml` (overrides global config).
+Or per-project `.opencode/dashboard.toml` (overrides global).
 
-## Features
+## API Endpoints
 
-- ✅ Real-time session monitoring
-- ✅ WebSocket updates (instant sync)
-- ✅ Session filters (hostname, status, search)
-- ✅ Attention indicators with pulse animation
-- ✅ Token usage tracking
-- ✅ Cost calculation
-- ✅ VPS instance management
-- ✅ Beautiful, polished UI (Vercel-inspired)
-- ✅ Dark/light mode support
-- ✅ Responsive design
-- ✅ TDD throughout
+All `/api/*` routes require `X-API-Key` header (except `/api/tts`).
 
-## UI Components
+- `GET /health` — health check (no auth)
+- `GET /api/sessions` — list sessions (filters: hostname, status, search)
+- `GET /api/sessions/:id` — session with timeline
+- `PATCH /api/sessions/:id/dismiss` — clear attention flag
+- `DELETE /api/sessions/:id` — permanently delete session + related data
+- `GET /api/analytics/summary` — totals: sessions, tokens, cost
+- `GET /api/analytics/models` — token usage by model
+- `GET /api/analytics/daily` — daily usage calendar
+- `GET /api/instances` — list VPS instances
+- `POST /events` — webhook for plugin events
 
-**Base:** Button, Input, Skeleton, Separator, Tooltip, Badge, Card
+## Tech Stack
 
-**Dashboard:**
-- StatCard - Analytics metrics with icons
-- SessionCard - Session display with status and attention badges
-- SessionFilters - Search and dropdown filters
-
-## Status ✅
-
-- Backend: 100% complete (22 tests passing)
-- Frontend: 95% complete (dashboard live, full functionality)
-- Missing: Analytics page, Settings page, Session detail modal
+**Backend:** Bun, Hono, bun:sqlite, WebSocket, kokoro-js (TTS)
+**Frontend:** SvelteKit, Svelte 5 runes, Tailwind CSS v4, adapter-static
 
 ## License
 

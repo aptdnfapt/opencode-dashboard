@@ -1,0 +1,16 @@
+services:
+  dashboard:
+    build:
+      context: .
+    ports:
+      - "${BACKEND_PORT:-3000}:8080"
+    environment:
+      - API_KEY=${API_KEY}
+      - FRONTEND_PASSWORD=${FRONTEND_PASSWORD}
+      - BACKEND_PORT=8080
+      - DATABASE_URL=./data/database.db
+      - DISABLE_TTS=true
+    volumes:
+      # Bind mount — uses the real DB on host
+      - ./backend/data:/app/backend/data
+    restart: unless-stopped
