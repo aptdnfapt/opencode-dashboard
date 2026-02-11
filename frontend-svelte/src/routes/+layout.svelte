@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation'
   import { page } from '$app/stores'
   import { wsService } from '$lib/websocket.svelte'
+  import { initAudioUnlock } from '$lib/audio'
   import { themeStore } from '$lib/theme.svelte'
   import TopBar from '$lib/components/TopBar.svelte'
   import SessionTree from '$lib/components/SessionTree.svelte'
@@ -60,6 +61,7 @@
   onMount(() => {
     themeStore.init()
     loadSidebarState()
+    initAudioUnlock() // Unlock AudioContext on first user click/key so WS-triggered sounds work
     
     // Add keyboard listener
     window.addEventListener('keydown', handleKeydown)

@@ -190,6 +190,8 @@ export interface IdleWSData {
 export interface ErrorWSData {
   sessionId: string
   message?: string
+  title?: string
+  audioUrl?: string
 }
 
 export interface AuthWSData {

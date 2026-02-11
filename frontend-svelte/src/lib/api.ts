@@ -7,11 +7,16 @@ import type {
   FileStats, CostBreakdown
 } from './types'
 
-const API_KEY = import.meta.env.VITE_API_KEY || ''
+// Get API key from localStorage (set at login) — no build-time baking
+function getApiKey(): string {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem('dashboard_password') || ''
+}
 
 async function fetchAPI<T>(endpoint: string): Promise<T> {
+  const key = getApiKey()
   const res = await fetch(endpoint, {
-    headers: API_KEY ? { 'X-API-Key': API_KEY } : {}
+    headers: key ? { 'X-API-Key': key } : {}
   })
   if (!res.ok) throw new Error(`API error: ${res.status}`)
   return res.json()
@@ -144,18 +149,20 @@ export async function getHealth(): Promise<{ status: string; clients: number }> 
 
 // Archive/unarchive session
 export async function archiveSession(id: string): Promise<{ success: boolean }> {
+  const key = getApiKey()
   const res = await fetch(`/api/sessions/${id}/archive`, {
     method: 'PATCH',
-    headers: API_KEY ? { 'X-API-Key': API_KEY } : {}
+    headers: key ? { 'X-API-Key': key } : {}
   })
   if (!res.ok) throw new Error(`API error: ${res.status}`)
   return res.json()
 }
 
 export async function unarchiveSession(id: string): Promise<{ success: boolean }> {
+  const key = getApiKey()
   const res = await fetch(`/api/sessions/${id}/unarchive`, {
     method: 'PATCH',
-    headers: API_KEY ? { 'X-API-Key': API_KEY } : {}
+    headers: key ? { 'X-API-Key': key } : {}
   })
   if (!res.ok) throw new Error(`API error: ${res.status}`)
   return res.json()

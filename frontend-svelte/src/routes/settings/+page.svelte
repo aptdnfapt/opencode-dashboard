@@ -85,13 +85,13 @@
   function setAgentPreset(preset: SoundPreset) {
     agentSoundPreset = preset
     localStorage.setItem('dashboard_agent_sound_preset', preset)
-    playPreset(preset, 0.3)
+    playPreset(preset, 0.5)
   }
   
   function setSubagentPreset(preset: SoundPreset) {
     subagentSoundPreset = preset
     localStorage.setItem('dashboard_subagent_sound_preset', preset)
-    playPreset(preset, 0.15)
+    playPreset(preset, 0.5)
   }
   
   function testNotification() {
@@ -115,9 +115,8 @@
   
   async function testTTS() {
     try {
-      const apiKey = import.meta.env.VITE_API_KEY || ''
-      const apiUrl = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3000`
-      const response = await fetch(`${apiUrl}/api/tts/test`, {
+      const apiKey = localStorage.getItem('dashboard_password') || ''
+      const response = await fetch(`/api/tts/test`, {
         headers: { 'X-API-Key': apiKey }
       })
       if (response.ok) {

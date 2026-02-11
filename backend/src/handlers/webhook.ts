@@ -136,11 +136,24 @@ export function createWebhookHandler(app: Hono, db: Database) {
           break
         }
 
-        case 'session.error':
+        case 'session.error': {
           db.prepare('UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?')
             .run('error', event.timestamp, sessionId)
-          wsManager.broadcastError(sessionId, (event as PluginEvent & { error?: string }).error || 'Unknown error')
+          
+          // Get session title for notification and TTS
+          const session = db.prepare('SELECT title FROM sessions WHERE id = ?')
+            .get(sessionId) as { title: string } | null
+          const title = session?.title || 'Unknown'
+          let audioUrl: string | undefined
+          
+          // Generate signed TTS URL if model is ready
+          if (isTTSReady()) {
+            audioUrl = generateSignedUrl(title + ' encountered an error', 5) // 5 min expiry
+          }
+          
+          wsManager.broadcastError(sessionId, (event as PluginEvent & { error?: string }).error || 'Unknown error', title, audioUrl)
           break
+        }
 
         case 'timeline': {
           // Auto-create session if missing (resumed old session)

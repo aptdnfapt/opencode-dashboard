@@ -1,6 +1,6 @@
 // Tests API root endpoint returns correct response
 import { describe, it, expect } from 'bun:test'
-import app from './index'
+import { app } from './index'
 
 describe('API Root', () => {
   it('returns 200 with API name on GET /', async () => {

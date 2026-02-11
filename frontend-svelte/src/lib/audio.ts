@@ -1,159 +1,213 @@
-// Audio utilities - Web Audio API sound presets + TTS queue playback
-// Includes keepAlive mechanism so AudioContext stays active in background tabs
+// Audio utilities — hybrid approach for reliable background-tab playback
+//
+// How it works:
+// 1. Pre-render each sound into an AudioBuffer via OfflineAudioContext (one-time, cached)
+//    → No timing bugs, no suspended-context issues during rendering
+// 2. Play via a live AudioContext kept alive with a silent oscillator
+//    → Survives background tabs (unlike new Audio() which browsers block)
+// 3. Unlock AudioContext on first user gesture (click/key/touch)
+// 4. Resume on visibility change as safety net
 
-let audioContext: AudioContext | null = null
 const audioQueue: string[] = []
 let isPlaying = false
-let keepAliveNode: OscillatorNode | null = null // silent oscillator to prevent ctx suspension
+
+// --- Live AudioContext (for playback only) ---
+let audioContext: AudioContext | null = null
+let keepAliveNode: OscillatorNode | null = null
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null
   if (!audioContext) {
     audioContext = new AudioContext()
-    // Start silent keepAlive so browser doesn't suspend AudioContext in background
     startKeepAlive(audioContext)
+    setupVisibilityHandler()
   }
   return audioContext
 }
 
-// Returns a promise that resolves once AudioContext is running.
-// Without awaiting this, sounds scheduled into a suspended context are silently dropped.
-async function resumeCtx(ctx: AudioContext): Promise<void> {
-  if (ctx.state === 'suspended') await ctx.resume()
-}
-
-// Plays an inaudible oscillator (gain=0) to keep AudioContext running in background tabs.
-// Browsers won't suspend an AudioContext that has active audio nodes.
+// Silent oscillator keeps AudioContext alive in background tabs
 function startKeepAlive(ctx: AudioContext) {
-  if (keepAliveNode) return // already running
+  if (keepAliveNode) return
   try {
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
-    gain.gain.setValueAtTime(0, ctx.currentTime) // completely silent
+    gain.gain.setValueAtTime(0, ctx.currentTime) // silent
     osc.connect(gain).connect(ctx.destination)
     osc.start()
     keepAliveNode = osc
-  } catch {
-    // Non-critical — sounds will still work when tab is focused
-  }
+  } catch { /* non-critical */ }
 }
 
-// --- Sound Presets ---
-// Each preset is a function that plays a distinct sound via Web Audio API
+// Resume context when tab becomes visible (safety net)
+let visibilitySetup = false
+function setupVisibilityHandler() {
+  if (visibilitySetup || typeof window === 'undefined') return
+  visibilitySetup = true
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && audioContext?.state === 'suspended') {
+      audioContext.resume().catch(() => {})
+    }
+  })
+}
 
+// Unlock AudioContext on first user gesture — call from layout onMount
+let unlockDone = false
+export function initAudioUnlock() {
+  if (unlockDone || typeof window === 'undefined') return
+  unlockDone = true
+  const unlock = () => {
+    const ctx = getAudioContext()
+    if (ctx?.state === 'suspended') ctx.resume().catch(() => {})
+    window.removeEventListener('click', unlock)
+    window.removeEventListener('keydown', unlock)
+    window.removeEventListener('touchstart', unlock)
+  }
+  window.addEventListener('click', unlock)
+  window.addEventListener('keydown', unlock)
+  window.addEventListener('touchstart', unlock)
+}
+
+// --- Sound preset definitions ---
 export type SoundPreset = 'bing' | 'chime' | 'ping' | 'bell' | 'soft' | 'double-beep'
 
 export const SOUND_PRESETS: { value: SoundPreset; label: string }[] = [
-  { value: 'bing', label: 'Bing' },         // 880Hz sine, 0.5s fade
-  { value: 'chime', label: 'Chime' },       // two-tone ascending
-  { value: 'ping', label: 'Ping' },         // short high pop
-  { value: 'bell', label: 'Bell' },         // triangle wave, longer ring
-  { value: 'soft', label: 'Soft' },         // low gentle hum
-  { value: 'double-beep', label: 'Double Beep' }, // two quick beeps
+  { value: 'bing', label: 'Bing' },
+  { value: 'chime', label: 'Chime' },
+  { value: 'ping', label: 'Ping' },
+  { value: 'bell', label: 'Bell' },
+  { value: 'soft', label: 'Soft' },
+  { value: 'double-beep', label: 'Double Beep' },
 ]
 
-const soundFns: Record<SoundPreset, (ctx: AudioContext, vol: number) => void> = {
-  // Classic 880Hz sine with fade
+// Renderers: build sound into an OfflineAudioContext (time starts at 0, no hardware)
+const soundRenderers: Record<SoundPreset, (ctx: OfflineAudioContext, vol: number) => void> = {
   'bing': (ctx, vol) => {
     const osc = ctx.createOscillator()
     osc.type = 'sine'
-    osc.frequency.setValueAtTime(880, ctx.currentTime)
+    osc.frequency.setValueAtTime(880, 0)
     const gain = ctx.createGain()
-    gain.gain.setValueAtTime(vol, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
+    gain.gain.setValueAtTime(vol, 0)
+    gain.gain.exponentialRampToValueAtTime(0.001, 0.5)
     osc.connect(gain).connect(ctx.destination)
-    osc.start(); osc.stop(ctx.currentTime + 0.5)
+    osc.start(0); osc.stop(0.5)
   },
 
-  // Two-tone ascending chime (C5 → E5)
   'chime': (ctx, vol) => {
-    const t = ctx.currentTime
-    // First note
     const o1 = ctx.createOscillator()
     o1.type = 'sine'
-    o1.frequency.setValueAtTime(523, t) // C5
+    o1.frequency.setValueAtTime(523, 0)
     const g1 = ctx.createGain()
-    g1.gain.setValueAtTime(vol, t)
-    g1.gain.exponentialRampToValueAtTime(0.001, t + 0.25)
+    g1.gain.setValueAtTime(vol, 0)
+    g1.gain.exponentialRampToValueAtTime(0.001, 0.25)
     o1.connect(g1).connect(ctx.destination)
-    o1.start(t); o1.stop(t + 0.25)
-    // Second note
+    o1.start(0); o1.stop(0.25)
+
     const o2 = ctx.createOscillator()
     o2.type = 'sine'
-    o2.frequency.setValueAtTime(659, t + 0.15) // E5
+    o2.frequency.setValueAtTime(659, 0.15)
     const g2 = ctx.createGain()
-    g2.gain.setValueAtTime(vol, t + 0.15)
-    g2.gain.exponentialRampToValueAtTime(0.001, t + 0.5)
+    g2.gain.setValueAtTime(vol, 0.15)
+    g2.gain.exponentialRampToValueAtTime(0.001, 0.5)
     o2.connect(g2).connect(ctx.destination)
-    o2.start(t + 0.15); o2.stop(t + 0.5)
+    o2.start(0.15); o2.stop(0.5)
   },
 
-  // Short high pop — 1400Hz, very brief
   'ping': (ctx, vol) => {
     const osc = ctx.createOscillator()
     osc.type = 'sine'
-    osc.frequency.setValueAtTime(1400, ctx.currentTime)
+    osc.frequency.setValueAtTime(1400, 0)
     const gain = ctx.createGain()
-    gain.gain.setValueAtTime(vol, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12)
+    gain.gain.setValueAtTime(vol, 0)
+    gain.gain.exponentialRampToValueAtTime(0.001, 0.12)
     osc.connect(gain).connect(ctx.destination)
-    osc.start(); osc.stop(ctx.currentTime + 0.12)
+    osc.start(0); osc.stop(0.12)
   },
 
-  // Triangle wave bell — richer tone, longer ring
   'bell': (ctx, vol) => {
-    const t = ctx.currentTime
     const osc = ctx.createOscillator()
     osc.type = 'triangle'
-    osc.frequency.setValueAtTime(700, t)
-    // Add subtle vibrato
+    osc.frequency.setValueAtTime(700, 0)
     const lfo = ctx.createOscillator()
-    lfo.frequency.setValueAtTime(6, t)
+    lfo.frequency.setValueAtTime(6, 0)
     const lfoGain = ctx.createGain()
-    lfoGain.gain.setValueAtTime(8, t)
+    lfoGain.gain.setValueAtTime(8, 0)
     lfo.connect(lfoGain).connect(osc.frequency)
-    lfo.start(t); lfo.stop(t + 0.8)
+    lfo.start(0); lfo.stop(0.8)
     const gain = ctx.createGain()
-    gain.gain.setValueAtTime(vol, t)
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8)
+    gain.gain.setValueAtTime(vol, 0)
+    gain.gain.exponentialRampToValueAtTime(0.001, 0.8)
     osc.connect(gain).connect(ctx.destination)
-    osc.start(t); osc.stop(t + 0.8)
+    osc.start(0); osc.stop(0.8)
   },
 
-  // Low gentle hum — 330Hz, slow fade
   'soft': (ctx, vol) => {
     const osc = ctx.createOscillator()
     osc.type = 'sine'
-    osc.frequency.setValueAtTime(330, ctx.currentTime)
+    osc.frequency.setValueAtTime(330, 0)
     const gain = ctx.createGain()
-    gain.gain.setValueAtTime(vol * 0.7, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6)
+    gain.gain.setValueAtTime(vol * 0.7, 0)
+    gain.gain.exponentialRampToValueAtTime(0.001, 0.6)
     osc.connect(gain).connect(ctx.destination)
-    osc.start(); osc.stop(ctx.currentTime + 0.6)
+    osc.start(0); osc.stop(0.6)
   },
 
-  // Two quick beeps
   'double-beep': (ctx, vol) => {
-    const t = ctx.currentTime
     for (const offset of [0, 0.18]) {
       const osc = ctx.createOscillator()
       osc.type = 'square'
-      osc.frequency.setValueAtTime(960, t + offset)
+      osc.frequency.setValueAtTime(960, offset)
       const gain = ctx.createGain()
-      gain.gain.setValueAtTime(vol * 0.4, t + offset) // square is louder, scale down
-      gain.gain.exponentialRampToValueAtTime(0.001, t + offset + 0.1)
+      gain.gain.setValueAtTime(vol * 0.4, offset)
+      gain.gain.exponentialRampToValueAtTime(0.001, offset + 0.1)
       osc.connect(gain).connect(ctx.destination)
-      osc.start(t + offset); osc.stop(t + offset + 0.1)
+      osc.start(offset); osc.stop(offset + 0.1)
     }
   },
 }
 
-// --- Play a specific preset (for test buttons) ---
+// --- Pre-render into AudioBuffer (cached) ---
+const bufferCache = new Map<string, AudioBuffer>()
+
+const durations: Record<SoundPreset, number> = {
+  'bing': 0.5, 'chime': 0.5, 'ping': 0.12, 'bell': 0.8, 'soft': 0.6, 'double-beep': 0.3
+}
+
+async function getBuffer(preset: SoundPreset, volume: number): Promise<AudioBuffer> {
+  const key = `${preset}-${volume}`
+  if (bufferCache.has(key)) return bufferCache.get(key)!
+
+  const sampleRate = 44100
+  const offline = new OfflineAudioContext(1, Math.ceil(sampleRate * durations[preset]), sampleRate)
+  soundRenderers[preset](offline, volume)
+  const buffer = await offline.startRendering()
+  bufferCache.set(key, buffer)
+  return buffer
+}
+
+// --- Play pre-rendered buffer through live AudioContext ---
+async function playSound(preset: SoundPreset, volume: number): Promise<void> {
+  if (typeof window === 'undefined') return
+  try {
+    const buffer = await getBuffer(preset, volume)
+    const ctx = getAudioContext()
+    if (!ctx) return
+
+    // Resume if suspended (best-effort — may fail without gesture)
+    if (ctx.state === 'suspended') await ctx.resume().catch(() => {})
+
+    // Play the pre-rendered buffer
+    const source = ctx.createBufferSource()
+    source.buffer = buffer
+    source.connect(ctx.destination)
+    source.start()
+  } catch (err) {
+    console.warn('[Audio] Playback failed:', err)
+  }
+}
+
+// --- Play a specific preset (for test buttons in settings) ---
 export async function playPreset(preset: SoundPreset, volume = 0.3): Promise<void> {
-  const ctx = getAudioContext()
-  if (!ctx) return
-  await resumeCtx(ctx) // ensure context is running before scheduling sound
-  soundFns[preset](ctx, volume)
+  await playSound(preset, volume)
 }
 
 // --- Settings helpers ---
@@ -188,18 +242,12 @@ function isTTSEnabled(): boolean {
 
 export async function playBing(): Promise<void> {
   if (!isAgentSoundEnabled()) return
-  const ctx = getAudioContext()
-  if (!ctx) return
-  await resumeCtx(ctx) // wait for context to be running — prevents silent drops
-  soundFns[getAgentPreset()](ctx, 0.3)
+  await playSound(getAgentPreset(), 0.5)
 }
 
 export async function playSubagentBing(): Promise<void> {
   if (!isSubagentSoundEnabled()) return
-  const ctx = getAudioContext()
-  if (!ctx) return
-  await resumeCtx(ctx)
-  soundFns[getSubagentPreset()](ctx, 0.25) // was 0.15 — too quiet to hear on many setups
+  await playSound(getSubagentPreset(), 0.5)
 }
 
 // --- TTS Queue ---

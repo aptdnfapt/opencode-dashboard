@@ -1,12 +1,11 @@
 // backend/src/services/tts.ts
 // Kokoro TTS service - loads model once, generates audio on demand
+// kokoro-js is imported dynamically to avoid phonemizer WASM crashing in Docker
 
-import { KokoroTTS } from 'kokoro-js'
 import { createHash } from 'crypto'
 
-let tts: KokoroTTS | null = null
+let tts: any = null
 let loading = false
-let loadError: Error | null = null
 
 // Initialize TTS model (call once on startup)
 export async function initTTS(): Promise<void> {
@@ -17,12 +16,13 @@ export async function initTTS(): Promise<void> {
   const start = Date.now()
   
   try {
+    // Dynamic import — only pulls in kokoro-js (and phonemizer WASM) when actually called
+    const { KokoroTTS } = await import('kokoro-js')
     tts = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
-      dtype: 'q8', // 86MB quantized version
+      dtype: 'q8',
     })
     console.log(`[TTS] Model loaded in ${Date.now() - start}ms`)
   } catch (err) {
-    loadError = err as Error
     console.error('[TTS] Failed to load model:', err)
   } finally {
     loading = false
@@ -42,9 +42,7 @@ export async function generateSpeech(text: string, voice: string = 'af_bella'): 
   }
   
   try {
-    const audio = await tts.generate(text, { voice: voice as any })
-    
-    // Get WAV data as Uint8Array then convert to Buffer
+    const audio = await tts.generate(text, { voice })
     const wavData = audio.toWav()
     return Buffer.from(wavData)
   } catch (err) {
@@ -58,12 +56,11 @@ export function generateSignedUrl(text: string, expiresInMinutes: number = 5): s
   const expiry = Math.floor(Date.now() / 1000) + (expiresInMinutes * 60)
   const serverKey = process.env.FRONTEND_PASSWORD || 'default-key'
 
-  // Create signature: HMAC-SHA256(text + expiry, key)
   const dataToSign = `${text}${expiry}`
   const signature = createHash('sha256')
     .update(dataToSign + serverKey)
     .digest('hex')
-    .substring(0, 32) // First 32 hex chars (16 bytes) to match frontend
+    .substring(0, 32)
 
   return `/api/tts?text=${encodeURIComponent(text)}&exp=${expiry}&sig=${signature}`
 }
@@ -73,12 +70,8 @@ export function verifySignedUrl(text: string, expiry: string, signature: string)
   const serverKey = process.env.FRONTEND_PASSWORD || 'default-key'
   const now = Math.floor(Date.now() / 1000)
 
-  // Check expiry
-  if (parseInt(expiry) < now) {
-    return false
-  }
+  if (parseInt(expiry) < now) return false
 
-  // Verify signature
   const dataToSign = `${text}${expiry}`
   const expectedSignature = createHash('sha256')
     .update(dataToSign + serverKey)

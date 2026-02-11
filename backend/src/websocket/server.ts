@@ -70,8 +70,8 @@ export class WebSocketManager {
     this.broadcast({ type: 'idle', data: { sessionId, audioUrl, isSubagent } })
   }
 
-  broadcastError(sessionId: string, error: string): void {
-    this.broadcast({ type: 'error', data: { sessionId, error } })
+  broadcastError(sessionId: string, error: string, title?: string, audioUrl?: string): void {
+    this.broadcast({ type: 'error', data: { sessionId, error, title, audioUrl } })
   }
 }
 

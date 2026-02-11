@@ -9,6 +9,7 @@ backend/data/
 
 # Build
 dist/
+frontend-svelte/build/
 
 # Logs
 *.log
