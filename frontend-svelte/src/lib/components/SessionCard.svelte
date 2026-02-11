@@ -61,7 +61,7 @@
     menuOpen = false
     try {
       await dismissSession(session.id)
-      store.updateSession({ id: session.id, needs_attention: 0 })
+      store.updateSession({ id: session.id, status: 'stale', needs_attention: 0 })
     } catch (err) {
       console.warn('Failed to dismiss:', err)
     }
@@ -203,7 +203,7 @@
             style="box-shadow: var(--shadow-md);"
             onclick={(e) => e.stopPropagation()}
           >
-            {#if session.needs_attention}
+            {#if session.status !== 'active' && session.status !== 'stale' && session.status !== 'archived'}
               <button
                 type="button"
                 onclick={handleDismiss}

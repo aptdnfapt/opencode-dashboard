@@ -204,7 +204,7 @@ export function createWebhookHandler(app: Hono, db: Database) {
               .get(sessionId) as { needs_attention: number; status: string } | null
             
             if (currentSession) {
-              const wasIdle = currentSession.status === 'idle'
+              const wasIdle = currentSession.status === 'idle' || currentSession.status === 'stale'
               const hadAttention = currentSession.needs_attention === 1
               
               if (wasIdle || hadAttention) {

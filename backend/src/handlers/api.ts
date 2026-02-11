@@ -667,13 +667,13 @@ export function createApiHandler(app: Hono, db: Database) {
     return c.json(models.map(m => m.model_id))
   })
 
-  // PATCH /api/sessions/:id/dismiss - clear needs_attention (stop yellow blink)
+  // PATCH /api/sessions/:id/dismiss - move to stale + clear attention
   app.patch('/api/sessions/:id/dismiss', (c: Context) => {
     const id = c.req.param('id')
     const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id)
     if (!session) return c.json({ error: 'Session not found' }, 404)
 
-    db.prepare('UPDATE sessions SET needs_attention = 0 WHERE id = ?').run(id)
+    db.prepare('UPDATE sessions SET status = ?, needs_attention = 0 WHERE id = ?').run('stale', id)
     return c.json({ success: true, id })
   })
 

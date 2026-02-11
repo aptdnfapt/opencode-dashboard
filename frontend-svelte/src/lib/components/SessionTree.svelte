@@ -74,7 +74,7 @@
     openMenu = null
     try {
       await dismissSession(sessionId)
-      store.updateSession({ id: sessionId, needs_attention: 0 })
+      store.updateSession({ id: sessionId, status: 'stale', needs_attention: 0 })
     } catch (err) { console.warn('[Dismiss] Failed:', err) }
   }
   
@@ -389,7 +389,7 @@
                           class="absolute right-0 top-full mt-1 z-50 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg py-1 min-w-[130px]"
                           style="box-shadow: var(--shadow-md);"
                         >
-                          {#if session.needs_attention}
+                          {#if session.status !== 'active' && session.status !== 'stale' && session.status !== 'archived'}
                             <button
                               type="button"
                               onclick={(e) => handleDismiss(session.id, e)}
@@ -462,7 +462,7 @@
                                 class="absolute right-0 top-full mt-1 z-50 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg py-1 min-w-[130px]"
                                 style="box-shadow: var(--shadow-md);"
                               >
-                                {#if child.needs_attention}
+                                {#if child.status !== 'active' && child.status !== 'stale' && child.status !== 'archived'}
                                   <button
                                     type="button"
                                     onclick={(e) => handleDismiss(child.id, e)}
