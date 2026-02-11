@@ -1,19 +1,41 @@
 // Audio utilities - Web Audio API sound presets + TTS queue playback
+// Includes keepAlive mechanism so AudioContext stays active in background tabs
 
 let audioContext: AudioContext | null = null
 const audioQueue: string[] = []
 let isPlaying = false
+let keepAliveNode: OscillatorNode | null = null // silent oscillator to prevent ctx suspension
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null
   if (!audioContext) {
     audioContext = new AudioContext()
+    // Start silent keepAlive so browser doesn't suspend AudioContext in background
+    startKeepAlive(audioContext)
   }
   return audioContext
 }
 
-function resumeCtx(ctx: AudioContext) {
-  if (ctx.state === 'suspended') ctx.resume()
+// Returns a promise that resolves once AudioContext is running.
+// Without awaiting this, sounds scheduled into a suspended context are silently dropped.
+async function resumeCtx(ctx: AudioContext): Promise<void> {
+  if (ctx.state === 'suspended') await ctx.resume()
+}
+
+// Plays an inaudible oscillator (gain=0) to keep AudioContext running in background tabs.
+// Browsers won't suspend an AudioContext that has active audio nodes.
+function startKeepAlive(ctx: AudioContext) {
+  if (keepAliveNode) return // already running
+  try {
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    gain.gain.setValueAtTime(0, ctx.currentTime) // completely silent
+    osc.connect(gain).connect(ctx.destination)
+    osc.start()
+    keepAliveNode = osc
+  } catch {
+    // Non-critical — sounds will still work when tab is focused
+  }
 }
 
 // --- Sound Presets ---
@@ -127,10 +149,10 @@ const soundFns: Record<SoundPreset, (ctx: AudioContext, vol: number) => void> = 
 }
 
 // --- Play a specific preset (for test buttons) ---
-export function playPreset(preset: SoundPreset, volume = 0.3): void {
+export async function playPreset(preset: SoundPreset, volume = 0.3): Promise<void> {
   const ctx = getAudioContext()
   if (!ctx) return
-  resumeCtx(ctx)
+  await resumeCtx(ctx) // ensure context is running before scheduling sound
   soundFns[preset](ctx, volume)
 }
 
@@ -164,20 +186,20 @@ function isTTSEnabled(): boolean {
 
 // --- Public play functions (called by websocket handler) ---
 
-export function playBing(): void {
+export async function playBing(): Promise<void> {
   if (!isAgentSoundEnabled()) return
   const ctx = getAudioContext()
   if (!ctx) return
-  resumeCtx(ctx)
+  await resumeCtx(ctx) // wait for context to be running — prevents silent drops
   soundFns[getAgentPreset()](ctx, 0.3)
 }
 
-export function playSubagentBing(): void {
+export async function playSubagentBing(): Promise<void> {
   if (!isSubagentSoundEnabled()) return
   const ctx = getAudioContext()
   if (!ctx) return
-  resumeCtx(ctx)
-  soundFns[getSubagentPreset()](ctx, 0.15)
+  await resumeCtx(ctx)
+  soundFns[getSubagentPreset()](ctx, 0.25) // was 0.15 — too quiet to hear on many setups
 }
 
 // --- TTS Queue ---

@@ -104,14 +104,14 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
   // Track which messages we've already sent tokens for (prevent duplicates)
   const sentTokenMessages = new Set<string>()
   
-  // Send event to backend
-  function send(payload: any) {
+  // Send event to backend. Returns promise so callers can await if ordering matters.
+  function send(payload: any): Promise<void> {
     const headers: Record<string, string> = { "Content-Type": "application/json" }
     if (config.apiKey) {
       headers["X-API-Key"] = config.apiKey
     }
     
-    fetch(BACKEND_URL, {
+    return fetch(BACKEND_URL, {
       method: "POST",
       headers,
       body: JSON.stringify({ 
@@ -120,7 +120,7 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
         hostname: config.hostname,
         timestamp: Date.now() 
       })
-    }).catch(() => {})
+    }).then(() => {}).catch(() => {})
   }
   
   return {
@@ -159,10 +159,11 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
           const status = props?.status
           if (sessionId && status) {
             if (status.type === "idle") {
-              // Send pending message first
+              // Send pending message first, THEN idle — order matters so backend
+              // processes timeline before marking session idle (which triggers bing)
               const msg = pendingMessages.get(sessionId)
               if (msg) {
-                send({
+                await send({
                   type: "timeline",
                   eventType: "message",
                   sessionId,
@@ -170,7 +171,7 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
                 })
                 pendingMessages.delete(sessionId)
               }
-              // Just update session status in DB, no timeline entry
+              // Now safe to mark idle — backend won't flip status back to active
               send({ type: "session.idle", sessionId })
             }
             // Don't send busy/idle to timeline - too noisy

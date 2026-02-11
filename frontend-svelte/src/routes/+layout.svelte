@@ -66,6 +66,7 @@
     
     if (localStorage.getItem('dashboard_authenticated') === 'true') {
       wsService.connect()
+      wsService.setupBrowserListeners() // visibility + network awareness
     }
   })
   

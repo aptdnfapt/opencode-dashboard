@@ -1,4 +1,5 @@
-// WebSocket service with auto-reconnect and Svelte 5 runes
+// WebSocket service with auto-reconnect, background-resilient heartbeat,
+// and visibility/network-aware reconnection (Svelte 5 runes)
 
 import { store } from './store.svelte'
 import type { WSMessage, Session, TimelineEvent } from './types'
@@ -28,19 +29,50 @@ function getPassword(): string {
   return import.meta.env.VITE_FRONTEND_PASSWORD || ''
 }
 
+// --- Web Worker heartbeat ---
+// Browsers throttle setInterval in background tabs, killing the WS connection.
+// Web Workers are NOT throttled, so we run the heartbeat timer inside one.
+function createHeartbeatWorker(): Worker | null {
+  if (typeof window === 'undefined') return null
+  try {
+    // Inline worker: posts 'tick' every N ms (interval set via message)
+    const blob = new Blob([`
+      let id = null;
+      self.onmessage = (e) => {
+        if (e.data.cmd === 'start') {
+          if (id) clearInterval(id);
+          id = setInterval(() => self.postMessage('tick'), e.data.interval);
+        } else if (e.data.cmd === 'stop') {
+          if (id) { clearInterval(id); id = null; }
+        }
+      };
+    `], { type: 'application/javascript' })
+    return new Worker(URL.createObjectURL(blob))
+  } catch {
+    // Workers blocked (e.g. some privacy extensions) → fall back to setInterval
+    return null
+  }
+}
+
 class WebSocketService {
   private ws: WebSocket | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
-  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private heartbeatWorker: Worker | null = null       // Web Worker for background-safe heartbeat
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null  // fallback if Worker unavailable
   private reconnectDelay = 1000
-  private maxReconnectDelay = 15000
+  private maxReconnectDelay = 30000   // cap at 30s (was 15s)
   private retryCount = 0
-  private maxRetries = 5
+  // No maxRetries cap — we never give up, just slow down (like Discord/WhatsApp)
   private authFailed = false // Don't reconnect if auth failed
   private intentionalDisconnect = false // Track intentional disconnects
   private connecting = false // Prevent duplicate connect() calls
   private authenticated = false // Track auth state
   private messageQueue: unknown[] = [] // Queue messages until authenticated (validated later)
+
+  // Browser event listener refs for cleanup
+  private boundOnVisibilityChange: (() => void) | null = null
+  private boundOnOnline: (() => void) | null = null
+  private boundOnOffline: (() => void) | null = null
 
   connect() {
     // Prevent race condition: already connecting or connected
@@ -64,7 +96,7 @@ class WebSocketService {
         this.authFailed = false // Reset auth flag
         this.authenticated = false // Reset auth state
         this.messageQueue = [] // Clear any stale queued messages
-        this.startHeartbeat() // Start heartbeat
+        this.startHeartbeat() // Start heartbeat (Worker-based)
         
         // Authenticate if password required
         const password = getPassword()
@@ -142,6 +174,7 @@ class WebSocketService {
       this.reconnectTimer = null
     }
     this.stopHeartbeat() // Clear heartbeat
+    this.removeBrowserListeners() // Clean up visibility/network listeners
     this.connecting = false
     this.authenticated = false
     this.messageQueue = []
@@ -162,16 +195,113 @@ class WebSocketService {
     this.connect()
   }
 
-  private startHeartbeat() {
-    this.stopHeartbeat() // Clear any existing heartbeat
-    this.heartbeatInterval = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'ping' }))
+  // --- Browser event listeners (visibility + network) ---
+  // Call once after first connect to wire up tab/network awareness
+
+  setupBrowserListeners() {
+    if (typeof window === 'undefined') return
+    if (this.boundOnVisibilityChange) return // already set up
+
+    // When tab becomes visible again → check WS health, reconnect if dead
+    this.boundOnVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[WS] Tab visible — checking connection')
+        const state = this.ws?.readyState
+        // If WS is closed/closing or null → force immediate reconnect
+        if (!this.ws || state === WebSocket.CLOSED || state === WebSocket.CLOSING) {
+          console.log('[WS] Connection dead after background — reconnecting now')
+          this.retryCount = 0          // reset backoff so it's instant
+          this.reconnectDelay = 100    // near-instant first attempt
+          this.connecting = false      // allow new connect()
+          this.intentionalDisconnect = false
+          // Cancel any pending slow reconnect timer
+          if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer)
+            this.reconnectTimer = null
+          }
+          this.connect()
+        } else if (state === WebSocket.OPEN) {
+          // Connection alive — send immediate ping to verify it's not a zombie
+          this.ws.send(JSON.stringify({ type: 'ping' }))
+        }
       }
-    }, 30000) // Send ping every 30s
+    }
+    document.addEventListener('visibilitychange', this.boundOnVisibilityChange)
+
+    // When network comes back online → reconnect if WS is dead
+    this.boundOnOnline = () => {
+      console.log('[WS] Network online — checking connection')
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+        this.retryCount = 0
+        this.reconnectDelay = 500
+        this.connecting = false
+        this.intentionalDisconnect = false
+        if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer)
+          this.reconnectTimer = null
+        }
+        this.connect()
+      }
+    }
+    window.addEventListener('online', this.boundOnOnline)
+
+    // When network goes offline → update status immediately
+    this.boundOnOffline = () => {
+      console.log('[WS] Network offline')
+      store.setConnectionStatus('disconnected')
+    }
+    window.addEventListener('offline', this.boundOnOffline)
+  }
+
+  private removeBrowserListeners() {
+    if (typeof window === 'undefined') return
+    if (this.boundOnVisibilityChange) {
+      document.removeEventListener('visibilitychange', this.boundOnVisibilityChange)
+      this.boundOnVisibilityChange = null
+    }
+    if (this.boundOnOnline) {
+      window.removeEventListener('online', this.boundOnOnline)
+      this.boundOnOnline = null
+    }
+    if (this.boundOnOffline) {
+      window.removeEventListener('offline', this.boundOnOffline)
+      this.boundOnOffline = null
+    }
+  }
+
+  // --- Heartbeat (Web Worker primary, setInterval fallback) ---
+
+  private startHeartbeat() {
+    this.stopHeartbeat() // Clear any existing
+
+    // Try Web Worker first — not throttled in background tabs
+    if (!this.heartbeatWorker) {
+      this.heartbeatWorker = createHeartbeatWorker()
+    }
+
+    if (this.heartbeatWorker) {
+      this.heartbeatWorker.onmessage = () => {
+        // Worker ticked → send ping if WS is open
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({ type: 'ping' }))
+        }
+      }
+      this.heartbeatWorker.postMessage({ cmd: 'start', interval: 25000 }) // 25s pings
+    } else {
+      // Fallback: regular setInterval (will be throttled in background, but better than nothing)
+      this.heartbeatInterval = setInterval(() => {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({ type: 'ping' }))
+        }
+      }, 25000)
+    }
   }
 
   private stopHeartbeat() {
+    if (this.heartbeatWorker) {
+      this.heartbeatWorker.postMessage({ cmd: 'stop' })
+      // Don't terminate — reuse on next connect
+    }
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval)
       this.heartbeatInterval = null
@@ -187,19 +317,14 @@ class WebSocketService {
       return
     }
     
-    // Don't reconnect if max retries exceeded
-    if (this.retryCount >= this.maxRetries) {
-      console.log('[WS] Max retries exceeded, giving up')
-      store.setConnectionStatus('error')
-      return
-    }
-    
+    // Never give up — just slow down with exponential backoff (capped at 30s)
+    // This matches how Discord/WhatsApp behave
     this.retryCount++
-    console.log(`[WS] Reconnecting in ${this.reconnectDelay}ms... (attempt ${this.retryCount}/${this.maxRetries})`)
+    console.log(`[WS] Reconnecting in ${this.reconnectDelay}ms... (attempt ${this.retryCount})`)
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null
       this.connect()
-      // Exponential backoff
+      // Exponential backoff capped at 30s
       this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay)
     }, this.reconnectDelay)
   }
