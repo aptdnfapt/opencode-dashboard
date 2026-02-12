@@ -192,6 +192,7 @@ export interface ErrorWSData {
   message?: string
   title?: string
   audioUrl?: string
+  isSubagent?: boolean
 }
 
 export interface AuthWSData {

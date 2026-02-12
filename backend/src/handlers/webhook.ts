@@ -132,7 +132,7 @@ export function createWebhookHandler(app: Hono, db: Database) {
             audioUrl = generateSignedUrl(prefix + session.title + ' is idle', 5) // 5 min expiry
           }
           
-          wsManager.broadcastIdle(sessionId, audioUrl, isSubagent)
+          wsManager.broadcastIdle(sessionId, audioUrl, isSubagent, session?.title)
           break
         }
 
@@ -140,10 +140,11 @@ export function createWebhookHandler(app: Hono, db: Database) {
           db.prepare('UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?')
             .run('error', event.timestamp, sessionId)
           
-          // Get session title for notification and TTS
-          const session = db.prepare('SELECT title FROM sessions WHERE id = ?')
-            .get(sessionId) as { title: string } | null
+          // Get session title and parent info for notification and TTS
+          const session = db.prepare('SELECT title, parent_session_id FROM sessions WHERE id = ?')
+            .get(sessionId) as { title: string; parent_session_id: string | null } | null
           const title = session?.title || 'Unknown'
+          const isSubagent = !!session?.parent_session_id
           let audioUrl: string | undefined
           
           // Generate signed TTS URL if model is ready
@@ -151,7 +152,7 @@ export function createWebhookHandler(app: Hono, db: Database) {
             audioUrl = generateSignedUrl(title + ' encountered an error', 5) // 5 min expiry
           }
           
-          wsManager.broadcastError(sessionId, (event as PluginEvent & { error?: string }).error || 'Unknown error', title, audioUrl)
+          wsManager.broadcastError(sessionId, (event as PluginEvent & { error?: string }).error || 'Unknown error', title, audioUrl, isSubagent)
           break
         }
 
@@ -197,7 +198,7 @@ export function createWebhookHandler(app: Hono, db: Database) {
               attentionAudioUrl = generateSignedUrl(prefix + attentionSession.title + ' needs attention', 5) // 5 min expiry
             }
             
-            wsManager.broadcastAttention(sessionId, true, attentionAudioUrl, isSubagentAttention)
+            wsManager.broadcastAttention(sessionId, true, attentionAudioUrl, isSubagentAttention, attentionSession?.title)
           } else {
             // Any activity clears needs_attention and sets status to active
             const currentSession = db.prepare('SELECT needs_attention, status FROM sessions WHERE id = ?')

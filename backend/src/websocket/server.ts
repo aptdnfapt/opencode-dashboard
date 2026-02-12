@@ -62,16 +62,16 @@ export class WebSocketManager {
     this.broadcast({ type: 'timeline', data: event as unknown as Record<string, unknown> })
   }
 
-  broadcastAttention(sessionId: string, needsAttention: boolean, audioUrl?: string, isSubagent?: boolean): void {
-    this.broadcast({ type: 'attention', data: { sessionId, needsAttention, audioUrl, isSubagent } })
+  broadcastAttention(sessionId: string, needsAttention: boolean, audioUrl?: string, isSubagent?: boolean, title?: string): void {
+    this.broadcast({ type: 'attention', data: { sessionId, needsAttention, audioUrl, isSubagent, title } })
   }
 
-  broadcastIdle(sessionId: string, audioUrl?: string, isSubagent?: boolean): void {
-    this.broadcast({ type: 'idle', data: { sessionId, audioUrl, isSubagent } })
+  broadcastIdle(sessionId: string, audioUrl?: string, isSubagent?: boolean, title?: string): void {
+    this.broadcast({ type: 'idle', data: { sessionId, audioUrl, isSubagent, title } })
   }
 
-  broadcastError(sessionId: string, error: string, title?: string, audioUrl?: string): void {
-    this.broadcast({ type: 'error', data: { sessionId, error, title, audioUrl } })
+  broadcastError(sessionId: string, error: string, title?: string, audioUrl?: string, isSubagent?: boolean): void {
+    this.broadcast({ type: 'error', data: { sessionId, error, title, audioUrl, isSubagent } })
   }
 }
 

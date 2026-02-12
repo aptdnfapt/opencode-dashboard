@@ -424,15 +424,18 @@ class WebSocketService {
             needs_attention: data.needsAttention ? 1 : 0
           })
           
-          // Play bing + show notification
           if (data.needsAttention) {
-            playBing()
-            const title = data.title ?? 'Session'
-            showNotification('Attention Required', `${title} needs your attention`)
-            
-            // Queue TTS if audioUrl provided
-            if (data.audioUrl) {
-              queueAudio(data.audioUrl)
+            // Subagents get their own sound, main agents get bing + OS notification
+            if (data.isSubagent) {
+              playSubagentBing()
+            } else {
+              playBing()
+              const title = data.title ?? 'Session'
+              showNotification('Attention Required', `${title} needs your attention`)
+              
+              if (data.audioUrl) {
+                queueAudio(data.audioUrl)
+              }
             }
           }
         }
@@ -445,19 +448,17 @@ class WebSocketService {
             status: 'idle'
           })
           
-          // Different sound for sub-agents vs main agents
+          // Subagents get their own sound, main agents get bing + OS notification
           if (data.isSubagent) {
             playSubagentBing()
           } else {
             playBing()
-          }
-          const title = data.title ?? 'Session'
-          const label = data.isSubagent ? 'Subagent Idle' : 'Session Idle'
-          showNotification(label, `${title} is now idle`)
-          
-          // Queue TTS if audioUrl provided
-          if (data.audioUrl) {
-            queueAudio(data.audioUrl)
+            const title = data.title ?? 'Session'
+            showNotification('Session Idle', `${title} is now idle`)
+            
+            if (data.audioUrl) {
+              queueAudio(data.audioUrl)
+            }
           }
         }
         break
@@ -469,14 +470,17 @@ class WebSocketService {
             status: 'error'
           })
 
-          // Play error sound + notification (like idle/attention events)
-          playBing()
-          const title = data.title ?? 'Session'
-          showNotification('Session Error', `${title} encountered an error`)
+          // Subagents get their own sound, main agents get bing + OS notification
+          if (data.isSubagent) {
+            playSubagentBing()
+          } else {
+            playBing()
+            const title = data.title ?? 'Session'
+            showNotification('Session Error', `${title} encountered an error`)
 
-          // Queue TTS if audioUrl provided
-          if (data.audioUrl) {
-            queueAudio(data.audioUrl)
+            if (data.audioUrl) {
+              queueAudio(data.audioUrl)
+            }
           }
         }
         break
