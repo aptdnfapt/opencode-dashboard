@@ -70,22 +70,140 @@ WHERE tu.duration_ms IS NOT NULL
 GROUP BY tu.provider_id, tu.model_id, s.directory
 ```
 
-### Frontend Display
-On the analytics page. Layout TBD during implementation — but should show tables/charts for the above metrics.
+### Frontend Display — New Time Charts
+
+**Chart 1 — Response Time by Model Over Time (multi-line chart)**
+- Each model = a different colored line on the same chart, overlapping
+- X-axis = date, Y-axis = avg response time (seconds)
+- **Model filter dropdown** — toggle which models are visible on the chart
+- **Hover tooltip** — shows exact time for ALL visible models at that date point (e.g. "claude-opus: 47.2s, claude-sonnet: 12.8s"). Uses Chart.js `interaction mode: 'index'` so hovering one point reveals all lines' values.
+- Time range toggle: 7d / 30d / 90d (same pattern as existing cost trend chart)
+- Full-width row
+
+**Chart 2 — Time Spent by Model (donut + table)**
+- Donut chart showing total cumulative LLM time per model as proportions
+- **Actual data table next to it** — columns: Model, Total Time, Calls, Avg Time. Not hidden behind a "raw data" details toggle — visible by default.
+- Same 2-column layout (donut left, table right) or side-by-side within one card
+
+**Chart 3 — Time by Project (stacked bar)**
+- Horizontal bar chart, one bar per project
+- Each bar is **divided into colored segments** showing which model contributed how much time within that project. So you can see "opencode-dashboard: 4h opus (blue) + 2h sonnet (green)"
+- Same sharp-edge bar style (see fixes below)
+
+### Fixes to Existing Charts
+
+**Fix 1 — Donut chart legends**
+- Legend text is blurry and cutting out of card boundaries
+- Fix overflow, sizing, and rendering of legend labels
+
+**Fix 2 — Horizontal bar chart edges**
+- Remove rounded/curly `borderRadius: 6` on bars
+- Use sharp edges instead
+- Better, more vibrant coloring
+
+**Fix 3 — Heatmap (GitHub calendar)**
+- Currently too small and not properly placed on the page
+- Resize to be larger and properly centered/filling its container
+- Change metric from requests to **tokens** (sum of tokens per day instead of request count)
+
+**Fix 4 — Remove Token Flow chart**
+- Delete the entire "Token Flow" (input vs output vertical bar chart) section. It's ugly and not useful.
 
 ### What We Do NOT Want
 - Sub-agent time mixed in with main agent (they're parallel, would inflate numbers)
 - Wall clock time (time between user messages includes user idle time — useless)
+- Rounded/curly bar edges — sharp edges only
+- Token Flow chart — remove it entirely
 
 ### Reference Files
 - `backend/src/db/schema.ts` — lines 42-60 (token_usage table)
 - `backend/src/db/schema.ts` — lines 10-24 (sessions table, parent_session_id at line 16)
 - `backend/src/handlers/api.ts` — lines 575-656 (existing model-performance endpoint)
-- `frontend-svelte/src/routes/analytics/+page.svelte` — analytics page
+- `frontend-svelte/src/routes/analytics/+page.svelte` — full analytics page (818 lines)
+- Existing charts use Chart.js with dark theme colors defined at lines 56-81
+- Existing chart render functions at lines 84-448 (reference for style consistency)
+- Token Flow chart to remove: lines 621-648 (template) + lines 239-289 (renderFlowChart function)
+- Heatmap component: `frontend-svelte/src/lib/components/Heatmap.svelte`
 
 ---
 
-## 3. Markdown CSS Improvements
+## 3. Chat View Layout Overhaul
+
+### Problem
+Current session detail page (`/sessions/[id]`) renders every event as a flat list of cards — user messages, tool calls, assistant messages all stacked equally. A session with 20 tool calls between one user message and one AI response becomes a wall of `$ ...` cards. No visual hierarchy, no grouping, no conversation flow.
+
+### What We Want (based on wireframe at `data/chat.png`)
+
+**Overall page structure:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  ← back    [ floating bar: title ]      [ main | sub ] │  ← top bar
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  user msg                                         │  │  ← user card
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  collapsed tool calls          • first tool call  │  │  ← tool group
+│  │  can expand                    • last tool call   │  │     (collapsed)
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  ai msg with proper markdown                      │  │  ← assistant card
+│  └───────────────────────────────────────────────────┘  │
+│                                                         │
+│  (repeats: user → tools → ai → user → tools → ai)      │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**The flow is grouped into conversation turns:**
+`user msg → collapsed tool calls → ai msg` — this is one turn. Repeats for each exchange.
+
+**Top bar:**
+- `←` back arrow on left
+- Floating bar in center (see section 4 for details)
+- `Main | Sub` toggle on right (switches between chat view and sub-agent timeline view — see section 6)
+- Bar glows same as the session card on main page (green = running, yellow = idle, etc.)
+
+**User message card:**
+- Clean card with user's prompt text
+- Distinct styling so it's clearly "the human spoke here"
+
+**Collapsed tool calls:**
+- All tool calls between a user message and the next AI response get **grouped into one collapsible block**
+- **Collapsed state (default):** shows first tool call and last tool call with `•` bullets, and dots/count in between (e.g. "12 tool calls")
+- **Expanded state (click to toggle):** shows all tool calls listed out with full commands
+- This prevents 20+ tool cards from cluttering the view
+
+**AI message card:**
+- Shows the assistant's response with proper markdown rendering
+- Model badge shown on this card (see section 5)
+
+### Grouping Logic
+Timeline events need to be grouped into turns. The logic:
+1. Walk through timeline events in order
+2. A `user` event starts a new turn
+3. All `tool` events after a `user` and before the next `message` (assistant) get grouped together
+4. The `message` event closes the turn
+5. `error` and `permission` events render inline where they occur (not grouped)
+
+### What We Do NOT Want
+- No flat list of every single event as its own card
+- No showing all tool calls expanded by default — collapsed is the default
+- No losing tool call data — it's all there, just collapsed
+- No complex animation on expand/collapse — simple smooth height transition is fine
+
+### Reference Files
+- `frontend-svelte/src/routes/sessions/[id]/+page.svelte` — lines 296-359 (current flat event rendering to replace)
+- `frontend-svelte/src/lib/types.ts` — `TimelineEvent` interface (event_type field used for grouping)
+- `data/chat.png` — wireframe reference
+
+---
+
+## 4. Markdown CSS Improvements
 
 ### Problem
 Session detail page uses `marked` + `DOMPurify` for rendering markdown on `message` and `user` event types. The CSS exists (`.markdown-content` in `<svelte:head>`) but is too minimal — headings have no proper sizing, paragraphs are cramped, code blocks lack contrast, no table styling.
@@ -125,6 +243,7 @@ Replace the static header with a **floating frosted glass bar** that sits on top
 **Compact state** (always visible, floating at top of page):
 - Thin bar with `backdrop-blur` (frosted glass effect) — semi-transparent so chat scrolls behind it
 - Shows only: `status dot · title · tokens · cost` — one line, minimal
+- **Glows same as the session card on main page** — green = running, yellow = idle, blue spinning = idle + sub-agents running, etc. Same exact animations, keeps it visually connected.
 - Subtle gradient fade at bottom edge so chat doesn't look cut off underneath
 
 **Expanded state** (on hover):
@@ -187,45 +306,69 @@ Move model name **next to the event type label** on assistant messages. Rendered
 
 ---
 
-## 6. Sub-Agent Timeline View (Tab + Live Cards)
+## 6. Sub-Agent View (Main | Sub Toggle)
 
 ### Problem
 Sub-agent sessions exist in the data (`parent_session_id` links them to parent). Currently there's a sidebar toggle that lists sub-agents with basic info (title, tokens) and clicking navigates to their session page. But there's no way to see them all at a glance with live status in the parent session context.
 
 ### What We Want
-A **tab/toggle** on the session detail page: `Chat | Sub-agents`
+A **Main | Sub toggle** in the top-right of the session detail page (visible in wireframe `data/chat.png`).
 
-- **Chat tab** → current timeline view (no changes)
-- **Sub-agents tab** → switches main content area to:
-  - **Vertical timeline** running down the left side
-  - **Sub-agent cards** hanging off to the right, positioned by their `created_at` timestamp
-  - Each card looks like the **main dashboard session cards** — same component, same style:
-    - Status dot with glow
-    - Title
-    - Model name
-    - Directory
-    - Live streaming message preview (latest activity)
-  - **Same animations as main cards** — green glow = running, yellow glow = idle
-  - **Clicking** a sub-agent card → opens full session detail view (`/sessions/[subagentId]`)
+- **Main tab** → chat view (user msgs, collapsed tools, ai msgs — as described in section 3)
+- **Sub tab** → switches the main content area to look **exactly like the main dashboard page**, but scoped to only the sub-agent sessions of the current parent session.
+
+**The sub-agent view IS the main dashboard, just filtered:**
+- Same `SessionCard` component for each sub-agent — same design, same layout
+- Same live glow animations — green = running, yellow = idle
+- Same live streaming message preview on each card
+- Same status dot, title, model name, tokens, cost — everything identical
+- Cards ordered by `created_at`
+
+**Clicking a sub-agent card** → opens the **same chat view** we have for main agents (`/sessions/[subagentId]`). That chat view has the same floating bar, same conversation turns (user msg → collapsed tools → ai msg), same markdown rendering. No special "sub-agent version" — it's the same page, same component, same everything.
+
+**Persistent design is critical.** The user should not be able to tell the difference between viewing a main session's chat and a sub-agent's chat — they look and work identically.
+
+### Edge Cases
+
+**No sub-agents exist:**
+- Don't show the Main | Sub toggle at all. No toggle = no confusion.
+
+**← back arrow on a sub-agent's chat view:**
+- Goes back to the **parent session's sub-agent view** (the Sub tab), NOT to the main dashboard. User drilled into a sub-agent from the parent — back takes them back there.
+
+**Sub-agents of sub-agents:**
+- Sub-agents cannot have sub-agents. No nesting. If a sub-agent session has no children, no toggle shown (same as "no sub-agents exist" rule above).
+
+**Floating bar on a sub-agent's page:**
+- Should **indicate this is a sub-agent** — show a small label or visual cue (e.g. "Sub-agent of [parent title]" or a link back to parent). So user always knows they're inside a child session, not a main one.
+
+**Sub toggle count badge:**
+- Show the count of sub-agents on the toggle: `Sub (5)`. Just a static count, nothing live or fancy.
 
 ### Data
 - Sub-agents identified purely by `parent_session_id` — no tool-matching needed
-- Timeline ordering by `created_at` timestamp
+- Ordering by `created_at` timestamp
 - Sub-agent live data comes through existing WebSocket updates (already works for all sessions)
 - May need to pre-load sub-agent session data when loading parent session
+- Current sidebar (lines 378-418) gets replaced by this toggle approach — remove the sidebar
 
 ### What We Do NOT Want
+- No new card designs for sub-agents — reuse `SessionCard` exactly as-is
+- No new animations — green/yellow glow same as main cards
 - No trying to match which tool/message spawned the sub-agent (won't work for community tools)
-- No inventing new animation styles — reuse main card green/yellow glow exactly
-- No complex nested timelines — just cards on a timeline rail
-- No expanding sub-agent timeline inline (clicking opens the full page instead)
+- No special "sub-agent chat view" — clicking opens the same `/sessions/[id]` page with the same layout
+- No sidebar for sub-agents anymore — the toggle replaces it
+- No nested sub-agent trees — one level deep only
+- No live badge updates on the toggle — just static count
 
 ### Reference Files
-- `frontend-svelte/src/routes/sessions/[id]/+page.svelte` — lines 28-29 (subagents derived), lines 378-418 (current sidebar)
-- `frontend-svelte/src/lib/components/SessionCard.svelte` — reuse this for sub-agent cards
+- `frontend-svelte/src/routes/sessions/[id]/+page.svelte` — lines 28-29 (subagents derived), lines 378-418 (current sidebar to remove)
+- `frontend-svelte/src/lib/components/SessionCard.svelte` — reuse this exact component for sub-agent cards
+- `frontend-svelte/src/routes/+page.svelte` — main dashboard page layout to mirror in sub-agent view
 - `frontend-svelte/src/lib/store.svelte.ts` — lines 39-42 (`hasActiveSubAgents` helper)
 - `frontend-svelte/src/lib/types.ts` — Session interface has `parent_session_id`
 - `backend/src/db/schema.ts` — line 16 (`parent_session_id`), line 93 (index on it)
+- `data/chat.png` — wireframe showing Main | Sub toggle position
 
 ---
 

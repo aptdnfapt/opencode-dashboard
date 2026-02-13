@@ -24,3 +24,4 @@ frontend-svelte/build/
 .env
 package-lock.json
 frontend-archive/package-lock.json
+data
