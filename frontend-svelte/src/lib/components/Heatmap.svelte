@@ -8,10 +8,10 @@
   
   // GitHub dark theme colors
   const colors = ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353']
-  const cellSize = 11
-  const cellGap = 3
-  const weekdayLabelWidth = 28
-  const monthLabelHeight = 16
+  const cellSize = 14
+  const cellGap = 4
+  const weekdayLabelWidth = 32
+  const monthLabelHeight = 20
   
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   const weekdayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', '']
@@ -141,7 +141,7 @@
       class="fixed z-50 px-2 py-1 text-xs rounded bg-[#1c2128] border border-[var(--border-subtle)] shadow-lg pointer-events-none"
       style="left: {tooltip.x}px; top: {tooltip.y}px; transform: translate(-50%, -100%)"
     >
-      <div class="font-medium text-[var(--fg-primary)]">{tooltip.value} {tooltip.value === 1 ? 'request' : 'requests'}</div>
+      <div class="font-medium text-[var(--fg-primary)]">{tooltip.value} {tooltip.value === 1 ? 'token' : 'tokens'}</div>
       <div class="text-[var(--fg-muted)]">{formatDate(tooltip.date)}</div>
     </div>
   {/if}

@@ -132,6 +132,30 @@ export interface CostBreakdown {
   requests: number
 }
 
+// /api/analytics/time-per-model response
+export interface TimePerModel {
+  provider_id: string
+  model_id: string
+  directory: string
+  total_time_ms: number
+  avg_time_ms: number
+  num_calls: number
+}
+
+// /api/analytics/response-time-over-time response
+export interface ResponseTimeOverTime {
+  period: string
+  models: Record<string, number>
+}
+
+// /api/analytics/time-by-project response
+export interface TimeByProject {
+  directory: string
+  provider_id: string
+  model_id: string
+  total_time_ms: number
+}
+
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
 
 // WebSocket message data types for discriminated union

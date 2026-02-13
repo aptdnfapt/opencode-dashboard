@@ -189,3 +189,33 @@ export async function deleteSession(id: string): Promise<{ success: boolean }> {
   if (!res.ok) throw new Error(`API error: ${res.status}`)
   return res.json()
 }
+
+// Time analytics endpoints
+export async function getTimePerModel(): Promise<{
+  provider_id: string
+  model_id: string
+  directory: string
+  total_time_ms: number
+  avg_time_ms: number
+  num_calls: number
+}[]> {
+  return fetchAPI('/api/analytics/time-per-model')
+}
+
+export async function getResponseTimeOverTime(range = '7d', models?: string[]): Promise<{
+  period: string
+  models: Record<string, number>
+}[]> {
+  const params = new URLSearchParams({ range })
+  if (models?.length) params.set('models', models.join(','))
+  return fetchAPI(`/api/analytics/response-time-over-time?${params}`)
+}
+
+export async function getTimeByProject(): Promise<{
+  directory: string
+  provider_id: string
+  model_id: string
+  total_time_ms: number
+}[]> {
+  return fetchAPI('/api/analytics/time-by-project')
+}

@@ -751,4 +751,131 @@ export function createApiHandler(app: Hono, db: Database) {
     
     return c.json(projects)
   })
+
+  // GET /api/analytics/time-per-model - total time, avg time, calls per model (main agent only)
+  app.get('/api/analytics/time-per-model', (c: Context) => {
+    const timeData = db.prepare(`
+      SELECT 
+        tu.provider_id, 
+        tu.model_id,
+        s.directory,
+        SUM(tu.duration_ms) as total_time_ms,
+        AVG(tu.duration_ms) as avg_time_ms,
+        COUNT(*) as num_calls
+      FROM token_usage tu
+      JOIN sessions s ON tu.session_id = s.id
+      WHERE tu.duration_ms IS NOT NULL 
+        AND s.parent_session_id IS NULL  -- main agent only
+      GROUP BY tu.provider_id, tu.model_id, s.directory
+    `).all()
+    
+    return c.json(timeData)
+  })
+
+  // GET /api/analytics/response-time-over-time - response time by model over time
+  app.get('/api/analytics/response-time-over-time', (c: Context) => {
+    const range = c.req.query('range') || '7d'
+    const models = c.req.query('models')?.split(',') || []
+    
+    const now = Date.now()
+    let startTime: number
+    let groupBy: string
+    let periodType: 'hour' | 'day'
+    
+    switch (range) {
+      case '24h':
+        startTime = now - 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d %H:00', timestamp/1000, 'unixepoch')"
+        periodType = 'hour'
+        break
+      case '30d':
+        startTime = now - 30 * 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d', timestamp/1000, 'unixepoch')"
+        periodType = 'day'
+        break
+      default:
+        startTime = now - 7 * 24 * 60 * 60 * 1000
+        groupBy = "strftime('%Y-%m-%d', timestamp/1000, 'unixepoch')"
+        periodType = 'day'
+    }
+
+    let sql = `
+      SELECT 
+        ${groupBy} as period,
+        model_id,
+        AVG(duration_ms) as avg_duration,
+        COUNT(*) as requests
+      FROM token_usage tu
+      JOIN sessions s ON tu.session_id = s.id
+      WHERE tu.timestamp >= ? 
+        AND tu.duration_ms IS NOT NULL 
+        AND tu.model_id IS NOT NULL
+        AND s.parent_session_id IS NULL  -- main agent only
+    `
+    const params: unknown[] = [startTime]
+
+    if (models.length > 0) {
+      sql += ` AND tu.model_id IN (${models.map(() => '?').join(',')})`
+      params.push(...models)
+    }
+
+    sql += ` GROUP BY period, model_id ORDER BY period ASC`
+
+    const rows = db.prepare(sql).all(...(params as (string | number)[])) as { 
+      period: string; model_id: string; avg_duration: number; requests: number 
+    }[]
+
+    // Pivot: { period, models: { model_id: avg_duration } }
+    const periodMap = new Map<string, { period: string; models: Record<string, number> }>()
+    
+    for (const row of rows) {
+      if (!periodMap.has(row.period)) {
+        periodMap.set(row.period, { period: row.period, models: {} })
+      }
+      periodMap.get(row.period)!.models[row.model_id] = Math.round(row.avg_duration)
+    }
+
+    // Fill gaps - generate all periods in range (use UTC to match SQLite)
+    const result: { period: string; models: Record<string, number> }[] = []
+    const start = new Date(startTime)
+    const end = new Date(now)
+
+    if (periodType === 'hour') {
+      start.setUTCMinutes(0, 0, 0)
+      for (let d = new Date(start); d <= end; d.setUTCHours(d.getUTCHours() + 1)) {
+        const period = d.toISOString().slice(0, 13).replace('T', ' ') + ':00'
+        const existing = periodMap.get(period)
+        result.push({ period, models: existing?.models || {} })
+      }
+    } else {
+      start.setUTCHours(0, 0, 0, 0)
+      for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+        const period = d.toISOString().slice(0, 10)
+        const existing = periodMap.get(period)
+        result.push({ period, models: existing?.models || {} })
+      }
+    }
+
+    return c.json(result)
+  })
+
+  // GET /api/analytics/time-by-project - time spent by project (stacked bar)
+  app.get('/api/analytics/time-by-project', (c: Context) => {
+    const timeData = db.prepare(`
+      SELECT 
+        s.directory,
+        tu.provider_id,
+        tu.model_id,
+        SUM(tu.duration_ms) as total_time_ms
+      FROM token_usage tu
+      JOIN sessions s ON tu.session_id = s.id
+      WHERE tu.duration_ms IS NOT NULL 
+        AND s.parent_session_id IS NULL  -- main agent only
+        AND s.directory IS NOT NULL
+      GROUP BY s.directory, tu.provider_id, tu.model_id
+      ORDER BY s.directory, total_time_ms DESC
+    `).all()
+    
+    return c.json(timeData)
+  })
 }
