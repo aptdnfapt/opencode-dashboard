@@ -81,8 +81,8 @@
     return Array.from(models)
   })
 
-  // Check if session has active sub-agents
-  let hasActiveSubAgents = $derived(session ? store.hasActiveSubAgents(session.id) : false)
+  // Check if session has active sub-agents — O(1) Set lookup
+  let hasActiveSubAgents = $derived(session ? store.activeChildrenSet.has(session.id) : false)
 
   // Compute effective display status (idle > 3min = stale, unless active subagents)
   let displayStatus = $derived.by(() => {

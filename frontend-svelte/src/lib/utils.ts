@@ -60,22 +60,21 @@ const PROJECT_COLORS = [
 ]
 
 // Assigns unique colors per project directory — no overlaps
-// Takes all known directories to build a stable ordered mapping
+// Uses array length + identity check instead of .join('|') string comparison
 const colorCache = new Map<string, string>()
-let lastDirList = ''
+let lastDirRef: string[] | null = null
 
 export function getProjectColor(directory: string | null, allDirectories: string[]): string {
   if (!directory) return 'var(--fg-secondary)'
   
-  // Rebuild cache when directory list changes
-  const dirKey = allDirectories.join('|')
-  if (dirKey !== lastDirList) {
+  // Rebuild cache only when the array reference or length changes
+  if (allDirectories !== lastDirRef || colorCache.size === 0) {
     colorCache.clear()
     const sorted = [...new Set(allDirectories)].sort()
     sorted.forEach((dir, i) => {
       colorCache.set(dir, PROJECT_COLORS[i % PROJECT_COLORS.length])
     })
-    lastDirList = dirKey
+    lastDirRef = allDirectories
   }
   
   return colorCache.get(directory) ?? 'var(--fg-secondary)'

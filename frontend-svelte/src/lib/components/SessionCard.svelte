@@ -19,15 +19,14 @@
   let { session, selected = false }: Props = $props()
   
   // Compute effective status: idle > 3min → stale (unless sub-agents are active)
-  // store.tick bumps every 30s to force re-eval of Date.now() stale check
+  // Uses store.activeChildrenSet (O(1) lookup) instead of O(N) .some() scan
   let displayStatus = $derived(() => {
     void store.tick
     if (session.status === 'archived') return 'archived'
     if (session.status !== 'idle') return session.status
     const updatedAt = new Date(session.updated_at).getTime()
     const now = Date.now()
-    const hasActiveSubs = store.sessions.some(s => s.parent_session_id === session.id && s.status === 'active')
-    if (hasActiveSubs) return 'idle-with-subagents'
+    if (store.activeChildrenSet.has(session.id)) return 'idle-with-subagents'
     return (now - updatedAt) > STALE_THRESHOLD_MS ? 'stale' : 'idle'
   })
   
@@ -137,8 +136,8 @@
     }
   })
   
-  // All unique project directories for collision-free color assignment
-  let allDirs = $derived(store.sessions.map(s => s.directory).filter(Boolean) as string[])
+  // Use store's precomputed allDirs — computed once, shared by all cards
+  let allDirs = $derived(store.allDirs)
 
   // Status icon component mapping
   function getStatusIcon(status: string) {
@@ -166,8 +165,8 @@
     }
   }
   
-  // Count sub-agents for this session
-  let subAgents = $derived(store.sessions.filter(s => s.parent_session_id === session.id))
+  // Sub-agents from store's precomputed Map — O(1) lookup instead of O(N) filter
+  let subAgents = $derived(store.childrenMap.get(session.id) || [])
   let activeSubAgents = $derived(subAgents.filter(s => s.status === 'active').length)
   let idleSubAgents = $derived(subAgents.filter(s => s.status !== 'active').length)
 

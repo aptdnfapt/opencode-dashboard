@@ -36,9 +36,35 @@ class DashboardStore {
     return this.sessions.find(s => s.id === this.selectedSessionId) ?? null
   }
 
-  // Check if a session has any active sub-agents
-  hasActiveSubAgents(sessionId: string): boolean {
-    return this.sessions.some(s => s.parent_session_id === sessionId && s.status === 'active')
+  // Precomputed: Set of parent IDs that have at least one active child
+  // O(N) once, then O(1) lookup — replaces O(N) .some() per caller
+  get activeChildrenSet(): Set<string> {
+    const set = new Set<string>()
+    for (const s of this.sessions) {
+      if (s.parent_session_id && s.status === 'active') {
+        set.add(s.parent_session_id)
+      }
+    }
+    return set
+  }
+
+  // Precomputed: Map<parentId, Session[]> — children grouped by parent
+  // O(N) once, then O(1) lookup — replaces O(N) .filter() per card
+  get childrenMap(): Map<string, Session[]> {
+    const map = new Map<string, Session[]>()
+    for (const s of this.sessions) {
+      if (s.parent_session_id) {
+        const arr = map.get(s.parent_session_id)
+        if (arr) arr.push(s)
+        else map.set(s.parent_session_id, [s])
+      }
+    }
+    return map
+  }
+
+  // Precomputed: unique non-null directories — computed once, shared by all cards
+  get allDirs(): string[] {
+    return this.sessions.map(s => s.directory).filter(Boolean) as string[]
   }
 
   // Derived: filtered sessions (handles computed 'stale' status + sorting)
@@ -46,14 +72,14 @@ class DashboardStore {
     void this.tick // force re-eval every 30s
     const STALE_THRESHOLD_MS = 3 * 60 * 1000
     const now = Date.now()
+    const activeSubs = this.activeChildrenSet // O(1) ref to precomputed Set
     
     const filtered = this.sessions.filter(s => {
       // Compute effective status: idle > 3min = stale (unless sub-agents are active)
       let effectiveStatus = s.status
       if (s.status === 'idle') {
         const idleTime = now - new Date(s.updated_at).getTime()
-        const hasActiveSubs = this.hasActiveSubAgents(s.id)
-        effectiveStatus = (idleTime > STALE_THRESHOLD_MS && !hasActiveSubs) ? 'stale' : 'idle'
+        effectiveStatus = (idleTime > STALE_THRESHOLD_MS && !activeSubs.has(s.id)) ? 'stale' : 'idle'
       }
       
       // Hide archived unless explicitly filtered for
@@ -80,27 +106,25 @@ class DashboardStore {
     return filtered
   }
 
-  // Derived: stats (idle > 3min = stale)
+  // Derived: stats — single loop over sessions (was 6 separate .filter/.reduce passes)
   get stats() {
     void this.tick // force re-eval every 30s
     const STALE_THRESHOLD_MS = 3 * 60 * 1000
     const now = Date.now()
-    const active = this.sessions.filter(s => s.status === 'active').length
-    const idle = this.sessions.filter(s => {
-      if (s.status !== 'idle') return false
-      const idleTime = now - new Date(s.updated_at).getTime()
-      const hasActiveSubs = this.hasActiveSubAgents(s.id)
-      return idleTime <= STALE_THRESHOLD_MS || hasActiveSubs
-    }).length
-    const stale = this.sessions.filter(s => {
-      if (s.status !== 'idle') return false
-      const idleTime = now - new Date(s.updated_at).getTime()
-      const hasActiveSubs = this.hasActiveSubAgents(s.id)
-      return idleTime > STALE_THRESHOLD_MS && !hasActiveSubs
-    }).length
-    const attention = this.sessions.filter(s => s.needs_attention).length
-    const totalTokens = this.sessions.reduce((sum, s) => sum + (s.token_total || 0), 0)
-    const totalCost = this.sessions.reduce((sum, s) => sum + (s.cost_total || 0), 0)
+    const activeSubs = this.activeChildrenSet
+    let active = 0, idle = 0, stale = 0, attention = 0, totalTokens = 0, totalCost = 0
+
+    for (const s of this.sessions) {
+      if (s.status === 'active') active++
+      else if (s.status === 'idle') {
+        const idleTime = now - new Date(s.updated_at).getTime()
+        if (idleTime > STALE_THRESHOLD_MS && !activeSubs.has(s.id)) stale++
+        else idle++
+      }
+      if (s.needs_attention) attention++
+      totalTokens += s.token_total || 0
+      totalCost += s.cost_total || 0
+    }
     return { active, idle, stale, attention, totalTokens, totalCost, total: this.sessions.length }
   }
 

@@ -10,18 +10,16 @@
   // Stale threshold
   const STALE_THRESHOLD_MS = 3 * 60 * 1000
   
-  // All unique project directories for collision-free color assignment
-  let allDirs = $derived(store.sessions.map(s => s.directory).filter(Boolean) as string[])
+  // Use store's precomputed allDirs — computed once, shared across components
+  let allDirs = $derived(store.allDirs)
   
-  // Compute effective status: idle > 3min = stale (unless sub-agents are active)
-  // Note: pass sessions array for Svelte reactivity tracking
+  // Compute effective status using store.activeChildrenSet (O(1)) instead of O(N) .some()
   // store.tick forces re-eval every 30s so stale transitions happen on time
-  function getEffectiveStatus(session: Session, sessions: Session[], _tick: number): 'active' | 'idle' | 'error' | 'stale' | 'archived' {
+  function getEffectiveStatus(session: Session, _sessions: Session[], _tick: number): 'active' | 'idle' | 'error' | 'stale' | 'archived' {
     if (session.status === 'archived') return 'archived'
     if (session.status !== 'idle') return session.status
     const idleTime = Date.now() - new Date(session.updated_at).getTime()
-    const hasActiveSubs = sessions.some(s => s.parent_session_id === session.id && s.status === 'active')
-    return (idleTime > STALE_THRESHOLD_MS && !hasActiveSubs) ? 'stale' : 'idle'
+    return (idleTime > STALE_THRESHOLD_MS && !store.activeChildrenSet.has(session.id)) ? 'stale' : 'idle'
   }
   
   // Props for collapsed mode
