@@ -39,7 +39,11 @@ export async function getSessions(params?: {
   return fetchAPI(`/api/sessions${qs ? `?${qs}` : ''}`)
 }
 
-export async function getSession(id: string): Promise<{ session: Session; timeline: TimelineEvent[] }> {
+export async function getSession(id: string): Promise<{ 
+  session: Session; 
+  timeline: TimelineEvent[];
+  models: string[];
+}> {
   return fetchAPI(`/api/sessions/${id}`)
 }
 

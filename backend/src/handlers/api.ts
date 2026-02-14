@@ -130,7 +130,17 @@ export function createApiHandler(app: Hono, db: Database) {
       'SELECT * FROM timeline_events WHERE session_id = ? ORDER BY timestamp ASC'
     ).all(id)
 
-    return c.json({ session, timeline })
+    const distinctModels = db.prepare(`
+      SELECT DISTINCT model_id 
+      FROM token_usage 
+      WHERE session_id = ? AND model_id IS NOT NULL
+    `).all(id) as { model_id: string }[]
+
+    return c.json({ 
+      session, 
+      timeline,
+      models: distinctModels.map(m => m.model_id)
+    })
   })
 
   // GET /api/analytics/summary - totals for dashboard
