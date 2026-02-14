@@ -99,8 +99,6 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
   // Store last message per session - only send on idle
   const pendingMessages = new Map<string, string>()
   
-  // Track message start times for duration calculation
-  const messageStartTimes = new Map<string, number>()
   // Track which messages we've already sent tokens for (prevent duplicates)
   const sentTokenMessages = new Set<string>()
   
@@ -228,12 +226,11 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
           if (msg?.role === "assistant" && msg?.tokens && msg?.finish && !sentTokenMessages.has(msg.id)) {
             // Mark as sent to prevent duplicates
             sentTokenMessages.add(msg.id)
-            // Calculate duration from step-start to now
-            const startTime = messageStartTimes.get(msg.id)
-            const durationMs = startTime ? Date.now() - startTime : null
-            if (startTime) {
-              messageStartTimes.delete(msg.id)
-            }
+            // Calculate duration from message's own timestamps (reliable)
+            // time.created = when message started, time.completed = when finished
+            const durationMs = msg.time?.created 
+              ? (msg.time?.completed || Date.now()) - msg.time.created 
+              : null
             
             // OpenCode's msg.tokens.input already excludes cached tokens (adjusted by provider)
             // Cache read/write are tracked separately - don't add to input or we double-count
@@ -262,11 +259,6 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
           
         case "message.part.updated": {
           const part = props?.part
-          
-          // Track when assistant message starts (step-start) for duration calc
-          if (part?.type === "step-start" && part?.messageID) {
-            messageStartTimes.set(part.messageID, Date.now())
-          }
           
           // Store message text, don't send until idle
           if (part?.type === "text" && part?.text) {
