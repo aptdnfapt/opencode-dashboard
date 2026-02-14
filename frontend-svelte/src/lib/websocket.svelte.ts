@@ -20,10 +20,13 @@ function getWsUrl(): string {
   if (typeof window === 'undefined') return ''
   if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  // Use backend port 3000 for WebSocket (backend handles both API and WS on same port)
-  // Extract hostname from window.location.host (removes port if present)
-  const hostname = window.location.hostname
-  return `${proto}//${hostname}:3000/ws`
+  // Dev mode (vite on 5173) → separate backend port, fallback 3000
+  // Production / Docker → /ws on same host (reverse proxy friendly)
+  if (window.location.port === '5173') {
+    const backendPort = import.meta.env.VITE_BACKEND_PORT || '3000'
+    return `${proto}//${window.location.hostname}:${backendPort}/ws`
+  }
+  return `${proto}//${window.location.host}/ws`
 }
 
 function getPassword(): string {
