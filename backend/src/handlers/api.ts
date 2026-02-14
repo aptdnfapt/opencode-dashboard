@@ -126,12 +126,9 @@ export function createApiHandler(app: Hono, db: Database) {
       return c.json({ error: 'Session not found' }, 404)
     }
 
-    const timeline = db.prepare(`
-      SELECT * FROM timeline_events 
-      WHERE session_id = ? 
-        AND event_type IN ('user', 'tool', 'message', 'error', 'permission')
-      ORDER BY timestamp ASC
-    `).all(id)
+    const timeline = db.prepare(
+      'SELECT * FROM timeline_events WHERE session_id = ? ORDER BY timestamp ASC'
+    ).all(id)
 
     const distinctModels = db.prepare(`
       SELECT DISTINCT model_id 

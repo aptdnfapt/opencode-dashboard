@@ -21,7 +21,6 @@
   let showFloatingHeader = $state(false)
   let showSubagentView = $state(false)
   let copyIdCopied = $state(false)
-  let toolGroupExpanded = $state(new Set<number>())
 
   // Get session ID from route params
   let sessionId = $derived($page.params.id)
@@ -78,6 +77,35 @@
 
   // Check if session has active sub-agents
   let hasActiveSubAgents = $derived(session ? store.hasActiveSubAgents(session.id) : false)
+
+  // Helper function to get status color based on session status and sub-agents
+  function getStatusColor(status: string, hasSubAgents: boolean): string {
+    if (status === 'active') return 'text-emerald-500'
+    if (status === 'idle' && hasSubAgents) return 'text-blue-500'
+    if (status === 'idle') return 'text-amber-500'
+    if (status === 'error') return 'text-rose-500'
+    return 'text-zinc-500'
+  }
+
+  // Helper function to get status dot color class
+  function getStatusDotColor(status: string, hasSubAgents: boolean): string {
+    if (status === 'active') return 'bg-emerald-500'
+    if (status === 'idle' && hasSubAgents) return 'bg-blue-500'
+    if (status === 'idle') return 'bg-amber-500'
+    if (status === 'error') return 'bg-rose-500'
+    return 'bg-zinc-500'
+  }
+
+  // Helper function to get tool group key using event IDs instead of indices
+  function getToolGroupKey(tools: TimelineEvent[]): string {
+    if (tools.length === 0) return ''
+    const firstId = tools[0].id
+    const lastId = tools[tools.length - 1].id
+    return `${firstId}-${lastId}`
+  }
+
+  // State for tool group expansion using event IDs instead of indices
+  let toolGroupExpanded = $state(new Set<string>())
 
   // Merge API timeline with store timeline (WebSocket updates)
   // Store events take priority for real-time updates
@@ -187,12 +215,15 @@
   }
 
   // Toggle tool group expansion
-  function toggleToolGroup(index: number) {
+  function toggleToolGroup(turnIndex: number) {
+    const turn = conversationTurns[turnIndex]
+    if (!turn || turn.tools.length === 0) return
+    const key = getToolGroupKey(turn.tools)
     const newExpanded = new Set(toolGroupExpanded)
-    if (newExpanded.has(index)) {
-      newExpanded.delete(index)
+    if (newExpanded.has(key)) {
+      newExpanded.delete(key)
     } else {
-      newExpanded.add(index)
+      newExpanded.add(key)
     }
     toolGroupExpanded = newExpanded
   }
@@ -394,18 +425,16 @@
             <!-- Status dot with glow styling -->
             <div class={cn(
               'flex items-center gap-2',
-              session.status === 'active' ? 'text-emerald-500' : 
-              session.status === 'idle' && hasActiveSubAgents ? 'text-blue-500' :
-              session.status === 'idle' ? 'text-amber-500' :
-              session.status === 'error' ? 'text-rose-500' : 'text-zinc-500'
+              getStatusColor(session.status, hasActiveSubAgents)
             )}>
               <div class={cn(
                 'w-2 h-2 rounded-full animate-pulse',
-                session.status === 'active' ? 'bg-emerald-500' :
-                session.status === 'idle' && hasActiveSubAgents ? 'bg-blue-500' :
-                session.status === 'idle' ? 'bg-amber-500' :
-                session.status === 'error' ? 'bg-rose-500' : 'bg-zinc-500'
+                getStatusDotColor(session.status, hasActiveSubAgents)
               )}></div>
+              <!-- Sub-agent indicator on compact header -->
+              {#if session.parent_session_id}
+                <span class="text-[10px] text-[var(--fg-muted)] uppercase tracking-wider">sub-agent</span>
+              {/if}
             </div>
 
             <!-- Title -->
@@ -438,6 +467,16 @@
                   {/if}
                 </button>
               </div>
+
+              <!-- Parent session reference (if sub-agent) -->
+              {#if session.parent_session_id && parentSession}
+                <div class="col-span-2 flex items-center gap-2">
+                  <span class="text-[var(--fg-muted)] text-xs mb-1">Parent</span>
+                  <span class="text-[var(--fg-secondary)] text-xs truncate">
+                    {parentSession.title || 'Untitled'}
+                  </span>
+                </div>
+              {/if}
 
               <!-- Created time -->
               <div>
@@ -537,34 +576,36 @@
                           {turn.tools.length} {turn.tools.length === 1 ? 'call' : 'calls'}
                         </span>
                       </div>
-                      {#if toolGroupExpanded.has(turnIndex)}
+                      {#if toolGroupExpanded.has(getToolGroupKey(turn.tools))}
                         <ChevronDown class="w-4 h-4 text-[var(--fg-muted)]" />
                       {:else}
                         <ChevronRight class="w-4 h-4 text-[var(--fg-muted)]" />
                       {/if}
                     </button>
 
-                    <div class:hidden={!toolGroupExpanded.has(turnIndex)} class="px-4 pb-3">
-                      {#each turn.tools as tool (tool.id)}
-                        <div class="py-2 border-b border-[var(--border-subtle)] last:border-0">
-                          <div class="flex items-center gap-2 mb-1">
-                            <span class="text-[var(--accent-blue)]">$</span>
-                            <span class="text-xs font-medium mono text-[var(--fg-secondary)]">
-                              {tool.tool_name || 'unknown tool'}
+                    {#if toolGroupExpanded.has(getToolGroupKey(turn.tools))}
+                      <div class="px-4 pb-3">
+                        {#each turn.tools as tool (tool.id)}
+                          <div class="py-2 border-b border-[var(--border-subtle)] last:border-0">
+                            <div class="flex items-center gap-2 mb-1">
+                              <span class="text-[var(--accent-blue)]">$</span>
+                              <span class="text-xs font-medium mono text-[var(--fg-secondary)]">
+                                {tool.tool_name || 'unknown tool'}
+                              </span>
+                            </div>
+                            <p class="text-sm text-[var(--fg-secondary)] mono break-words">
+                              {tool.summary}
+                            </p>
+                            <span class="text-xs text-[var(--fg-muted)] mono mt-1 block">
+                              {formatRelativeTime(tool.timestamp)}
                             </span>
                           </div>
-                          <p class="text-sm text-[var(--fg-secondary)] mono break-words">
-                            {tool.summary}
-                          </p>
-                          <span class="text-xs text-[var(--fg-muted)] mono mt-1 block">
-                            {formatRelativeTime(tool.timestamp)}
-                          </span>
-                        </div>
-                      {/each}
-                    </div>
+                        {/each}
+                      </div>
+                    {/if}
 
                     <!-- Collapsed preview: first and last tools -->
-                    {#if !toolGroupExpanded.has(turnIndex)}
+                    {#if !toolGroupExpanded.has(getToolGroupKey(turn.tools))}
                       <div class="px-4 pb-2.5">
                         {#if turn.tools.length === 1}
                           <div class="text-sm text-[var(--fg-muted)]">
