@@ -125,11 +125,15 @@
     breaks: true,  // Convert \n to <br>
     gfm: true      // GitHub Flavored Markdown
   })
-
+  
   // Render markdown to HTML with XSS sanitization
   function renderMarkdown(text: string): string {
     if (!text) return ''
-    return DOMPurify.sanitize(marked.parse(text) as string)
+    return DOMPurify.sanitize(marked.parse(text) as string, {
+      ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 'a', 'ul', 'ol', 'li', 'blockquote', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'img'],
+      ALLOWED_ATTR: ['href', 'target', 'alt', 'src'],
+      ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms):|[^a-z]|[a-z]+[^a-z0-9+.-]*(?:[^a-z0-9+.-]*|$))/i
+    })
   }
 
   // Format timestamp as "Feb 12, 2:19 PM"
@@ -629,6 +633,7 @@
     {#if showScrollButton}
       <button
         onclick={scrollToBottom}
+        aria-label="Scroll to bottom"
         class="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-[var(--accent-blue)] text-white text-xs font-medium rounded-full shadow-lg shadow-black/25 hover:bg-[var(--accent-blue)]/80 transition-all flex items-center gap-2 z-30"
       >
         <span>↓</span>
