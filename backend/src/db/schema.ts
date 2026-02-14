@@ -83,6 +83,19 @@ export function initSchema(db: Database): void {
     )
   `)
 
+  // Notes: per-session user annotations with message references
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      message_refs TEXT DEFAULT '[]',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES sessions(id)
+    )
+  `)
+
   // Indexes for query performance
   db.exec('CREATE INDEX IF NOT EXISTS idx_timeline_session ON timeline_events(session_id, timestamp)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_token_session ON token_usage(session_id)')
@@ -94,4 +107,5 @@ export function initSchema(db: Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_directory ON sessions(directory)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_file_edits_session ON file_edits(session_id)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_file_edits_ext ON file_edits(file_extension)')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_notes_session ON notes(session_id)')
 }

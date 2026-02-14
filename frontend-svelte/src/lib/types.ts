@@ -12,6 +12,17 @@ export interface Session {
   needs_attention: number
   token_total: number
   cost_total: number
+  notes_count?: number
+}
+
+// Per-session note with inline message references
+export interface Note {
+  id: number
+  session_id: string
+  content: string
+  message_refs: number[]
+  created_at: number
+  updated_at: number
 }
 
 export interface TimelineEvent {

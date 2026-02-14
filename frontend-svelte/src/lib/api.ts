@@ -233,3 +233,52 @@ export async function getTimeByProject(): Promise<{
 }[]> {
   return fetchAPI('/api/analytics/time-by-project')
 }
+
+// --- Notes ---
+import type { Note } from './types'
+
+// Get all notes for a session
+export async function getSessionNotes(sessionId: string): Promise<Note[]> {
+  return fetchAPI(`/api/sessions/${sessionId}/notes`)
+}
+
+// Create a new note for a session
+export async function createNote(sessionId: string, content: string): Promise<Note> {
+  const key = getApiKey()
+  const res = await fetch(`/api/sessions/${sessionId}/notes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(key ? { 'X-API-Key': key } : {})
+    },
+    body: JSON.stringify({ content })
+  })
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  return res.json()
+}
+
+// Update a note's content
+export async function updateNote(noteId: number, content: string): Promise<Note> {
+  const key = getApiKey()
+  const res = await fetch(`/api/notes/${noteId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(key ? { 'X-API-Key': key } : {})
+    },
+    body: JSON.stringify({ content })
+  })
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  return res.json()
+}
+
+// Delete a note
+export async function deleteNote(noteId: number): Promise<{ success: boolean }> {
+  const key = getApiKey()
+  const res = await fetch(`/api/notes/${noteId}`, {
+    method: 'DELETE',
+    headers: key ? { 'X-API-Key': key } : {}
+  })
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  return res.json()
+}

@@ -109,10 +109,21 @@ export function createApiHandler(app: Hono, db: Database) {
       return { ...s, status: effectiveStatus, model_id: latestToken?.model_id || null }
     })
 
+    // Attach notes_count to each session
+    const noteCounts = db.prepare(
+      'SELECT session_id, COUNT(*) as cnt FROM notes GROUP BY session_id'
+    ).all() as { session_id: string; cnt: number }[]
+    const noteCountMap = new Map(noteCounts.map(r => [r.session_id, r.cnt]))
+
+    const withNotes = processed.map(s => ({
+      ...s,
+      notes_count: noteCountMap.get(s.id) || 0
+    }))
+
     // Now filter by status if requested
     const filtered = status 
-      ? processed.filter(s => s.status === status)
-      : processed
+      ? withNotes.filter(s => s.status === status)
+      : withNotes
 
     return c.json(filtered)
   })
@@ -136,8 +147,13 @@ export function createApiHandler(app: Hono, db: Database) {
       WHERE session_id = ? AND model_id IS NOT NULL
     `).all(id) as { model_id: string }[]
 
+    // Count notes for this session
+    const noteRow = db.prepare(
+      'SELECT COUNT(*) as cnt FROM notes WHERE session_id = ?'
+    ).get(id) as { cnt: number }
+
     return c.json({ 
-      session, 
+      session: { ...session as Record<string, unknown>, notes_count: noteRow.cnt },
       timeline,
       models: distinctModels.map(m => m.model_id)
     })
@@ -721,12 +737,14 @@ export function createApiHandler(app: Hono, db: Database) {
     db.prepare('DELETE FROM timeline_events WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM token_usage WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM file_edits WHERE session_id = ?').run(id)
+    db.prepare('DELETE FROM notes WHERE session_id = ?').run(id)
     // Delete child sessions (subagents)
     const children = db.prepare('SELECT id FROM sessions WHERE parent_session_id = ?').all(id) as { id: string }[]
     for (const child of children) {
       db.prepare('DELETE FROM timeline_events WHERE session_id = ?').run(child.id)
       db.prepare('DELETE FROM token_usage WHERE session_id = ?').run(child.id)
       db.prepare('DELETE FROM file_edits WHERE session_id = ?').run(child.id)
+      db.prepare('DELETE FROM notes WHERE session_id = ?').run(child.id)
       db.prepare('DELETE FROM sessions WHERE id = ?').run(child.id)
     }
     // Delete the session itself
@@ -932,5 +950,97 @@ export function createApiHandler(app: Hono, db: Database) {
     `).all()
     
     return c.json(timeData)
+  })
+
+  // --- Notes CRUD ---
+
+  // Extract #N message references from note content
+  function extractMessageRefs(content: string): number[] {
+    const matches = content.match(/#(\d+)/g)
+    if (!matches) return []
+    // Dedupe and sort
+    const refs = [...new Set(matches.map(m => parseInt(m.slice(1))))]
+    return refs.sort((a, b) => a - b)
+  }
+
+  // GET /api/sessions/:id/notes - all notes for a session, newest first
+  app.get('/api/sessions/:id/notes', (c: Context) => {
+    const sessionId = c.req.param('id')
+    const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get(sessionId)
+    if (!session) return c.json({ error: 'Session not found' }, 404)
+
+    const notes = db.prepare(
+      'SELECT * FROM notes WHERE session_id = ? ORDER BY created_at DESC, id DESC'
+    ).all(sessionId) as { id: number; session_id: string; content: string; message_refs: string; created_at: number; updated_at: number }[]
+
+    // Parse message_refs JSON string back to array
+    const parsed = notes.map(n => ({
+      ...n,
+      message_refs: JSON.parse(n.message_refs || '[]')
+    }))
+
+    return c.json(parsed)
+  })
+
+  // POST /api/sessions/:id/notes - create a note
+  app.post('/api/sessions/:id/notes', async (c: Context) => {
+    const sessionId = c.req.param('id')
+    const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get(sessionId)
+    if (!session) return c.json({ error: 'Session not found' }, 404)
+
+    const body = await c.req.json<{ content: string }>()
+    if (!body.content || typeof body.content !== 'string' || !body.content.trim()) {
+      return c.json({ error: 'Content is required' }, 400)
+    }
+
+    const now = Date.now()
+    const refs = extractMessageRefs(body.content)
+    const result = db.prepare(
+      'INSERT INTO notes (session_id, content, message_refs, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(sessionId, body.content.trim(), JSON.stringify(refs), now, now)
+
+    return c.json({
+      id: Number(result.lastInsertRowid),
+      session_id: sessionId,
+      content: body.content.trim(),
+      message_refs: refs,
+      created_at: now,
+      updated_at: now
+    }, 201)
+  })
+
+  // PATCH /api/notes/:id - update note content
+  app.patch('/api/notes/:id', async (c: Context) => {
+    const noteId = parseInt(c.req.param('id'))
+    const note = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId)
+    if (!note) return c.json({ error: 'Note not found' }, 404)
+
+    const body = await c.req.json<{ content: string }>()
+    if (!body.content || typeof body.content !== 'string' || !body.content.trim()) {
+      return c.json({ error: 'Content is required' }, 400)
+    }
+
+    const now = Date.now()
+    const refs = extractMessageRefs(body.content)
+    db.prepare(
+      'UPDATE notes SET content = ?, message_refs = ?, updated_at = ? WHERE id = ?'
+    ).run(body.content.trim(), JSON.stringify(refs), now, noteId)
+
+    return c.json({
+      ...(note as Record<string, unknown>),
+      content: body.content.trim(),
+      message_refs: refs,
+      updated_at: now
+    })
+  })
+
+  // DELETE /api/notes/:id - delete a note
+  app.delete('/api/notes/:id', (c: Context) => {
+    const noteId = parseInt(c.req.param('id'))
+    const note = db.prepare('SELECT * FROM notes WHERE id = ?').get(noteId)
+    if (!note) return c.json({ error: 'Note not found' }, 404)
+
+    db.prepare('DELETE FROM notes WHERE id = ?').run(noteId)
+    return c.json({ success: true, id: noteId })
   })
 }

@@ -10,6 +10,7 @@
   import { store } from '$lib/store.svelte'
   import { ArrowLeft, Copy, Check, ChevronDown, ChevronRight, Cpu } from 'lucide-svelte'
   import SessionCard from '$lib/components/SessionCard.svelte'
+  import NotesDrawer from '$lib/components/NotesDrawer.svelte'
   import { codeToHtml } from 'shiki'
 
   // Stale threshold: idle > 3 min = stale
@@ -25,6 +26,7 @@
   let showFloatingHeader = $state(false)
   let showSubagentView = $state(false)
   let copyIdCopied = $state(false)
+  let highlightedEventIndex = $state<number | null>(null)
 
   // Get session ID from route params
   let sessionId = $derived($page.params.id)
@@ -298,6 +300,55 @@
       behavior: 'smooth'
     })
   }
+
+  // Scroll to a specific event by its 1-based index and briefly highlight it
+  // If the event is inside a collapsed tool group, expand it first
+  function scrollToEvent(eventNumber: number) {
+    if (!timelineContainer) return
+
+    // Find the event in the flat timeline (0-based → eventNumber is 1-based)
+    const targetEvent = timeline[eventNumber - 1]
+    if (!targetEvent) return
+
+    // If it's a tool event, find which turn contains it and expand if collapsed
+    if (targetEvent.event_type === 'tool') {
+      for (const turn of conversationTurns) {
+        if (turn.tools.some(t => t.id === targetEvent.id)) {
+          const key = getToolGroupKey(turn.tools)
+          if (!toolGroupExpanded.has(key)) {
+            const newExpanded = new Set(toolGroupExpanded)
+            newExpanded.add(key)
+            toolGroupExpanded = newExpanded
+            // Wait for DOM to render expanded tools, then scroll
+            requestAnimationFrame(() => {
+              setTimeout(() => doScrollAndHighlight(eventNumber), 50)
+            })
+            return
+          }
+          break
+        }
+      }
+    }
+
+    doScrollAndHighlight(eventNumber)
+  }
+
+  // Perform the actual scroll + highlight after any expansion is done
+  function doScrollAndHighlight(eventNumber: number) {
+    if (!timelineContainer) return
+    const el = timelineContainer.querySelector(`[data-event-number="${eventNumber}"]`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    highlightedEventIndex = eventNumber
+    setTimeout(() => { highlightedEventIndex = null }, 1500)
+  }
+
+  // Build a map: event id → 1-based sequential number across the flat timeline
+  let eventNumberMap = $derived.by(() => {
+    const map = new Map<number, number>()
+    timeline.forEach((e, i) => map.set(e.id, i + 1))
+    return map
+  })
 
   // Copy session ID to clipboard
   async function copySessionId() {
@@ -663,12 +714,19 @@
               {#each conversationTurns as turn, turnIndex (turnIndex)}
                 <!-- User message card -->
                 {#if turn.user}
-                  <div class="bg-[var(--bg-secondary)] rounded-lg p-4 border border-[var(--border-subtle)]">
+                  {@const userNum = eventNumberMap.get(turn.user.id)}
+                  <div
+                    data-event-number={userNum}
+                    class="bg-[var(--bg-secondary)] rounded-lg p-4 border transition-all duration-300 {highlightedEventIndex === userNum ? 'border-[var(--accent-blue)] ring-2 ring-[var(--accent-blue)]/30' : 'border-[var(--border-subtle)]'}"
+                  >
                     <div class="flex items-center gap-2 mb-2">
                       <span class="text-xs font-medium uppercase text-[var(--accent-purple)]">user</span>
                       <span class="text-xs text-[var(--fg-muted)] mono">
                         {formatRelativeTime(turn.user.timestamp)}
                       </span>
+                      {#if userNum}
+                        <span class="ml-auto text-[10px] mono text-[var(--fg-muted)] opacity-60">#{userNum}</span>
+                      {/if}
                     </div>
                     <div class="text-sm text-[var(--fg-secondary)] break-words markdown-content">
                       {@html renderMarkdown(turn.user.summary)}
@@ -678,6 +736,8 @@
 
                 <!-- Collapsible tool calls block -->
                 {#if turn.tools && turn.tools.length > 0}
+                  {@const firstToolNum = eventNumberMap.get(turn.tools[0].id)}
+                  {@const lastToolNum = eventNumberMap.get(turn.tools[turn.tools.length - 1].id)}
                   <div class="bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-subtle)] overflow-hidden">
                     <button
                       onclick={() => toggleToolGroup(turnIndex)}
@@ -688,6 +748,11 @@
                         <span class="text-xs text-[var(--fg-muted)] mono">
                           {turn.tools.length} {turn.tools.length === 1 ? 'call' : 'calls'}
                         </span>
+                        {#if firstToolNum && lastToolNum}
+                          <span class="text-[10px] mono text-[var(--fg-muted)] opacity-60">
+                            #{firstToolNum}{firstToolNum !== lastToolNum ? `–#${lastToolNum}` : ''}
+                          </span>
+                        {/if}
                       </div>
                       {#if toolGroupExpanded.has(getToolGroupKey(turn.tools))}
                         <ChevronDown class="w-4 h-4 text-[var(--fg-muted)]" />
@@ -699,12 +764,19 @@
                     {#if toolGroupExpanded.has(getToolGroupKey(turn.tools))}
                       <div class="px-4 pb-3">
                         {#each turn.tools as tool (tool.id)}
-                          <div class="py-2 border-b border-[var(--border-subtle)] last:border-0">
+                          {@const toolNum = eventNumberMap.get(tool.id)}
+                          <div
+                            data-event-number={toolNum}
+                            class="py-2 border-b border-[var(--border-subtle)] last:border-0 transition-all duration-300 {highlightedEventIndex === toolNum ? 'bg-[var(--accent-blue)]/10 rounded' : ''}"
+                          >
                             <div class="flex items-center gap-2 mb-1">
                               <span class="text-[var(--accent-blue)]">$</span>
                               <span class="text-xs font-medium mono text-[var(--fg-secondary)]">
                                 {tool.tool_name || 'unknown tool'}
                               </span>
+                              {#if toolNum}
+                                <span class="ml-auto text-[10px] mono text-[var(--fg-muted)] opacity-60">#{toolNum}</span>
+                              {/if}
                             </div>
                             <p class="text-sm text-[var(--fg-secondary)] mono break-words">
                               {tool.summary}
@@ -744,7 +816,11 @@
 
                 <!-- Assistant message card -->
                 {#if turn.message}
-                  <div class="bg-[var(--bg-secondary)] rounded-lg p-4 border border-[var(--border-subtle)]">
+                  {@const msgNum = eventNumberMap.get(turn.message.id)}
+                  <div
+                    data-event-number={msgNum}
+                    class="bg-[var(--bg-secondary)] rounded-lg p-4 border transition-all duration-300 {highlightedEventIndex === msgNum ? 'border-[var(--accent-blue)] ring-2 ring-[var(--accent-blue)]/30' : 'border-[var(--border-subtle)]'}"
+                  >
                     <div class="flex items-center gap-2 mb-2 flex-wrap">
                       <span class="text-xs font-medium uppercase text-[var(--accent-green)]">message</span>
                       {#if turn.message.model_id}
@@ -755,6 +831,9 @@
                       <span class="text-xs text-[var(--fg-muted)] mono">
                         {formatRelativeTime(turn.message.timestamp)}
                       </span>
+                      {#if msgNum}
+                        <span class="ml-auto text-[10px] mono text-[var(--fg-muted)] opacity-60">#{msgNum}</span>
+                      {/if}
                     </div>
 
                     {#if turn.message.event_type === 'error'}
@@ -784,6 +863,15 @@
         <span>↓</span>
         <span>Scroll to bottom</span>
       </button>
+    {/if}
+
+    <!-- Notes drawer: pull-tab on right edge -->
+    {#if sessionId}
+      <NotesDrawer
+        sessionId={sessionId}
+        totalEvents={timeline.length}
+        onScrollToEvent={scrollToEvent}
+      />
     {/if}
   {/if}
 </div>

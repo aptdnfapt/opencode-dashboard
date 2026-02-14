@@ -3,7 +3,7 @@
   import { store } from '$lib/store.svelte'
   import { formatRelativeTime, formatTokens, formatCost, getProjectName, getProjectColor, cn } from '$lib/utils'
   import { archiveSession, unarchiveSession, dismissSession, deleteSession } from '$lib/api'
-  import { Activity, Clock, CircleCheck, Moon, AlertCircle, MoreVertical, Archive, ArchiveRestore, GitBranch, BellOff, Trash2 } from 'lucide-svelte'
+  import { Activity, Clock, CircleCheck, Moon, AlertCircle, MoreVertical, Archive, ArchiveRestore, GitBranch, BellOff, Trash2, StickyNote } from 'lucide-svelte'
   
   // Idle > 3 min becomes stale
   const STALE_THRESHOLD_MS = 3 * 60 * 1000
@@ -269,6 +269,13 @@
         {#if idleSubAgents > 0}
           <span class="text-[var(--fg-muted)]">{idleSubAgents}✓</span>
         {/if}
+      </span>
+    {/if}
+    {#if session.notes_count && session.notes_count > 0}
+      <span class="text-[var(--fg-muted)]">•</span>
+      <span class="inline-flex items-center gap-1 mono text-[var(--accent-amber)]">
+        <StickyNote class="w-3 h-3" />
+        <span>{session.notes_count}</span>
       </span>
     {/if}
   </div>
