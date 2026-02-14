@@ -20,6 +20,9 @@
   
   let colors = $derived(schemes[colorScheme] || schemes.green)
   
+  // Container width for responsive scaling
+  let containerWidth = $state(0)
+  
   const cellSize = 14
   const cellGap = 4
   const weekdayLabelWidth = 32
@@ -100,7 +103,7 @@
   let width = $derived(weekdayLabelWidth + weeks * (cellSize + cellGap))
   let height = $derived(monthLabelHeight + 7 * (cellSize + cellGap))
   
-  // Tooltip
+  // Tooltip state — uses page coordinates (not affected by CSS transform)
   let tooltip = $state<{ x: number; y: number; date: string; value: number } | null>(null)
   
   function formatDate(d: string): string {
@@ -113,8 +116,13 @@
   }
   
   function showTooltip(cell: typeof grid[0], e: MouseEvent) {
-    const rect = (e.target as SVGElement).getBoundingClientRect()
-    tooltip = { x: rect.left + cellSize / 2, y: rect.top - 8, date: cell.date, value: cell.value }
+    // Use pageX/pageY — these work regardless of CSS transforms
+    tooltip = { 
+      x: e.pageX, 
+      y: e.pageY - 10, 
+      date: cell.date, 
+      value: cell.value 
+    }
   }
   
   function hideTooltip() {
@@ -122,56 +130,62 @@
   }
 </script>
 
-<div class="relative inline-block">
-  <svg width={width} height={height} class="overflow-visible">
-    <!-- Month labels -->
-    {#each monthLabels as label}
-      <text x={label.x} y={12} class="fill-[var(--fg-muted)] text-[10px]">{label.month}</text>
-    {/each}
+<!-- Tooltip rendered OUTSIDE the scaled container so position:absolute works correctly -->
+{#if tooltip}
+  <div
+    class="fixed z-[9999] px-2.5 py-1.5 text-xs rounded-md bg-[#1c2128] border border-[var(--border-subtle)] shadow-xl pointer-events-none"
+    style="left: {tooltip.x}px; top: {tooltip.y}px; transform: translate(-50%, -100%)"
+  >
+    <div class="font-medium text-[var(--fg-primary)]">{(formatLabel || defaultFormatLabel)(tooltip.value)}</div>
+    <div class="text-[var(--fg-muted)]">{formatDate(tooltip.date)}</div>
+  </div>
+{/if}
+
+<div class="relative w-full" bind:clientWidth={containerWidth}>
+  {#if containerWidth > 0}
+    {@const scale = Math.min(1, containerWidth / width)}
+    <div style="transform: scale({scale}); transform-origin: top left; height: {height * scale}px;">
+      <svg {width} {height} class="overflow-visible">
+        <!-- Month labels -->
+        {#each monthLabels as label}
+          <text x={label.x} y={12} class="fill-[var(--fg-muted)] text-[10px]">{label.month}</text>
+        {/each}
+        
+        <!-- Weekday labels -->
+        {#each weekdayLabels as label, i}
+          {#if label}
+            <text x={0} y={monthLabelHeight + i * (cellSize + cellGap) + cellSize - 2} class="fill-[var(--fg-muted)] text-[10px]">{label}</text>
+          {/if}
+        {/each}
+        
+        <!-- Cells -->
+        {#each grid as cell}
+          <rect
+            x={cell.x}
+            y={cell.y}
+            width={cellSize}
+            height={cellSize}
+            rx={2}
+            fill={cell.color}
+            stroke="#30363d"
+            stroke-opacity="0.4"
+            stroke-width="1"
+            class="transition-opacity hover:opacity-80 cursor-pointer"
+            onmouseenter={(e) => showTooltip(cell, e)}
+            onmousemove={(e) => showTooltip(cell, e)}
+            onmouseleave={hideTooltip}
+          />
+        {/each}
+      </svg>
+    </div>
     
-    <!-- Weekday labels -->
-    {#each weekdayLabels as label, i}
-      {#if label}
-        <text x={0} y={monthLabelHeight + i * (cellSize + cellGap) + cellSize - 2} class="fill-[var(--fg-muted)] text-[10px]">{label}</text>
-      {/if}
-    {/each}
-    
-    <!-- Cells — subtle border on every cell so grid is always visible -->
-    {#each grid as cell}
-      <rect
-        x={cell.x}
-        y={cell.y}
-        width={cellSize}
-        height={cellSize}
-        rx={2}
-        fill={cell.color}
-        stroke="#30363d"
-        stroke-opacity="0.4"
-        stroke-width="1"
-        class="transition-opacity hover:opacity-80 cursor-pointer"
-        onmouseenter={(e) => showTooltip(cell, e)}
-        onmouseleave={hideTooltip}
-      />
-    {/each}
-  </svg>
-  
-  <!-- Tooltip -->
-  {#if tooltip}
-    <div
-      class="fixed z-50 px-2 py-1 text-xs rounded bg-[#1c2128] border border-[var(--border-subtle)] shadow-lg pointer-events-none"
-      style="left: {tooltip.x}px; top: {tooltip.y}px; transform: translate(-50%, -100%)"
-    >
-      <div class="font-medium text-[var(--fg-primary)]">{(formatLabel || defaultFormatLabel)(tooltip.value)}</div>
-      <div class="text-[var(--fg-muted)]">{formatDate(tooltip.date)}</div>
+    <!-- Legend -->
+    <div class="flex items-center gap-1.5 mt-2 text-[10px] text-[var(--fg-muted)]">
+      <span>Less</span>
+      {#each colors as color}
+        <div class="w-[11px] h-[11px] rounded-sm" style="background-color: {color}"></div>
+      {/each}
+      <span>More</span>
     </div>
   {/if}
-  
-  <!-- Legend -->
-  <div class="flex items-center gap-1.5 mt-2 text-[10px] text-[var(--fg-muted)]">
-    <span>Less</span>
-    {#each colors as color}
-      <div class="w-[11px] h-[11px] rounded-sm" style="background-color: {color}"></div>
-    {/each}
-    <span>More</span>
-  </div>
 </div>

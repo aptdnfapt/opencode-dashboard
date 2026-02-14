@@ -211,6 +211,11 @@ export async function getResponseTimeOverTime(range = '7d', models?: string[]): 
   return fetchAPI(`/api/analytics/response-time-over-time?${params}`)
 }
 
+// Daily input/output token totals for line charts
+export async function getTokenTrend(days = 30): Promise<{ date: string; tokens_in: number; tokens_out: number }[]> {
+  return fetchAPI(`/api/analytics/token-trend?days=${days}`)
+}
+
 // Daily duration sums for time-spent heatmap calendar
 export async function getTimeHeatmap(days = 365): Promise<{ date: string; duration_ms: number }[]> {
   return fetchAPI(`/api/analytics/time-heatmap?days=${days}`)

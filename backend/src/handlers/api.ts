@@ -552,6 +552,30 @@ export function createApiHandler(app: Hono, db: Database) {
     return c.json(stats)
   })
 
+  // GET /api/analytics/token-trend - daily (or hourly for 24h) input/output tokens
+  app.get('/api/analytics/token-trend', (c: Context) => {
+    const days = parseInt(c.req.query('days') || '30')
+    const startTime = Date.now() - days * 24 * 60 * 60 * 1000
+
+    // 24h → group by hour, otherwise group by day
+    const groupBy = days <= 1
+      ? "strftime('%Y-%m-%d %H:00', timestamp/1000, 'unixepoch')"
+      : "strftime('%Y-%m-%d', timestamp/1000, 'unixepoch')"
+
+    const data = db.prepare(`
+      SELECT 
+        ${groupBy} as date,
+        SUM(tokens_in) as tokens_in,
+        SUM(tokens_out) as tokens_out
+      FROM token_usage
+      WHERE timestamp >= ?
+      GROUP BY date
+      ORDER BY date ASC
+    `).all(startTime)
+
+    return c.json(data)
+  })
+
   // GET /api/analytics/heatmap - daily token usage for GitHub-style calendar
   app.get('/api/analytics/heatmap', (c: Context) => {
     const days = parseInt(c.req.query('days') || '365')

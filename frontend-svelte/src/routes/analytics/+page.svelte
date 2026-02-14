@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte'
+  import { onMount, onDestroy, tick } from 'svelte'
   import { browser } from '$app/environment'
   import { Chart, registerables } from 'chart.js'
-  import { getAnalyticsSummary, getCostTrend, getCostByModel, getCostByAgent, getHeatmap, getProjectAnalytics, getSummaryExtended, getTokensByModel, getFileStats, getResponseTimeOverTime, getTimePerModel, getTimeByProject, getModelList, getTimeHeatmap } from '$lib/api'
+  import { getAnalyticsSummary, getCostTrend, getCostByModel, getCostByAgent, getHeatmap, getProjectAnalytics, getSummaryExtended, getTokensByModel, getFileStats, getResponseTimeOverTime, getTimePerModel, getTimeByProject, getModelList, getTimeHeatmap, getTokenTrend } from '$lib/api'
   import { formatTokens, formatCost } from '$lib/utils'
   import StatCard from '$lib/components/StatCard.svelte'
   import Heatmap from '$lib/components/Heatmap.svelte'
@@ -43,6 +43,15 @@
   // Time range for trend chart
   let trendRange = $state<7 | 30 | 90>(30)
   
+  // Toggle for showing all vs top N
+  let showAllProjects = $state(false)
+  let showAllModels = $state(false)
+  let showAllTimeProjects = $state(false)
+  let showAllTokensModels = $state(false)
+  let showAllTimeModels = $state(false)
+  let tokenTrendRange = $state<1 | 7 | 30 | 90>(30)
+  let tokenTrend = $state<{ date: string; tokens_in: number; tokens_out: number }[]>([])
+  
   // Chart instances (for cleanup)
   let lineChart: Chart | null = null
   let donutChart: Chart | null = null
@@ -53,6 +62,8 @@
   let responseTimeChart: Chart | null = null
   let timeDonutChart: Chart | null = null
   let timeProjectChart: Chart | null = null
+  let tokenInputChart: Chart | null = null
+  let tokenOutputChart: Chart | null = null
   
   // Canvas refs
   let lineCanvas: HTMLCanvasElement | null = $state(null)
@@ -64,6 +75,8 @@
   let responseTimeCanvas: HTMLCanvasElement | null = $state(null)
   let timeDonutCanvas: HTMLCanvasElement | null = $state(null)
   let timeProjectCanvas: HTMLCanvasElement | null = $state(null)
+  let tokenInputCanvas: HTMLCanvasElement | null = $state(null)
+  let tokenOutputCanvas: HTMLCanvasElement | null = $state(null)
   
   // Dark theme colors matching app.css
   const colors = {
@@ -134,8 +147,12 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 600, easing: 'easeOutQuart' },
-        interaction: { intersect: false, mode: 'index' },
+        animation: { 
+          duration: 800, 
+          easing: 'easeOutElastic',
+          delay: (ctx) => ctx.dataIndex * 50
+        },
+        interaction: { mode: 'nearest', intersect: true },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -148,9 +165,11 @@
             titleFont: { size: 12 },
             bodyFont: { size: 11 },
             padding: 10,
-            // Offset tooltip above data points so they stay visible
-            yAlign: 'bottom' as const,
-            caretPadding: 12,
+            // Position tooltip to the side to avoid covering points
+            position: 'nearest' as const,
+            xAlign: 'left' as const,
+            yAlign: 'center' as const,
+            caretPadding: 20,
             callbacks: {
               label: (ctx) => `Cost: ${formatCost(ctx.raw as number)}`
             }
@@ -169,18 +188,20 @@
     if (!donutCanvas || costByModel.length === 0) return
     if (donutChart) donutChart.destroy()
     
+    const displayModels = showAllModels ? costByModel : costByModel.slice(0, 8)
+    
     donutChart = new Chart(donutCanvas, {
       type: 'doughnut',
       data: {
-        labels: costByModel.map(d => d.label),
+        labels: displayModels.map(d => d.label),
         datasets: [{
-          data: costByModel.map(d => d.value),
-          backgroundColor: chartColors.slice(0, costByModel.length),
+          data: displayModels.map(d => d.value),
+          backgroundColor: chartColors.slice(0, displayModels.length),
           borderColor: colors.bgSecondary,
           borderWidth: 2,
-          hoverOffset: 8,
+          hoverOffset: 10,
           hoverBorderWidth: 3,
-          hoverBorderColor: '#e6edf3'
+          hoverBorderColor: chartColors.slice(0, displayModels.length).map(c => c + 'CC')
         }]
       },
       options: {
@@ -190,18 +211,21 @@
         animation: { duration: 600, easing: 'easeOutQuart' },
         plugins: {
           legend: { 
-            position: 'right', 
+            position: 'bottom', 
+            align: 'start',
+            maxWidth: 300,
             labels: { 
               color: colors.fgSecondary, 
-              padding: 16, 
+              padding: 12, 
               usePointStyle: true, 
               pointStyle: 'circle', 
-              font: { size: 11 },
+              font: { size: 10 },
               boxWidth: 8,
               boxHeight: 8,
               // Truncate long model names — show only after last /
               filter: (item) => {
-                item.text = item.text.split('/').pop() || item.text
+                const short = item.text.split('/').pop() || item.text
+                item.text = short.length > 20 ? short.slice(0, 20) + '…' : short
                 return true
               }
             } 
@@ -218,7 +242,7 @@
             padding: 10,
             callbacks: {
               label: (ctx) => {
-                const item = costByModel[ctx.dataIndex]
+                const item = displayModels[ctx.dataIndex]
                 return `${formatCost(item.value)} (${formatTokens(item.tokens)} tok)`
               }
             }
@@ -243,7 +267,12 @@
           backgroundColor: chartColors.slice(0, costByAgent.length),
           maxBarThickness: 28,
           categoryPercentage: 0.8,
-          hoverBackgroundColor: chartColors.slice(0, costByAgent.length).map(c => c + 'DD')
+          hoverBackgroundColor: chartColors.slice(0, costByAgent.length).map(c => c + 'DD'),
+          hoverBorderColor: chartColors.slice(0, costByAgent.length).map(c => c + 'AA'),
+          hoverBorderWidth: 2,
+          borderRadius: 0,
+          borderSkipped: false,
+          borderWidth: 0
         }]
       },
       options: {
@@ -287,7 +316,8 @@
     if (!projectCanvas || projectAnalytics.length === 0) return
     if (projectChart) projectChart.destroy()
     
-    const top5 = projectAnalytics.slice(0, 5)
+    const displayData = showAllProjects ? projectAnalytics : projectAnalytics.slice(0, 10)
+    const top5 = displayData
     
     projectChart = new Chart(projectCanvas, {
       type: 'bar',
@@ -299,7 +329,12 @@
           backgroundColor: chartColors.slice(0, top5.length),
           maxBarThickness: 28,
           categoryPercentage: 0.8,
-          hoverBackgroundColor: chartColors.slice(0, top5.length).map(c => c + 'DD')
+          borderRadius: 0,
+          borderSkipped: false,
+          borderWidth: 0,
+          hoverBackgroundColor: chartColors.slice(0, top5.length).map(c => c + 'DD'),
+          hoverBorderColor: chartColors.slice(0, top5.length).map(c => c + 'AA'),
+          hoverBorderWidth: 2
         }]
       },
       options: {
@@ -342,18 +377,20 @@
     if (!tokensDonutCanvas || tokensByModel.length === 0) return
     if (tokensDonutChart) tokensDonutChart.destroy()
     
+    const displayTokens = showAllTokensModels ? tokensByModel : tokensByModel.slice(0, 8)
+    
     tokensDonutChart = new Chart(tokensDonutCanvas, {
       type: 'doughnut',
       data: {
-        labels: tokensByModel.map(d => d.label),
+        labels: displayTokens.map(d => d.label),
         datasets: [{
-          data: tokensByModel.map(d => d.value),
-          backgroundColor: chartColors.slice(0, tokensByModel.length),
+          data: displayTokens.map(d => d.value),
+          backgroundColor: chartColors.slice(0, displayTokens.length),
           borderColor: colors.bgSecondary,
           borderWidth: 2,
-          hoverOffset: 8,
+          hoverOffset: 10,
           hoverBorderWidth: 3,
-          hoverBorderColor: '#e6edf3'
+          hoverBorderColor: chartColors.slice(0, displayTokens.length).map(c => c + 'CC')
         }]
       },
       options: {
@@ -363,17 +400,20 @@
         animation: { duration: 600, easing: 'easeOutQuart' },
         plugins: {
           legend: { 
-            position: 'right', 
+            position: 'bottom', 
+            align: 'start',
+            maxWidth: 300,
             labels: { 
               color: colors.fgSecondary, 
-              padding: 16, 
+              padding: 12, 
               usePointStyle: true, 
               pointStyle: 'circle', 
-              font: { size: 11 },
+              font: { size: 10 },
               boxWidth: 8,
               boxHeight: 8,
               filter: (item) => {
-                item.text = item.text.split('/').pop() || item.text
+                const short = item.text.split('/').pop() || item.text
+                item.text = short.length > 20 ? short.slice(0, 20) + '…' : short
                 return true
               }
             } 
@@ -390,7 +430,7 @@
             padding: 10,
             callbacks: {
               label: (ctx) => {
-                const item = tokensByModel[ctx.dataIndex]
+                const item = displayTokens[ctx.dataIndex]
                 return `${formatTokens(item.value)} tokens (${formatCost(item.cost)})`
               }
             }
@@ -421,13 +461,23 @@
             label: 'Added',
             data: top8.map(d => d.lines_added),
             backgroundColor: langColors,
-            hoverBackgroundColor: langColors.map(c => c + 'DD')
+            hoverBackgroundColor: langColors.map(c => c + 'DD'),
+            hoverBorderColor: langColors.map(c => c + 'AA'),
+            hoverBorderWidth: 2,
+            borderRadius: 0,
+            borderSkipped: false,
+            borderWidth: 0
           },
           {
             label: 'Removed',
             data: top8.map(d => d.lines_removed),
             backgroundColor: langColorsGray,
-            hoverBackgroundColor: langColorsGray.map(c => c.slice(0, -2) + '80')
+            hoverBackgroundColor: langColorsGray.map(c => c.slice(0, -2) + '80'),
+            hoverBorderColor: langColors.map(c => c + '66'),
+            hoverBorderWidth: 2,
+            borderRadius: 0,
+            borderSkipped: false,
+            borderWidth: 0
           }
         ]
       },
@@ -470,20 +520,25 @@
     const ctx = responseTimeCanvas.getContext('2d')
     if (!ctx) return
     
-    // Get all unique models from the data
-    const allModels = new Set<string>()
+    // Get all unique models from the data (filter out those with all zeros)
+    const modelTotals = new Map<string, number>()
     responseTimeOverTime.forEach(period => {
-      Object.keys(period.models).forEach(model => allModels.add(model))
+      Object.entries(period.models).forEach(([model, value]) => {
+        modelTotals.set(model, (modelTotals.get(model) || 0) + value)
+      })
     })
     
-    // Show all models — users toggle via Chart.js legend click
-    const modelsToShow = Array.from(allModels)
+    // Only show models with actual data (non-zero totals)
+    const modelsToShow = Array.from(modelTotals.entries())
+      .filter(([_, total]) => total > 0)
+      .map(([model]) => model)
+      .sort((a, b) => modelTotals.get(b)! - modelTotals.get(a)!)
     
     if (modelsToShow.length === 0) return
     
     // Create datasets for each model
     const datasets = modelsToShow.map((model, index) => ({
-      label: model,
+      label: model.split('/').pop() || model,
       data: responseTimeOverTime.map(period => period.models[model] || 0),
       borderColor: chartColors[index % chartColors.length],
       backgroundColor: chartColors[index % chartColors.length] + '20',
@@ -527,11 +582,21 @@
             titleFont: { size: 12 },
             bodyFont: { size: 11 },
             padding: 10,
-            // Offset tooltip above data points so they stay visible
+            // Position tooltip away from data points
+            position: 'average' as const,
             yAlign: 'bottom' as const,
-            caretPadding: 12,
+            xAlign: 'center' as const,
+            caretPadding: 30,
+            // Sort by value descending (highest first)
+            itemSort: (a, b) => (b.raw as number) - (a.raw as number),
+            // Filter out models with 0 values from tooltip
+            filter: (item) => (item.raw as number) > 0,
+            usePointStyle: true,
             callbacks: {
-              label: (ctx) => `${ctx.dataset.label}: ${(ctx.raw as number / 1000).toFixed(1)}s`
+              label: (ctx) => {
+                const value = (ctx.raw as number) / 1000
+                return ` ${ctx.dataset.label}: ${value.toFixed(1)}s`
+              }
             }
           }
         },
@@ -578,21 +643,21 @@
       })
       .sort((a, b) => b.total_time_ms - a.total_time_ms)
     
-    // Take top 8 models
-    const topModels = modelData.slice(0, 8)
+    // Take top 8 models or all based on toggle
+    const displayModels = showAllTimeModels ? modelData : modelData.slice(0, 8)
     
     timeDonutChart = new Chart(timeDonutCanvas, {
       type: 'doughnut',
       data: {
-        labels: topModels.map(d => d.model),
+        labels: displayModels.map(d => d.model),
         datasets: [{
-          data: topModels.map(d => d.total_time_ms),
-          backgroundColor: chartColors.slice(0, topModels.length),
+          data: displayModels.map(d => d.total_time_ms),
+          backgroundColor: chartColors.slice(0, displayModels.length),
           borderColor: colors.bgSecondary,
           borderWidth: 2,
-          hoverOffset: 8,
+          hoverOffset: 10,
           hoverBorderWidth: 3,
-          hoverBorderColor: '#e6edf3'
+          hoverBorderColor: chartColors.slice(0, displayModels.length).map(c => c + 'CC')
         }]
       },
       options: {
@@ -615,7 +680,7 @@
             padding: 10,
             callbacks: {
               label: (ctx) => {
-                const item = topModels[ctx.dataIndex]
+                const item = displayModels[ctx.dataIndex]
                 const hours = Math.floor(item.total_time_ms / 3600000)
                 const minutes = Math.floor((item.total_time_ms % 3600000) / 60000)
                 return `${hours}h ${minutes}m`
@@ -627,7 +692,7 @@
     })
     
     // Store the table data for rendering
-    timeTableData = topModels
+    timeTableData = displayModels
   }
   
   // Time by project (stacked bar)
@@ -655,21 +720,33 @@
       })
       .sort((a, b) => b.total - a.total)
     
-    // Take top 5 projects
-    const topProjects = projects.slice(0, 5)
+    // Take top N projects based on toggle
+    const topProjects = showAllTimeProjects ? projects : projects.slice(0, 5)
     
-    // Get all unique models across top projects
-    const allModels = new Set<string>()
+    // Get models sorted by total time (descending) and take top 8
+    const modelTotals = new Map<string, number>()
     topProjects.forEach(project => {
-      project.modelMap.forEach((_, model) => allModels.add(model))
+      project.modelMap.forEach((timeMs, model) => {
+        modelTotals.set(model, (modelTotals.get(model) || 0) + timeMs)
+      })
     })
     
+    const sortedModels = Array.from(modelTotals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([model]) => model)
+    
+    const displayModels = showAllTimeProjects ? sortedModels : sortedModels.slice(0, 8)
+    
     // Create datasets for each model
-    const datasets = Array.from(allModels).map((model, index) => ({
+    const datasets = displayModels.map((model, index) => ({
       label: model,
       data: topProjects.map(project => project.modelMap.get(model) || 0),
       backgroundColor: chartColors[index % chartColors.length],
       hoverBackgroundColor: chartColors[index % chartColors.length] + 'DD',
+      hoverBorderColor: chartColors[index % chartColors.length] + 'AA',
+      hoverBorderWidth: 2,
+      borderRadius: 0,
+      borderSkipped: false,
       borderWidth: 0
     }))
     
@@ -677,9 +754,11 @@
       type: 'bar',
       data: {
         labels: topProjects.map(p => {
-          const totalHours = Math.floor(p.total / 3600000)
+          const hours = Math.floor(p.total / 3600000)
+          const minutes = Math.floor((p.total % 3600000) / 60000)
+          const timeStr = minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`
           const name = p.directory.split('/').pop() || p.directory
-          return `${name} (${totalHours}h)`
+          return `${name} (${timeStr})`
         }),
         datasets
       },
@@ -691,16 +770,22 @@
         interaction: { mode: 'nearest', intersect: true },
         plugins: {
           legend: { 
-            position: 'right',
-            align: 'start',
+            position: 'bottom',
+            align: 'center',
+            maxWidth: 400,
             labels: { 
               color: colors.fgSecondary, 
               usePointStyle: true, 
               pointStyle: 'circle', 
-              padding: 12, 
-              font: { size: 10 },
-              boxWidth: 10,
-              boxHeight: 10
+              padding: 8, 
+              font: { size: 9 },
+              boxWidth: 8,
+              boxHeight: 8,
+              filter: (item) => {
+                const short = item.text.split('/').pop() || item.text
+                item.text = short.length > 15 ? short.slice(0, 15) + '…' : short
+                return true
+              }
             } 
           },
           tooltip: {
@@ -749,6 +834,140 @@
         }
       }
     })
+  }
+  
+  // Render input tokens line chart
+  function renderTokenInputChart() {
+    if (!tokenInputCanvas || tokenTrend.length === 0) return
+    if (tokenInputChart) tokenInputChart.destroy()
+    
+    const ctx = tokenInputCanvas.getContext('2d')!
+    const gradient = ctx.createLinearGradient(0, 0, 0, tokenInputCanvas.clientHeight || 200)
+    gradient.addColorStop(0, colors.blue + '30')
+    gradient.addColorStop(1, colors.blue + '02')
+    
+    tokenInputChart = new Chart(tokenInputCanvas, {
+      type: 'line',
+      data: {
+        labels: tokenTrend.map(d => d.date.slice(5)),
+        datasets: [{
+          label: 'Input Tokens',
+          data: tokenTrend.map(d => d.tokens_in),
+          borderColor: colors.blue,
+          backgroundColor: gradient,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: colors.blue,
+          pointHoverBorderColor: colors.bgSecondary,
+          pointHoverBorderWidth: 2,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 600, easing: 'easeOutQuart' },
+        interaction: { intersect: false, mode: 'index' },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1c2128',
+            titleColor: colors.fgPrimary,
+            bodyColor: colors.fgSecondary,
+            borderColor: 'rgba(240,246,252,0.1)',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 10,
+            position: 'average' as const,
+            yAlign: 'bottom' as const,
+            caretPadding: 20,
+            callbacks: {
+              label: (ctx) => `Input: ${formatTokens(ctx.raw as number)} tokens`
+            }
+          }
+        },
+        scales: {
+          x: { grid: { color: 'rgba(240,246,252,0.06)' }, ticks: { color: colors.fgMuted, maxTicksLimit: 10, font: { size: 11 } } },
+          y: { grid: { color: 'rgba(240,246,252,0.06)' }, ticks: { color: colors.fgMuted, font: { size: 11 }, callback: (v) => formatTokens(Number(v)) } }
+        }
+      }
+    })
+  }
+  
+  // Render output tokens line chart
+  function renderTokenOutputChart() {
+    if (!tokenOutputCanvas || tokenTrend.length === 0) return
+    if (tokenOutputChart) tokenOutputChart.destroy()
+    
+    const ctx = tokenOutputCanvas.getContext('2d')!
+    const gradient = ctx.createLinearGradient(0, 0, 0, tokenOutputCanvas.clientHeight || 200)
+    gradient.addColorStop(0, colors.amber + '30')
+    gradient.addColorStop(1, colors.amber + '02')
+    
+    tokenOutputChart = new Chart(tokenOutputCanvas, {
+      type: 'line',
+      data: {
+        labels: tokenTrend.map(d => d.date.slice(5)),
+        datasets: [{
+          label: 'Output Tokens',
+          data: tokenTrend.map(d => d.tokens_out),
+          borderColor: colors.amber,
+          backgroundColor: gradient,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: colors.amber,
+          pointHoverBorderColor: colors.bgSecondary,
+          pointHoverBorderWidth: 2,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 600, easing: 'easeOutQuart' },
+        interaction: { intersect: false, mode: 'index' },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1c2128',
+            titleColor: colors.fgPrimary,
+            bodyColor: colors.fgSecondary,
+            borderColor: 'rgba(240,246,252,0.1)',
+            borderWidth: 1,
+            cornerRadius: 8,
+            padding: 10,
+            position: 'average' as const,
+            yAlign: 'bottom' as const,
+            caretPadding: 20,
+            callbacks: {
+              label: (ctx) => `Output: ${formatTokens(ctx.raw as number)} tokens`
+            }
+          }
+        },
+        scales: {
+          x: { grid: { color: 'rgba(240,246,252,0.06)' }, ticks: { color: colors.fgMuted, maxTicksLimit: 10, font: { size: 11 } } },
+          y: { grid: { color: 'rgba(240,246,252,0.06)' }, ticks: { color: colors.fgMuted, font: { size: 11 }, callback: (v) => formatTokens(Number(v)) } }
+        }
+      }
+    })
+  }
+  
+  // Load token trend data
+  async function loadTokenTrend(days: 1 | 7 | 30 | 90) {
+    tokenTrendRange = days
+    try {
+      tokenTrend = await getTokenTrend(days)
+      // Wait for Svelte to settle DOM before re-rendering charts on canvas
+      await tick()
+      renderTokenInputChart()
+      renderTokenOutputChart()
+    } catch (err) {
+      console.error('Failed to load token trend:', err)
+    }
   }
   
   // Load trend data for selected range
@@ -828,7 +1047,7 @@
   // Initial data load
   onMount(async () => {
     try {
-      const [s, sExt, trend, models, agents, heatmap, projects, tokensModels, files, responseTime, timePerModelData, timeByProjectData, modelList, timeHeatmapRaw] = await Promise.all([
+      const [s, sExt, trend, models, agents, heatmap, projects, tokensModels, files, responseTime, timePerModelData, timeByProjectData, modelList, timeHeatmapRaw, tokenTrendData] = await Promise.all([
         getAnalyticsSummary(),
         getSummaryExtended(),
         getCostTrend(trendRange),
@@ -842,7 +1061,8 @@
         getTimePerModel(),
         getTimeByProject(),
         getModelList(),
-        getTimeHeatmap(365)
+        getTimeHeatmap(365),
+        getTokenTrend(tokenTrendRange)
       ])
       summary = s
       summaryExt = sExt
@@ -866,6 +1086,7 @@
       timePerModel = timePerModelData
       timeByProject = timeByProjectData
       availableModels = modelList
+      tokenTrend = tokenTrendData
     } catch (err) {
       console.error('Failed to load analytics:', err)
     } finally {
@@ -894,6 +1115,11 @@
         if (timeByProject.length > 0) {
           renderTimeProjectChart()
         }
+        // Token usage charts
+        if (tokenTrend.length > 0) {
+          renderTokenInputChart()
+          renderTokenOutputChart()
+        }
       }, 0)
     }
   })
@@ -909,6 +1135,8 @@
     if (responseTimeChart) responseTimeChart.destroy()
     if (timeDonutChart) timeDonutChart.destroy()
     if (timeProjectChart) timeProjectChart.destroy()
+    if (tokenInputChart) tokenInputChart.destroy()
+    if (tokenOutputChart) tokenOutputChart.destroy()
   })
   
   // Refresh analytics when sessions change
@@ -993,7 +1221,7 @@
         <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Activity</h2>
         <span class="text-xs text-[var(--fg-muted)]">Last 365 days</span>
       </div>
-      <div class="overflow-x-auto">
+      <div class="w-full">
         <Heatmap data={heatmapData} days={365} />
       </div>
     </div>
@@ -1003,31 +1231,112 @@
     <!-- Charts grid -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
       <!-- Cost by Model - Donut Chart -->
-      <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4">
-        <div class="flex items-center gap-2 mb-4">
-          <PieChart size={16} class="text-[var(--fg-muted)]" />
-          <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Cost by Model</h2>
+      <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 overflow-visible">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <PieChart size={16} class="text-[var(--fg-muted)]" />
+            <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Cost by Model</h2>
+          </div>
+          {#if costByModel.length > 8}
+            <button
+              onclick={() => { showAllModels = !showAllModels; renderDonutChart() }}
+              class="text-xs text-[var(--accent-blue)] hover:underline"
+            >
+              {showAllModels ? 'Show top 8' : `Show all ${costByModel.length}`}
+            </button>
+          {/if}
         </div>
         {#if costByModel.length === 0}
           <div class="h-64 flex items-center justify-center text-[var(--fg-muted)]">No data</div>
         {:else}
-          <div class="h-64">
+          <div class="h-64 p-2 overflow-visible">
             <canvas bind:this={donutCanvas}></canvas>
           </div>
         {/if}
       </div>
 
       <!-- Tokens by Model - Donut Chart -->
-      <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4">
-        <div class="flex items-center gap-2 mb-4">
-          <PieChart size={16} class="text-[var(--fg-muted)]" />
-          <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Tokens by Model</h2>
+      <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 overflow-visible">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <PieChart size={16} class="text-[var(--fg-muted)]" />
+            <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Tokens by Model</h2>
+          </div>
+          {#if tokensByModel.length > 8}
+            <button
+              onclick={() => { showAllTokensModels = !showAllTokensModels; renderTokensDonutChart() }}
+              class="text-xs text-[var(--accent-blue)] hover:underline"
+            >
+              {showAllTokensModels ? 'Show top 8' : `Show all ${tokensByModel.length}`}
+            </button>
+          {/if}
         </div>
         {#if tokensByModel.length === 0}
           <div class="h-64 flex items-center justify-center text-[var(--fg-muted)]">No data</div>
         {:else}
-          <div class="h-64">
+          <div class="h-64 p-2 overflow-visible">
             <canvas bind:this={tokensDonutCanvas}></canvas>
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <!-- Token Usage Trend Charts -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <!-- Input Tokens -->
+      <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4">
+        <div class="flex items-center justify-between mb-4">
+           <div class="flex items-center gap-2">
+             <Activity size={16} class="text-[var(--accent-blue)]" />
+             <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Input Tokens</h2>
+           </div>
+           <div class="inline-flex rounded-lg border border-[var(--border-subtle)] overflow-hidden">
+             {#each [{ days: 1, label: '24h' }, { days: 7, label: '7d' }, { days: 30, label: '30d' }, { days: 90, label: '90d' }] as opt}
+               <button
+                 onclick={() => loadTokenTrend(opt.days as 1 | 7 | 30 | 90)}
+                 class="px-3 py-1 text-xs font-medium transition-colors {tokenTrendRange === opt.days 
+                   ? 'bg-[var(--accent-blue)] text-white' 
+                   : 'bg-[var(--bg-tertiary)] text-[var(--fg-muted)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-hover)]'}"
+               >
+                 {opt.label}
+               </button>
+             {/each}
+           </div>
+        </div>
+        {#if tokenTrend.length === 0}
+          <div class="h-48 flex items-center justify-center text-[var(--fg-muted)]">No data</div>
+        {:else}
+          <div class="h-48">
+            <canvas bind:this={tokenInputCanvas}></canvas>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Output Tokens -->
+      <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4">
+        <div class="flex items-center justify-between mb-4">
+           <div class="flex items-center gap-2">
+             <Activity size={16} class="text-[var(--accent-amber)]" />
+             <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Output Tokens</h2>
+           </div>
+           <div class="inline-flex rounded-lg border border-[var(--border-subtle)] overflow-hidden">
+             {#each [{ days: 1, label: '24h' }, { days: 7, label: '7d' }, { days: 30, label: '30d' }, { days: 90, label: '90d' }] as opt}
+               <button
+                 onclick={() => loadTokenTrend(opt.days as 1 | 7 | 30 | 90)}
+                 class="px-3 py-1 text-xs font-medium transition-colors {tokenTrendRange === opt.days 
+                   ? 'bg-[var(--accent-blue)] text-white' 
+                   : 'bg-[var(--bg-tertiary)] text-[var(--fg-muted)] hover:text-[var(--fg-primary)] hover:bg-[var(--bg-hover)]'}"
+               >
+                 {opt.label}
+               </button>
+             {/each}
+           </div>
+        </div>
+        {#if tokenTrend.length === 0}
+          <div class="h-48 flex items-center justify-center text-[var(--fg-muted)]">No data</div>
+        {:else}
+          <div class="h-48">
+            <canvas bind:this={tokenOutputCanvas}></canvas>
           </div>
         {/if}
       </div>
@@ -1069,10 +1378,20 @@
 
     <!-- Project Analytics -->
     <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 mb-8">
-      <div class="flex items-center gap-2 mb-4">
-        <FolderKanban size={16} class="text-[var(--fg-muted)]" />
-        <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Top Projects</h2>
-        <span class="text-xs text-[var(--fg-muted)]">by token usage</span>
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <FolderKanban size={16} class="text-[var(--fg-muted)]" />
+          <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Top Projects</h2>
+          <span class="text-xs text-[var(--fg-muted)]">by token usage</span>
+        </div>
+        {#if projectAnalytics.length > 10}
+          <button
+            onclick={() => { showAllProjects = !showAllProjects; renderProjectChart() }}
+            class="text-xs text-[var(--accent-blue)] hover:underline"
+          >
+            {showAllProjects ? 'Show top 10' : `Show all ${projectAnalytics.length}`}
+          </button>
+        {/if}
       </div>
       {#if projectAnalytics.length === 0}
         <div class="h-48 flex items-center justify-center text-[var(--fg-muted)]">No data</div>
@@ -1247,10 +1566,20 @@
       </div>
 
       <!-- Chart 2: Time Spent by Model (donut + table) -->
-      <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 mb-8">
-        <div class="flex items-center gap-2 mb-4">
-          <PieChart size={16} class="text-[var(--fg-muted)]" />
-          <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Time Spent by Model</h2>
+      <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 mb-8 overflow-visible">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <PieChart size={16} class="text-[var(--fg-muted)]" />
+            <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Time Spent by Model</h2>
+          </div>
+          {#if timePerModel.length > 8}
+            <button
+              onclick={() => { showAllTimeModels = !showAllTimeModels; renderTimeDonutChart() }}
+              class="text-xs text-[var(--accent-blue)] hover:underline"
+            >
+              {showAllTimeModels ? 'Show top 8' : `Show all ${timePerModel.length}`}
+            </button>
+          {/if}
         </div>
         {#if loadingTimeAnalytics}
           <div class="h-64 flex flex-col items-center justify-center gap-3">
@@ -1262,7 +1591,7 @@
         {:else}
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Donut chart -->
-            <div class="h-64">
+            <div class="h-64 p-2 overflow-visible">
               <canvas bind:this={timeDonutCanvas}></canvas>
             </div>
             <!-- Data table with progress bars -->
@@ -1321,9 +1650,19 @@
 
       <!-- Chart 3: Time by Project (stacked bar) -->
       <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 mb-8">
-        <div class="flex items-center gap-2 mb-4">
-          <BarChart3 size={16} class="text-[var(--fg-muted)]" />
-          <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Time by Project</h2>
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2">
+            <BarChart3 size={16} class="text-[var(--fg-muted)]" />
+            <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Time by Project</h2>
+          </div>
+          {#if timeByProject.length > 5}
+            <button
+              onclick={() => { showAllTimeProjects = !showAllTimeProjects; renderTimeProjectChart() }}
+              class="text-xs text-[var(--accent-blue)] hover:underline"
+            >
+              {showAllTimeProjects ? 'Show top 5' : 'Show all'}
+            </button>
+          {/if}
         </div>
         {#if loadingTimeAnalytics}
           <div class="h-64 flex flex-col items-center justify-center gap-3">
@@ -1333,7 +1672,10 @@
         {:else if timeByProject.length === 0}
           <div class="h-64 flex items-center justify-center text-[var(--fg-muted)]">No data</div>
         {:else}
-          <div class="h-64">
+          <!-- Dynamic height: compact but readable -->
+          {@const projectCount = showAllTimeProjects ? timeByProject.length : Math.min(5, timeByProject.length)}
+          {@const chartHeight = Math.min(600, Math.max(200, projectCount * 35))}
+          <div style="height: {chartHeight}px">
             <canvas bind:this={timeProjectCanvas}></canvas>
           </div>
         {/if}
