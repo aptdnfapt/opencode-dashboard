@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte'
   import { browser } from '$app/environment'
   import { Chart, registerables } from 'chart.js'
-  import { getAnalyticsSummary, getCostTrend, getCostByModel, getCostByAgent, getHeatmap, getProjectAnalytics, getSummaryExtended, getTokensByModel, getFileStats, getResponseTimeOverTime, getTimePerModel, getTimeByProject, getModelList } from '$lib/api'
+  import { getAnalyticsSummary, getCostTrend, getCostByModel, getCostByAgent, getHeatmap, getProjectAnalytics, getSummaryExtended, getTokensByModel, getFileStats, getResponseTimeOverTime, getTimePerModel, getTimeByProject, getModelList, getTimeHeatmap } from '$lib/api'
   import { formatTokens, formatCost } from '$lib/utils'
   import StatCard from '$lib/components/StatCard.svelte'
   import Heatmap from '$lib/components/Heatmap.svelte'
@@ -26,6 +26,7 @@
   let costByModel = $state<{ label: string; value: number; tokens: number }[]>([])
   let costByAgent = $state<{ label: string; value: number; tokens: number }[]>([])
   let heatmapData = $state<Record<string, number>>({})
+  let timeHeatmapData = $state<Record<string, number>>({})
 
   let projectAnalytics = $state<{ directory: string; sessions: number; tokens: number; cost: number }[]>([])
   let tokensByModel = $state<{ label: string; value: number; cost: number; requests: number }[]>([])
@@ -36,7 +37,6 @@
   let timePerModel = $state<{ provider_id: string; model_id: string; directory: string; total_time_ms: number; avg_time_ms: number; num_calls: number }[]>([])
   let timeByProject = $state<{ directory: string; provider_id: string; model_id: string; total_time_ms: number }[]>([])
   let availableModels = $state<string[]>([])
-  let selectedModels = $state<string[]>([])
   let responseTimeRange = $state<'24h' | '7d' | '30d' | '90d'>('7d')
   let timeTableData = $state<{ model: string; total_time_ms: number; num_calls: number; avg_time_ms: number }[]>([])
   
@@ -148,6 +148,9 @@
             titleFont: { size: 12 },
             bodyFont: { size: 11 },
             padding: 10,
+            // Offset tooltip above data points so they stay visible
+            yAlign: 'bottom' as const,
+            caretPadding: 12,
             callbacks: {
               label: (ctx) => `Cost: ${formatCost(ctx.raw as number)}`
             }
@@ -174,7 +177,10 @@
           data: costByModel.map(d => d.value),
           backgroundColor: chartColors.slice(0, costByModel.length),
           borderColor: colors.bgSecondary,
-          borderWidth: 2
+          borderWidth: 2,
+          hoverOffset: 8,
+          hoverBorderWidth: 3,
+          hoverBorderColor: '#e6edf3'
         }]
       },
       options: {
@@ -192,7 +198,12 @@
               pointStyle: 'circle', 
               font: { size: 11 },
               boxWidth: 8,
-              boxHeight: 8
+              boxHeight: 8,
+              // Truncate long model names — show only after last /
+              filter: (item) => {
+                item.text = item.text.split('/').pop() || item.text
+                return true
+              }
             } 
           },
           tooltip: {
@@ -230,7 +241,9 @@
           label: 'Cost',
           data: costByAgent.map(d => d.value),
           backgroundColor: chartColors.slice(0, costByAgent.length),
-          barThickness: 28
+          maxBarThickness: 28,
+          categoryPercentage: 0.8,
+          hoverBackgroundColor: chartColors.slice(0, costByAgent.length).map(c => c + 'DD')
         }]
       },
       options: {
@@ -238,6 +251,7 @@
         maintainAspectRatio: false,
         indexAxis: 'y',
         animation: { duration: 600, easing: 'easeOutQuart' },
+        interaction: { mode: 'nearest', intersect: true },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -283,7 +297,9 @@
           label: 'Tokens',
           data: top5.map(d => d.tokens),
           backgroundColor: chartColors.slice(0, top5.length),
-          barThickness: 28
+          maxBarThickness: 28,
+          categoryPercentage: 0.8,
+          hoverBackgroundColor: chartColors.slice(0, top5.length).map(c => c + 'DD')
         }]
       },
       options: {
@@ -291,6 +307,7 @@
         maintainAspectRatio: false,
         indexAxis: 'y',
         animation: { duration: 600, easing: 'easeOutQuart' },
+        interaction: { mode: 'nearest', intersect: true },
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -333,7 +350,10 @@
           data: tokensByModel.map(d => d.value),
           backgroundColor: chartColors.slice(0, tokensByModel.length),
           borderColor: colors.bgSecondary,
-          borderWidth: 2
+          borderWidth: 2,
+          hoverOffset: 8,
+          hoverBorderWidth: 3,
+          hoverBorderColor: '#e6edf3'
         }]
       },
       options: {
@@ -351,7 +371,11 @@
               pointStyle: 'circle', 
               font: { size: 11 },
               boxWidth: 8,
-              boxHeight: 8
+              boxHeight: 8,
+              filter: (item) => {
+                item.text = item.text.split('/').pop() || item.text
+                return true
+              }
             } 
           },
           tooltip: {
@@ -396,12 +420,14 @@
           {
             label: 'Added',
             data: top8.map(d => d.lines_added),
-            backgroundColor: langColors
+            backgroundColor: langColors,
+            hoverBackgroundColor: langColors.map(c => c + 'DD')
           },
           {
             label: 'Removed',
             data: top8.map(d => d.lines_removed),
-            backgroundColor: langColorsGray
+            backgroundColor: langColorsGray,
+            hoverBackgroundColor: langColorsGray.map(c => c.slice(0, -2) + '80')
           }
         ]
       },
@@ -410,6 +436,7 @@
         maintainAspectRatio: false,
         indexAxis: 'y',
         animation: { duration: 600, easing: 'easeOutQuart' },
+        interaction: { mode: 'nearest', intersect: true },
         plugins: {
           legend: { position: 'top', labels: { color: colors.fgSecondary, usePointStyle: true, pointStyle: 'circle', padding: 16, font: { size: 11 } } },
           tooltip: {
@@ -449,10 +476,8 @@
       Object.keys(period.models).forEach(model => allModels.add(model))
     })
     
-    // Filter to only selected models if any are selected
-    const modelsToShow = selectedModels.length > 0 
-      ? selectedModels.filter(m => allModels.has(m))
-      : Array.from(allModels)
+    // Show all models — users toggle via Chart.js legend click
+    const modelsToShow = Array.from(allModels)
     
     if (modelsToShow.length === 0) return
     
@@ -502,8 +527,11 @@
             titleFont: { size: 12 },
             bodyFont: { size: 11 },
             padding: 10,
+            // Offset tooltip above data points so they stay visible
+            yAlign: 'bottom' as const,
+            caretPadding: 12,
             callbacks: {
-              label: (ctx) => `${ctx.dataset.label}: ${ctx.raw}s`
+              label: (ctx) => `${ctx.dataset.label}: ${(ctx.raw as number / 1000).toFixed(1)}s`
             }
           }
         },
@@ -511,7 +539,7 @@
           x: { grid: { color: 'rgba(240,246,252,0.06)' }, ticks: { color: colors.fgMuted, maxTicksLimit: 10, font: { size: 11 } } },
           y: { 
             grid: { color: 'rgba(240,246,252,0.06)' }, 
-            ticks: { color: colors.fgMuted, font: { size: 11 }, callback: (v) => `${v}s` },
+            ticks: { color: colors.fgMuted, font: { size: 11 }, callback: (v) => `${(v as number / 1000).toFixed(0)}s` },
             title: { display: true, text: 'Seconds', color: colors.fgMuted, font: { size: 11 } }
           }
         }
@@ -561,7 +589,10 @@
           data: topModels.map(d => d.total_time_ms),
           backgroundColor: chartColors.slice(0, topModels.length),
           borderColor: colors.bgSecondary,
-          borderWidth: 2
+          borderWidth: 2,
+          hoverOffset: 8,
+          hoverBorderWidth: 3,
+          hoverBorderColor: '#e6edf3'
         }]
       },
       options: {
@@ -570,18 +601,8 @@
         cutout: '70%',
         animation: { duration: 600, easing: 'easeOutQuart' },
         plugins: {
-          legend: { 
-            position: 'right', 
-            labels: { 
-              color: colors.fgSecondary, 
-              padding: 16, 
-              usePointStyle: true, 
-              pointStyle: 'circle', 
-              font: { size: 11 },
-              boxWidth: 8,
-              boxHeight: 8
-            } 
-          },
+          // Hide Chart.js legend — the data table next to the donut serves as the legend
+          legend: { display: false },
           tooltip: {
             backgroundColor: '#1c2128',
             titleColor: colors.fgPrimary,
@@ -648,6 +669,7 @@
       label: model,
       data: topProjects.map(project => project.modelMap.get(model) || 0),
       backgroundColor: chartColors[index % chartColors.length],
+      hoverBackgroundColor: chartColors[index % chartColors.length] + 'DD',
       borderWidth: 0
     }))
     
@@ -666,6 +688,7 @@
         maintainAspectRatio: false,
         indexAxis: 'y',
         animation: { duration: 600, easing: 'easeOutQuart' },
+        interaction: { mode: 'nearest', intersect: true },
         plugins: {
           legend: { 
             position: 'right',
@@ -745,7 +768,7 @@
   async function loadResponseTime(range: '24h' | '7d' | '30d' | '90d') {
     responseTimeRange = range
     try {
-      responseTimeOverTime = await getResponseTimeOverTime(range, selectedModels)
+      responseTimeOverTime = await getResponseTimeOverTime(range)
       renderResponseTimeChart()
     } catch (err) {
       console.error('Failed to load response time:', err)
@@ -781,21 +804,6 @@
     }
   }
   
-  // Toggle model selection
-  function toggleModel(model: string) {
-    if (selectedModels.includes(model)) {
-      selectedModels = selectedModels.filter(m => m !== model)
-    } else {
-      selectedModels = [...selectedModels, model]
-    }
-    loadResponseTime(responseTimeRange)
-  }
-  
-  // Get color for model
-  function getModelColor(model: string): string {
-    const index = availableModels.indexOf(model)
-    return chartColors[index % chartColors.length]
-  }
   
   // Format duration in hours/minutes
   function formatDuration(ms: number): string {
@@ -820,7 +828,7 @@
   // Initial data load
   onMount(async () => {
     try {
-      const [s, sExt, trend, models, agents, heatmap, projects, tokensModels, files, responseTime, timePerModelData, timeByProjectData, modelList] = await Promise.all([
+      const [s, sExt, trend, models, agents, heatmap, projects, tokensModels, files, responseTime, timePerModelData, timeByProjectData, modelList, timeHeatmapRaw] = await Promise.all([
         getAnalyticsSummary(),
         getSummaryExtended(),
         getCostTrend(trendRange),
@@ -833,7 +841,8 @@
         getResponseTimeOverTime(responseTimeRange),
         getTimePerModel(),
         getTimeByProject(),
-        getModelList()
+        getModelList(),
+        getTimeHeatmap(365)
       ])
       summary = s
       summaryExt = sExt
@@ -843,6 +852,11 @@
       // Convert heatmap array to Record<string, number> (using tokens instead of requests)
       heatmapData = heatmap.reduce((acc: Record<string, number>, d: { date: string; tokens: number }) => {
         acc[d.date] = d.tokens
+        return acc
+      }, {} as Record<string, number>)
+      // Convert time heatmap array to Record<string, number> (duration_ms per day)
+      timeHeatmapData = timeHeatmapRaw.reduce((acc: Record<string, number>, d: { date: string; duration_ms: number }) => {
+        acc[d.date] = d.duration_ms
         return acc
       }, {} as Record<string, number>)
       projectAnalytics = projects
@@ -1030,7 +1044,8 @@
         {#if costByAgent.length === 0}
           <div class="h-64 flex items-center justify-center text-[var(--fg-muted)]">No data</div>
         {:else}
-          <div class="h-64">
+          <!-- Dynamic height: 40px per agent, min 160px -->
+          <div style="height: {Math.max(160, costByAgent.length * 40)}px">
             <canvas bind:this={barCanvas}></canvas>
           </div>
         {/if}
@@ -1168,6 +1183,27 @@
         </div>
       </div>
       
+      <!-- Time Spent Heatmap (blue calendar) -->
+      <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 mb-8">
+        <div class="flex items-center gap-2 mb-4">
+          <Calendar size={16} class="text-[var(--fg-muted)]" />
+          <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Time Spent</h2>
+          <span class="text-xs text-[var(--fg-muted)]">Last 365 days</span>
+        </div>
+        <div class="overflow-x-auto">
+          <Heatmap data={timeHeatmapData} days={365} colorScheme="blue" formatLabel={(ms) => {
+            if (ms >= 3600000) {
+              const h = Math.floor(ms / 3600000)
+              const m = Math.floor((ms % 3600000) / 60000)
+              return `${h}h ${m}m`
+            }
+            if (ms >= 60000) return `${Math.floor(ms / 60000)}m`
+            if (ms >= 1000) return `${Math.floor(ms / 1000)}s`
+            return `${ms}ms`
+          }} />
+        </div>
+      </div>
+
       <!-- Chart 1: Response Time by Model Over Time -->
       <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg p-4 mb-8">
         <div class="flex items-center justify-between mb-4">
@@ -1175,44 +1211,7 @@
             <TrendingUp size={16} class="text-[var(--fg-muted)]" />
             <h2 class="text-sm font-medium text-[var(--fg-secondary)] uppercase tracking-wide">Response Time by Model</h2>
           </div>
-          <div class="flex items-center gap-2">
-            <!-- Model filter chips -->
-            <div class="flex items-center gap-1 flex-wrap max-w-[300px]">
-              {#each availableModels.slice(0, 5) as model}
-                <button
-                  onclick={() => toggleModel(model)}
-                  class="px-2 py-1 text-xs rounded-full border transition-all duration-150 flex items-center gap-1.5"
-                  class:bg-[var(--accent-blue)]={selectedModels.includes(model)}
-                  class:text-white={selectedModels.includes(model)}
-                  class:border-[var(--accent-blue)]={selectedModels.includes(model)}
-                  class:bg-[var(--bg-tertiary)]={!selectedModels.includes(model)}
-                  class:text-[var(--fg-secondary)]={!selectedModels.includes(model)}
-                  class:border-[var(--border-subtle)]={!selectedModels.includes(model)}
-                  class:hover:border-[var(--fg-muted)]={!selectedModels.includes(model)}
-                  aria-pressed={selectedModels.includes(model)}
-                  aria-label={`Toggle ${model} filter`}
-                >
-                  <span 
-                    class="w-2 h-2 rounded-full" 
-                    style="background-color: {getModelColor(model)}"
-                  ></span>
-                  {model.split('/').pop()}
-                </button>
-              {/each}
-              {#if availableModels.length > 5}
-                <span class="text-xs text-[var(--fg-muted)]">+{availableModels.length - 5}</span>
-              {/if}
-              {#if selectedModels.length > 0}
-                <button
-                  onclick={() => { selectedModels = []; loadResponseTime(responseTimeRange); }}
-                  class="text-xs text-[var(--fg-muted)] hover:text-[var(--fg-secondary)] underline ml-2"
-                  aria-label="Clear all model filters"
-                >
-                  Clear all
-                </button>
-              {/if}
-            </div>
-            <div class="inline-flex rounded-lg border border-[var(--border-subtle)] overflow-hidden">
+          <div class="inline-flex rounded-lg border border-[var(--border-subtle)] overflow-hidden">
               {#each ['24h', '7d', '30d', '90d'] as range}
                 <button
                   onclick={() => loadResponseTime(range as '24h' | '7d' | '30d' | '90d')}
@@ -1226,7 +1225,6 @@
                 </button>
               {/each}
             </div>
-          </div>
         </div>
         {#if loadingTimeAnalytics}
           <div class="h-64 flex flex-col items-center justify-center gap-3">

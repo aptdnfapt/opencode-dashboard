@@ -752,6 +752,27 @@ export function createApiHandler(app: Hono, db: Database) {
     return c.json(projects)
   })
 
+  // GET /api/analytics/time-heatmap - daily sum of duration_ms for time-spent calendar
+  app.get('/api/analytics/time-heatmap', (c: Context) => {
+    const days = parseInt(c.req.query('days') || '365')
+    const startTime = Date.now() - days * 24 * 60 * 60 * 1000
+
+    const data = db.prepare(`
+      SELECT 
+        strftime('%Y-%m-%d', tu.timestamp/1000, 'unixepoch') as date,
+        SUM(tu.duration_ms) as duration_ms
+      FROM token_usage tu
+      JOIN sessions s ON tu.session_id = s.id
+      WHERE tu.timestamp >= ?
+        AND tu.duration_ms IS NOT NULL
+        AND s.parent_session_id IS NULL
+      GROUP BY date
+      ORDER BY date ASC
+    `).all(startTime)
+
+    return c.json(data)
+  })
+
   // GET /api/analytics/time-per-model - total time, avg time, calls per model (main agent only)
   app.get('/api/analytics/time-per-model', (c: Context) => {
     const timeData = db.prepare(`

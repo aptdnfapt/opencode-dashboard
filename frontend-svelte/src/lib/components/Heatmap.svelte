@@ -1,13 +1,25 @@
 <script lang="ts">
+  import { formatTokens } from '$lib/utils'
+  
   interface Props {
     data: Record<string, number>
     days?: number
+    /** 'green' = token activity (default), 'blue' = time spent */
+    colorScheme?: 'green' | 'blue'
+    /** Custom tooltip label — defaults to formatTokens + "tokens" */
+    formatLabel?: (value: number) => string
   }
   
-  let { data, days = 365 }: Props = $props()
+  let { data, days = 365, colorScheme = 'green', formatLabel }: Props = $props()
   
-  // GitHub dark theme colors
-  const colors = ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353']
+  // Color schemes: empty cell → lightest → darkest
+  const schemes: Record<string, string[]> = {
+    green: ['#161b22', '#0e4429', '#006d32', '#26a641', '#39d353'],
+    blue:  ['#161b22', '#0c2d6b', '#0550ae', '#388bfd', '#58a6ff']
+  }
+  
+  let colors = $derived(schemes[colorScheme] || schemes.green)
+  
   const cellSize = 14
   const cellGap = 4
   const weekdayLabelWidth = 32
@@ -95,6 +107,11 @@
     return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
   }
   
+  /** Default label: "22.8M tokens" */
+  function defaultFormatLabel(value: number): string {
+    return `${formatTokens(value)} ${value === 1 ? 'token' : 'tokens'}`
+  }
+  
   function showTooltip(cell: typeof grid[0], e: MouseEvent) {
     const rect = (e.target as SVGElement).getBoundingClientRect()
     tooltip = { x: rect.left + cellSize / 2, y: rect.top - 8, date: cell.date, value: cell.value }
@@ -119,7 +136,7 @@
       {/if}
     {/each}
     
-    <!-- Cells -->
+    <!-- Cells — subtle border on every cell so grid is always visible -->
     {#each grid as cell}
       <rect
         x={cell.x}
@@ -128,6 +145,9 @@
         height={cellSize}
         rx={2}
         fill={cell.color}
+        stroke="#30363d"
+        stroke-opacity="0.4"
+        stroke-width="1"
         class="transition-opacity hover:opacity-80 cursor-pointer"
         onmouseenter={(e) => showTooltip(cell, e)}
         onmouseleave={hideTooltip}
@@ -141,7 +161,7 @@
       class="fixed z-50 px-2 py-1 text-xs rounded bg-[#1c2128] border border-[var(--border-subtle)] shadow-lg pointer-events-none"
       style="left: {tooltip.x}px; top: {tooltip.y}px; transform: translate(-50%, -100%)"
     >
-      <div class="font-medium text-[var(--fg-primary)]">{tooltip.value} {tooltip.value === 1 ? 'token' : 'tokens'}</div>
+      <div class="font-medium text-[var(--fg-primary)]">{(formatLabel || defaultFormatLabel)(tooltip.value)}</div>
       <div class="text-[var(--fg-muted)]">{formatDate(tooltip.date)}</div>
     </div>
   {/if}

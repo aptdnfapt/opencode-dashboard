@@ -211,6 +211,11 @@ export async function getResponseTimeOverTime(range = '7d', models?: string[]): 
   return fetchAPI(`/api/analytics/response-time-over-time?${params}`)
 }
 
+// Daily duration sums for time-spent heatmap calendar
+export async function getTimeHeatmap(days = 365): Promise<{ date: string; duration_ms: number }[]> {
+  return fetchAPI(`/api/analytics/time-heatmap?days=${days}`)
+}
+
 export async function getTimeByProject(): Promise<{
   directory: string
   provider_id: string
