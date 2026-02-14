@@ -124,12 +124,11 @@
     return '' // stale/error = no animation
   }
 
-  // Helper function to get tool group key using event IDs instead of indices
+  // Stable key for tool group — uses ONLY firstId so the key doesn't change
+  // when new tool events stream in via WS (new tools append, firstId stays same)
   function getToolGroupKey(tools: TimelineEvent[]): string {
     if (tools.length === 0) return ''
-    const firstId = tools[0].id
-    const lastId = tools[tools.length - 1].id
-    return `${firstId}-${lastId}`
+    return `tool-group-${tools[0].id}`
   }
 
   // State for tool group expansion using event IDs instead of indices
@@ -397,16 +396,16 @@
     }
   }
 
-  // Auto-scroll to bottom when timeline updates (only if user hasn't scrolled away)
+  // Auto-scroll to bottom when timeline updates (reacts to WS events too)
   $effect(() => {
-    if (apiTimeline.length > 0 && timelineContainer && !userScrolled) {
+    if (timeline.length > 0 && timelineContainer && !userScrolled) {
       timelineContainer.scrollTop = timelineContainer.scrollHeight
     }
   })
 
   // Process shiki placeholders after timeline renders
   $effect(() => {
-    if (timelineContainer && apiTimeline.length > 0) {
+    if (timelineContainer && timeline.length > 0) {
       // Small delay to ensure DOM is updated
       setTimeout(() => {
         if (timelineContainer) {
