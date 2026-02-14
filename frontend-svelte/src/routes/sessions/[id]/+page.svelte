@@ -552,103 +552,112 @@
           <span>{session.parent_session_id ? 'Back to parent' : 'Back to sessions'}</span>
         </a>
 
-        <!-- Floating frosted glass header (absolute center) -->
-        <div class="group absolute left-1/2 -translate-x-1/2 w-full max-w-2xl px-4">
-          <!-- Compact mode (always visible) -->
+        <!-- Floating frosted glass header (absolute center) — expands inline on hover -->
+        <div
+          class="floating-bar-wrapper absolute left-1/2 -translate-x-1/2 w-full max-w-2xl px-4" style="top: 5px;"
+          onmouseenter={() => showFloatingHeader = true}
+          onmouseleave={() => showFloatingHeader = false}
+        >
           <div class={cn(
-            "flex items-center gap-3 backdrop-blur-md bg-[var(--bg-secondary)]/80 rounded-lg px-4 py-2.5 border border-[var(--border-subtle)] transition-all duration-200 group-hover:shadow-lg",
+            "backdrop-blur-md bg-[var(--bg-secondary)]/80 rounded-lg border border-[var(--border-subtle)] transition-all duration-300 ease-in-out overflow-hidden",
+            showFloatingHeader ? 'shadow-lg' : '',
             getFloatingBarClass(displayStatus)
           )}>
-            <!-- Status dot with glow styling -->
-            <div class={cn(
-              'flex items-center gap-2',
-              getStatusColor(displayStatus)
-            )}>
+            <!-- Compact row (always visible) -->
+            <div class="flex items-center gap-3 px-4 py-2.5">
+              <!-- Status dot -->
               <div class={cn(
-                'w-2 h-2 rounded-full',
-                getStatusDotColor(displayStatus),
-                displayStatus !== 'stale' ? 'animate-pulse' : ''
-              )}></div>
-              <!-- Sub-agent indicator on compact header -->
-              {#if session.parent_session_id}
-                <span class="text-[10px] text-[var(--fg-muted)] uppercase tracking-wider">sub-agent</span>
-              {/if}
+                'flex items-center gap-2',
+                getStatusColor(displayStatus)
+              )}>
+                <div class={cn(
+                  'w-2 h-2 rounded-full',
+                  getStatusDotColor(displayStatus),
+                  displayStatus !== 'stale' ? 'animate-pulse' : ''
+                )}></div>
+                {#if session.parent_session_id}
+                  <span class="text-[10px] text-[var(--fg-muted)] uppercase tracking-wider">sub-agent</span>
+                {/if}
+              </div>
+
+              <!-- Title -->
+              <h1 class="font-semibold text-[var(--fg-primary)] truncate">
+                {session.title || 'Untitled Session'}
+              </h1>
+
+              <!-- Tokens and cost -->
+              <div class="flex items-center gap-3 text-sm ml-auto shrink-0">
+                <span class="mono text-[var(--accent-blue)]">{formatTokens(session.token_total || 0)}</span>
+                <span class="mono text-[var(--accent-green)]">{formatCost(session.cost_total || 0)}</span>
+              </div>
             </div>
 
-            <!-- Title -->
-            <h1 class="font-semibold text-[var(--fg-primary)] truncate">
-              {session.title || 'Untitled Session'}
-            </h1>
-
-            <!-- Tokens and cost -->
-            <div class="flex items-center gap-3 text-sm ml-auto">
-              <span class="mono text-[var(--accent-blue)]">{formatTokens(session.token_total || 0)}</span>
-              <span class="mono text-[var(--accent-green)]">{formatCost(session.cost_total || 0)}</span>
-            </div>
-          </div>
-
-          <!-- Expanded mode (on hover) -->
-          <div class="absolute top-full left-0 right-0 mt-1 backdrop-blur-md bg-[var(--bg-secondary)]/95 rounded-lg p-4 border border-[var(--border-subtle)] shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-            <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-              <!-- Session ID with copy -->
-              <div class="col-span-2 flex items-center justify-between">
-                <span class="text-[var(--fg-muted)] text-xs mb-1">Session ID</span>
-                <button
-                  onclick={copySessionId}
-                  class="flex items-center gap-1.5 px-2 py-1 text-xs mono text-[var(--accent-blue)] hover:bg-[var(--bg-tertiary)] rounded transition-colors"
-                >
-                  {session.id.slice(0, 12)}…
-                  {#if copyIdCopied}
-                    <Check class="w-3 h-3 text-emerald-500" />
-                  {:else}
-                    <Copy class="w-3 h-3" />
-                  {/if}
-                </button>
-              </div>
-
-              <!-- Parent session reference (if sub-agent) -->
-              {#if session.parent_session_id && parentSession}
-                <div class="col-span-2 flex items-center gap-2">
-                  <span class="text-[var(--fg-muted)] text-xs mb-1">Parent</span>
-                  <span class="text-[var(--fg-secondary)] text-xs truncate">
-                    {parentSession.title || 'Untitled'}
-                  </span>
-                </div>
-              {/if}
-
-              <!-- Created time -->
-              <div>
-                <span class="block text-[var(--fg-muted)] text-xs mb-1">Created</span>
-                <span class="mono text-[var(--fg-secondary)]">{formatAbsoluteTime(session.created_at)}</span>
-              </div>
-
-              <!-- Hostname -->
-              <div>
-                <span class="block text-[var(--fg-muted)] text-xs mb-1">Hostname</span>
-                <span class="mono text-[var(--fg-secondary)]">{session.hostname}</span>
-              </div>
-
-              <!-- Directory -->
-              <div class="col-span-2">
-                <span class="block text-[var(--fg-muted)] text-xs mb-1">Directory</span>
-                <span class="mono text-[var(--fg-secondary)] truncate block" title={session.directory || ''}>
-                  {session.directory || 'N/A'}
-                </span>
-              </div>
-
-              <!-- Models -->
-              {#if distinctModels.length > 0}
-                <div class="col-span-2">
-                  <span class="block text-[var(--fg-muted)] text-xs mb-1">Models</span>
-                  <div class="flex flex-wrap gap-2 mt-1">
-                    {#each distinctModels as model}
-                      <span class="px-2 py-0.5 text-xs mono bg-[var(--bg-tertiary)] text-[var(--accent-blue)] rounded-full border border-[var(--border-subtle)]">
-                        {model}
-                      </span>
-                    {/each}
+            <!-- Detail rows (expand/collapse with max-height transition) -->
+            <div class={cn(
+              "transition-all duration-300 ease-in-out",
+              showFloatingHeader ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'
+            )} style="overflow: hidden;">
+              <div class="px-4 pb-3 pt-1 border-t border-[var(--border-subtle)]/50">
+                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <!-- Session ID with copy -->
+                  <div class="col-span-2 flex items-center justify-between">
+                    <span class="text-[var(--fg-muted)] text-xs">Session ID</span>
+                    <button
+                      onclick={copySessionId}
+                      class="flex items-center gap-1.5 px-2 py-0.5 text-xs mono text-[var(--accent-blue)] hover:bg-[var(--bg-tertiary)] rounded transition-colors"
+                    >
+                      {session.id.slice(0, 12)}…
+                      {#if copyIdCopied}
+                        <Check class="w-3 h-3 text-emerald-500" />
+                      {:else}
+                        <Copy class="w-3 h-3" />
+                      {/if}
+                    </button>
                   </div>
+
+                  <!-- Parent session reference -->
+                  {#if session.parent_session_id && parentSession}
+                    <div class="col-span-2 flex items-center gap-2">
+                      <span class="text-[var(--fg-muted)] text-xs">Parent</span>
+                      <span class="text-[var(--fg-secondary)] text-xs truncate">
+                        {parentSession.title || 'Untitled'}
+                      </span>
+                    </div>
+                  {/if}
+
+                  <!-- Created / Hostname -->
+                  <div>
+                    <span class="block text-[var(--fg-muted)] text-xs mb-0.5">Created</span>
+                    <span class="mono text-[var(--fg-secondary)] text-xs">{formatAbsoluteTime(session.created_at)}</span>
+                  </div>
+                  <div>
+                    <span class="block text-[var(--fg-muted)] text-xs mb-0.5">Hostname</span>
+                    <span class="mono text-[var(--fg-secondary)] text-xs">{session.hostname}</span>
+                  </div>
+
+                  <!-- Directory -->
+                  <div class="col-span-2">
+                    <span class="block text-[var(--fg-muted)] text-xs mb-0.5">Directory</span>
+                    <span class="mono text-[var(--fg-secondary)] text-xs truncate block" title={session.directory || ''}>
+                      {session.directory || 'N/A'}
+                    </span>
+                  </div>
+
+                  <!-- Models -->
+                  {#if distinctModels.length > 0}
+                    <div class="col-span-2">
+                      <span class="block text-[var(--fg-muted)] text-xs mb-0.5">Models</span>
+                      <div class="flex flex-wrap gap-1.5 mt-0.5">
+                        {#each distinctModels as model}
+                          <span class="px-2 py-0.5 text-[10px] mono bg-[var(--bg-tertiary)] text-[var(--accent-blue)] rounded-full border border-[var(--border-subtle)]">
+                            {model}
+                          </span>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
                 </div>
-              {/if}
+              </div>
             </div>
           </div>
         </div>
