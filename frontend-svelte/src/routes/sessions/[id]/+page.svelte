@@ -46,7 +46,7 @@
     const turns: { user?: TimelineEvent; tools: TimelineEvent[]; message?: TimelineEvent }[] = []
     let currentTurn: { user?: TimelineEvent; tools: TimelineEvent[]; message?: TimelineEvent } = { tools: [] }
 
-    for (const event of apiTimeline) {
+    for (const event of timeline) {
       if (event.event_type === 'user') {
         if (currentTurn.user || currentTurn.tools.length > 0 || currentTurn.message) {
           turns.push(currentTurn)
@@ -491,8 +491,8 @@
     </div>
   {:else if session}
     <!-- Top bar: Back button + Floating header (center) + Main/Sub toggle -->
-    <div class="sticky top-0 z-40 px-4 py-3 bg-[var(--bg-primary)] border-b border-[var(--border-subtle)]">
-      <div class="relative flex items-center justify-between">
+    <div class="sticky top-0 z-40 px-4 py-3 bg-[var(--bg-primary)] border-b border-[var(--border-subtle)] overflow-visible">
+      <div class="relative flex items-center justify-between overflow-visible">
         <!-- Back button (left) -->
         <a
           href={session.parent_session_id ? `/sessions/${session.parent_session_id}` : '/'}
