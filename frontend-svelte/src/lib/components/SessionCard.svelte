@@ -27,7 +27,8 @@
     const updatedAt = new Date(session.updated_at).getTime()
     const now = Date.now()
     const hasActiveSubs = store.sessions.some(s => s.parent_session_id === session.id && s.status === 'active')
-    return (now - updatedAt) > STALE_THRESHOLD_MS && !hasActiveSubs ? 'stale' : 'idle'
+    if (hasActiveSubs) return 'idle-with-subagents'
+    return (now - updatedAt) > STALE_THRESHOLD_MS ? 'stale' : 'idle'
   })
   
   // Archive/unarchive handlers
@@ -130,6 +131,7 @@
     switch (status) {
       case 'active': return Activity
       case 'idle': return Moon
+      case 'idle-with-subagents': return Moon
       case 'error': return AlertCircle
       case 'stale': return Clock
       case 'archived': return Archive
@@ -142,6 +144,7 @@
     switch (status) {
       case 'active': return 'text-emerald-500'
       case 'idle': return 'text-amber-500'
+      case 'idle-with-subagents': return 'text-blue-500'
       case 'error': return 'text-rose-500'
       case 'stale': return 'text-zinc-500'
       case 'archived': return 'text-zinc-600'
@@ -168,6 +171,7 @@
       : 'bg-[var(--bg-secondary)] border-[var(--border-subtle)]',
     session.needs_attention ? 'ring-1 ring-[var(--accent-amber)] attention-pulse' : '',
     displayStatus() === 'active' ? 'spinning-border' : '',
+    displayStatus() === 'idle-with-subagents' ? 'idle-blue-spin' : '',
     displayStatus() === 'idle' ? 'idle-blink' : ''
   )}
 
@@ -344,6 +348,34 @@
   }
   .idle-blink {
     animation: idle-glow 3s ease-in-out infinite;
+  }
+
+  /* Idle + active sub-agents: blue spinning glow */
+  .idle-blue-spin {
+    position: relative;
+    border-color: transparent;
+    overflow: visible;
+  }
+  .idle-blue-spin::before {
+    content: '';
+    position: absolute;
+    inset: -2.5px;
+    border-radius: inherit;
+    padding: 2.5px;
+    background: conic-gradient(
+      from var(--spin-angle, 0deg),
+      #3b82f6,
+      transparent 40%,
+      transparent 60%,
+      #3b82f6
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: spin-border 2.5s linear infinite;
+    pointer-events: none;
+    z-index: 1;
   }
 
   /* Subtle pulsing ring for attention state */
