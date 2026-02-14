@@ -109,6 +109,20 @@
   // Track message changes for animation (only active sessions)
   let lastMessageId = $state<number | null>(null)
   let shouldAnimate = $state(false)
+
+  // P5: Pause animations when card scrolls off-screen (saves GPU/CPU)
+  let cardEl = $state<HTMLElement | null>(null)
+  let isVisible = $state(true)
+
+  $effect(() => {
+    if (!cardEl) return
+    const observer = new IntersectionObserver(
+      ([entry]) => { isVisible = entry.isIntersecting },
+      { threshold: 0 }
+    )
+    observer.observe(cardEl)
+    return () => observer.disconnect()
+  })
   
   // Trigger animation when new message arrives for active sessions
   $effect(() => {
@@ -162,6 +176,7 @@
 </script>
 
 <a
+  bind:this={cardEl}
   href="/sessions/{session.id}"
   class={cn(
     'flex flex-col w-full h-full text-left p-3 rounded-lg border transition-all duration-200',
@@ -172,7 +187,8 @@
     session.needs_attention ? 'ring-1 ring-[var(--accent-amber)] attention-pulse' : '',
     displayStatus() === 'active' ? 'spinning-border' : '',
     displayStatus() === 'idle-with-subagents' ? 'idle-blue-spin' : '',
-    displayStatus() === 'idle' ? 'idle-blink' : ''
+    displayStatus() === 'idle' ? 'idle-blink' : '',
+    !isVisible ? 'animations-paused' : ''
   )}
 
 >
@@ -312,7 +328,8 @@
     animation: fade-in 0.3s ease-out;
   }
   
-  /* Spinning border for active sessions — conic gradient rotates around card */
+  /* Spinning border for active sessions — @property animates gradient angle only,
+     mask stays fixed so the sweep effect works correctly */
   .spinning-border {
     position: relative;
     border-color: transparent;
@@ -348,16 +365,28 @@
     inherits: false;
   }
 
-  /* Idle session: blinking yellow glow */
-  @keyframes idle-glow {
-    0%, 100% { box-shadow: 0 0 0 0 transparent; border-color: var(--border-subtle); }
-    50% { box-shadow: 0 0 8px rgba(234, 179, 8, 0.3); border-color: rgba(234, 179, 8, 0.5); }
-  }
+  /* P1: Idle session — static shadow on ::after, animate opacity only (compositor) */
   .idle-blink {
+    position: relative;
+  }
+  .idle-blink::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    /* Static shadow + border painted once */
+    box-shadow: 0 0 8px rgba(234, 179, 8, 0.3);
+    border: 1px solid rgba(234, 179, 8, 0.5);
+    pointer-events: none;
+    will-change: opacity;
     animation: idle-glow 3s ease-in-out infinite;
   }
+  @keyframes idle-glow {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
+  }
 
-  /* Idle + active sub-agents: blue spinning glow */
+  /* Idle + active sub-agents: blue spinning border (same @property technique) */
   .idle-blue-spin {
     position: relative;
     border-color: transparent;
@@ -385,13 +414,31 @@
     z-index: 1;
   }
 
-  /* Subtle pulsing ring for attention state */
-  @keyframes attention-ring {
-    0%, 100% { box-shadow: 0 0 0 1px var(--accent-amber), 0 0 4px rgba(210, 153, 34, 0.15); }
-    50% { box-shadow: 0 0 0 1px var(--accent-amber), 0 0 8px rgba(210, 153, 34, 0.3); }
+  /* P1: Attention pulse — static shadow on ::after, animate opacity only */
+  .attention-pulse {
+    position: relative;
+  }
+  .attention-pulse::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    /* Static shadow painted once */
+    box-shadow: 0 0 0 1px var(--accent-amber), 0 0 8px rgba(210, 153, 34, 0.3);
+    pointer-events: none;
+    will-change: opacity;
+    animation: attention-glow 2.5s ease-in-out infinite;
+  }
+  @keyframes attention-glow {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
   }
 
-  .attention-pulse {
-    animation: attention-ring 2.5s ease-in-out infinite;
+  /* P5: Pause all animations when card is off-screen */
+  .animations-paused,
+  .animations-paused::before,
+  .animations-paused::after,
+  .animations-paused * {
+    animation-play-state: paused !important;
   }
 </style>

@@ -121,11 +121,32 @@ class DashboardStore {
     }
   }
 
+  // P3: Microtask batching — queue rapid WS updates, flush once per frame
+  private pendingUpdates = new Map<string, Partial<Session>>()
+  private flushScheduled = false
+
   updateSession(partial: Partial<Session> & { id: string }) {
-    // Use .map() to trigger Svelte 5 reactivity (immutable update)
-    this.sessions = this.sessions.map(s =>
-      s.id === partial.id ? { ...s, ...partial } : s
-    )
+    // Merge into pending (latest value wins per field per session)
+    const existing = this.pendingUpdates.get(partial.id) || {}
+    this.pendingUpdates.set(partial.id, { ...existing, ...partial })
+
+    if (!this.flushScheduled) {
+      this.flushScheduled = true
+      // queueMicrotask → flushes before next paint, batches all sync updates
+      queueMicrotask(() => this.flushUpdates())
+    }
+  }
+
+  private flushUpdates() {
+    this.flushScheduled = false
+    const updates = this.pendingUpdates
+    this.pendingUpdates = new Map()
+
+    // Single array pass for ALL queued updates → 1 re-render cycle
+    this.sessions = this.sessions.map(s => {
+      const patch = updates.get(s.id)
+      return patch ? { ...s, ...patch } : s
+    })
   }
 
   removeSession(id: string) {
@@ -189,7 +210,22 @@ class DashboardStore {
 // Singleton export
 export const store = new DashboardStore()
 
-// Bump tick every 30s to force stale re-evaluation
+// P4: Idle-friendly tick — only bump when browser has free time, not mid-animation
 if (typeof window !== 'undefined') {
-  setInterval(() => { store.tick++ }, 30_000)
+  function scheduleTick() {
+    setTimeout(() => {
+      if ('requestIdleCallback' in window) {
+        // requestIdleCallback ensures we don't interrupt animations
+        requestIdleCallback(() => {
+          store.tick++
+          scheduleTick()
+        })
+      } else {
+        // Fallback for browsers without requestIdleCallback
+        store.tick++
+        scheduleTick()
+      }
+    }, 30_000)
+  }
+  scheduleTick()
 }

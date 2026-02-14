@@ -94,22 +94,29 @@ export function createApiHandler(app: Hono, db: Database) {
     sql += ' ORDER BY updated_at DESC'
     const sessions = db.prepare(sql).all(...(params as (string | number)[])) as any[]
 
-    // Compute effective status: active sessions not updated for 60s -> stale
-    // Also get latest model_id from token_usage
+    // P2: Single query for latest model_id per session (eliminates N+1)
+    // JOIN on MAX(timestamp) per session → 1 query instead of N
+    const latestModels = db.prepare(`
+      SELECT tu.session_id, tu.model_id
+      FROM token_usage tu
+      INNER JOIN (
+        SELECT session_id, MAX(timestamp) as max_ts
+        FROM token_usage
+        GROUP BY session_id
+      ) latest ON tu.session_id = latest.session_id AND tu.timestamp = latest.max_ts
+    `).all() as { session_id: string; model_id: string | null }[]
+    const modelMap = new Map(latestModels.map(r => [r.session_id, r.model_id]))
+
+    // Compute effective status + attach model_id in single pass
     const processed = sessions.map(s => {
       let effectiveStatus = s.status
       if (s.status === 'active' && (now - s.updated_at) > STALE_THRESHOLD) {
         effectiveStatus = 'stale'
       }
-      // Get latest model for this session
-      const latestToken = db.prepare(
-        'SELECT model_id FROM token_usage WHERE session_id = ? ORDER BY timestamp DESC LIMIT 1'
-      ).get(s.id) as { model_id: string | null } | undefined
-      
-      return { ...s, status: effectiveStatus, model_id: latestToken?.model_id || null }
+      return { ...s, status: effectiveStatus, model_id: modelMap.get(s.id) || null }
     })
 
-    // Attach notes_count to each session
+    // Attach notes_count to each session (already 1 query)
     const noteCounts = db.prepare(
       'SELECT session_id, COUNT(*) as cnt FROM notes GROUP BY session_id'
     ).all() as { session_id: string; cnt: number }[]
