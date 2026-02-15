@@ -1,6 +1,5 @@
 <script lang="ts">
   import { page } from '$app/stores'
-  import { onMount } from 'svelte'
   import { getSession } from '$lib/api'
   import { formatRelativeTime, formatTokens, formatCost, getProjectName, getProjectColor, cn } from '$lib/utils'
   import type { Session, TimelineEvent } from '$lib/types'
@@ -415,120 +414,21 @@
     }
   })
 
-  onMount(() => {
-    loadSession()
+  // Re-load when sessionId changes (handles session→session navigation)
+  // SvelteKit reuses the component on /sessions/[id] → /sessions/[other-id],
+  // so onMount won't fire again — $effect watches the derived sessionId instead
+  $effect(() => {
+    if (sessionId) {
+      // Reset scroll state so new session auto-scrolls to bottom
+      userScrolled = false
+      showFloatingHeader = false
+      toolGroupExpanded = new Set<string>()
+      loadSession()
+    }
   })
 </script>
 
-<!-- Markdown styles for rendered content -->
-<svelte:head>
-  <style>
-    /* Markdown content styling */
-    .markdown-content :global(h1) {
-      font-size: 1.75em;
-      font-weight: 700;
-      margin: 0.5em 0 0.3em 0;
-      border-bottom: 1px solid var(--border-subtle);
-      padding-bottom: 0.25em;
-      color: var(--fg-primary);
-    }
-    .markdown-content :global(h2) {
-      font-size: 1.5em;
-      font-weight: 700;
-      margin: 0.5em 0 0.3em 0;
-      border-bottom: 1px solid var(--border-subtle);
-      padding-bottom: 0.25em;
-      color: var(--fg-primary);
-    }
-    .markdown-content :global(h3) {
-      font-size: 1.25em;
-      font-weight: 600;
-      margin: 0.4em 0 0.25em 0;
-      color: var(--fg-primary);
-    }
-    .markdown-content :global(h4) {
-      font-size: 1.1em;
-      font-weight: 600;
-      margin: 0.3em 0 0.25em 0;
-      color: var(--fg-primary);
-    }
-    .markdown-content :global(p) {
-      margin: 0.5em 0;
-      line-height: 1.6;
-    }
-    .markdown-content :global(code) {
-      background: var(--bg-tertiary);
-      padding: 0.15em 0.4em;
-      border-radius: 4px;
-      font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      font-size: 0.85em;
-      color: var(--accent-blue);
-    }
-    .markdown-content :global(pre) {
-      background: var(--bg-primary);
-      padding: 1em;
-      border-radius: 6px;
-      overflow-x: auto;
-      margin: 0.5em 0;
-      border: 1px solid var(--border-subtle);
-    }
-    .markdown-content :global(pre code) {
-      background: none;
-      padding: 0;
-      font-size: 0.9em;
-      color: var(--fg-secondary);
-    }
-    .markdown-content :global(ul), .markdown-content :global(ol) {
-      margin: 0.5em 0;
-      padding-left: 1.5em;
-      line-height: 1.6;
-    }
-    .markdown-content :global(li) {
-      margin: 0.25em 0;
-    }
-    .markdown-content :global(blockquote) {
-      border-left: 3px solid var(--accent-blue);
-      margin: 0.5em 0;
-      padding-left: 1em;
-      color: var(--fg-muted);
-      background: var(--bg-tertiary);
-      padding: 0.5em 1em;
-      border-radius: 0 6px 6px 0;
-    }
-    .markdown-content :global(a) {
-      color: var(--accent-blue);
-      text-decoration: underline;
-    }
-    .markdown-content :global(strong) {
-      color: var(--fg-primary);
-      font-weight: 600;
-    }
-    .markdown-content :global(table) {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 0.5em 0;
-      font-size: 0.9em;
-    }
-    .markdown-content :global(th), .markdown-content :global(td) {
-      border: 1px solid var(--border-subtle);
-      padding: 0.5em 0.75em;
-      text-align: left;
-    }
-    .markdown-content :global(th) {
-      background: var(--bg-tertiary);
-      font-weight: 600;
-      color: var(--fg-primary);
-    }
-    .markdown-content :global(tr:nth-child(even)) {
-      background: var(--bg-secondary);
-    }
-    .markdown-content :global(hr) {
-      border: none;
-      border-top: 1px solid var(--border-subtle);
-      margin: 1em 0;
-    }
-  </style>
-</svelte:head>
+
 
 <div class="h-full flex flex-col bg-[var(--bg-primary)]">
   {#if loading}
@@ -885,6 +785,125 @@
 </div>
 
 <style>
+  /* Markdown content styling — must use :global() in component <style> for @html content */
+  :global(.markdown-content h1) {
+    font-size: 1.75em;
+    font-weight: 700;
+    margin: 0.5em 0 0.3em;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 0.25em;
+    color: var(--fg-primary);
+  }
+  :global(.markdown-content h2) {
+    font-size: 1.5em;
+    font-weight: 700;
+    margin: 0.5em 0 0.3em;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 0.25em;
+    color: var(--fg-primary);
+  }
+  :global(.markdown-content h3) {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin: 0.4em 0 0.25em;
+    color: var(--fg-primary);
+  }
+  :global(.markdown-content h4) {
+    font-size: 1.1em;
+    font-weight: 600;
+    margin: 0.3em 0 0.25em;
+    color: var(--fg-primary);
+  }
+  :global(.markdown-content p) {
+    margin: 0.5em 0;
+    line-height: 1.6;
+  }
+  :global(.markdown-content code) {
+    background: var(--bg-tertiary);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.85em;
+    color: var(--accent-blue);
+  }
+  :global(.markdown-content pre) {
+    background: var(--bg-primary);
+    padding: 1em;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 0.5em 0;
+    border: 1px solid var(--border);
+  }
+  :global(.markdown-content pre code) {
+    background: none;
+    padding: 0;
+    font-size: 0.9em;
+    color: var(--fg-secondary);
+  }
+  :global(.markdown-content ul),
+  :global(.markdown-content ol) {
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+    line-height: 1.6;
+  }
+  :global(.markdown-content ul) {
+    list-style-type: disc;
+  }
+  :global(.markdown-content ol) {
+    list-style-type: decimal;
+  }
+  :global(.markdown-content li) {
+    margin: 0.25em 0;
+  }
+  :global(.markdown-content li::marker) {
+    color: var(--fg-muted);
+  }
+  :global(.markdown-content blockquote) {
+    border-left: 3px solid var(--accent-blue);
+    margin: 0.5em 0;
+    color: var(--fg-muted);
+    background: var(--bg-tertiary);
+    padding: 0.5em 1em;
+    border-radius: 0 6px 6px 0;
+  }
+  :global(.markdown-content a) {
+    color: var(--accent-blue);
+    text-decoration: underline;
+  }
+  :global(.markdown-content strong) {
+    color: var(--fg-primary);
+    font-weight: 600;
+  }
+  :global(.markdown-content table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.5em 0;
+    font-size: 0.9em;
+    border: 1px solid var(--border);
+  }
+  :global(.markdown-content th),
+  :global(.markdown-content td) {
+    border: 1px solid var(--border);
+    padding: 0.5em 0.75em;
+    text-align: left;
+  }
+  :global(.markdown-content th) {
+    background: var(--bg-tertiary);
+    font-weight: 600;
+    color: var(--fg-primary);
+  }
+  :global(.markdown-content tr:nth-child(even)) {
+    background: var(--bg-tertiary);
+  }
+  :global(.markdown-content tr:hover) {
+    background: var(--bg-hover);
+  }
+  :global(.markdown-content hr) {
+    border: none;
+    border-top: 1px solid var(--border-subtle);
+    margin: 1em 0;
+  }
+
   /* Floating bar: Active session - green spinning border */
   :global(.floating-bar-active) {
     position: relative;
