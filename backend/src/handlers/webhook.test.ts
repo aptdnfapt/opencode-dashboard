@@ -5,12 +5,13 @@ import { Database } from 'bun:sqlite'
 import { initSchema } from '../db/schema'
 
 // Mock wsManager before importing webhook handler
+let idleBroadcastCount = 0
 const mockWsManager = {
   broadcastSessionCreated: () => {},
   broadcastSessionUpdated: () => {},
   broadcastTimeline: () => {},
   broadcastAttention: () => {},
-  broadcastIdle: () => {},
+  broadcastIdle: () => { idleBroadcastCount++ },
   broadcastError: () => {},
 }
 
@@ -58,6 +59,24 @@ function createTestWebhookHandler(app: Hono, db: Database) {
         }
         break
 
+      case 'session.idle': {
+        // Dedup: skip broadcast if session is already idle in DB
+        const current = db.prepare('SELECT status FROM sessions WHERE id = ?')
+          .get(sessionId) as { status: string } | null
+        
+        if (current?.status === 'idle') {
+          // Already idle — update timestamp but don't broadcast
+          db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?')
+            .run(event.timestamp, sessionId)
+          break
+        }
+        
+        db.prepare('UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?')
+          .run('idle', event.timestamp, sessionId)
+        mockWsManager.broadcastIdle()
+        break
+      }
+
       case 'tokens':
         const totalTokens = (event.tokensIn || 0) + (event.tokensOut || 0)
         db.prepare(`
@@ -80,6 +99,7 @@ describe('Webhook Handler', () => {
     initSchema(db)
     app = new Hono()
     createTestWebhookHandler(app, db)
+    idleBroadcastCount = 0
   })
 
   afterEach(() => {
@@ -169,6 +189,38 @@ describe('Webhook Handler', () => {
 
     const session = db.prepare('SELECT needs_attention FROM sessions WHERE id = ?').get('test-123') as any
     expect(session.needs_attention).toBe(1)
+  })
+
+  it('broadcasts idle only once, skips duplicates', async () => {
+    // Create an active session
+    db.prepare('INSERT INTO sessions (id, title, hostname, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run('test-123', 'Test', 'vps1', 'active', Date.now(), Date.now())
+
+    const makeIdleRequest = () => app.fetch(new Request('http://localhost/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'session.idle',
+        sessionId: 'test-123',
+        timestamp: Date.now()
+      })
+    }))
+
+    // First idle → should broadcast
+    await makeIdleRequest()
+    expect(idleBroadcastCount).toBe(1)
+
+    // Second idle → session already idle in DB, should skip broadcast
+    await makeIdleRequest()
+    expect(idleBroadcastCount).toBe(1) // still 1, not 2
+
+    // Third idle → still skipped
+    await makeIdleRequest()
+    expect(idleBroadcastCount).toBe(1) // still 1
+
+    // Verify session status is idle in DB
+    const session = db.prepare('SELECT status FROM sessions WHERE id = ?').get('test-123') as any
+    expect(session.status).toBe('idle')
   })
 
   it('creates session with parent_session_id', async () => {

@@ -102,6 +102,16 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
   // Track which messages we've already sent tokens for (prevent duplicates)
   const sentTokenMessages = new Set<string>()
   
+  // Dedup: track last idle send time per session to prevent duplicate bing sounds
+  // OpenCode's cancel() can fire session.status idle multiple times rapidly
+  const lastIdleSent = new Map<string, number>()
+  const IDLE_DEDUP_MS = 2000 // ignore duplicate idle events within 2 seconds
+  
+  // Track sessions that were just aborted (ESC) — abort fires session.error THEN session.status idle
+  // We suppress the bing on session.error for aborts, but still need to send session.idle
+  // so backend knows session is idle — just without a bing-triggering event
+  const recentAborts = new Set<string>()
+  
   // Send event to backend. Returns promise so callers can await if ordering matters.
   function send(payload: any): Promise<void> {
     const headers: Record<string, string> = { "Content-Type": "application/json" }
@@ -157,6 +167,25 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
           const status = props?.status
           if (sessionId && status) {
             if (status.type === "idle") {
+              // Dedup: skip if we already sent idle for this session recently
+              const now = Date.now()
+              const lastSent = lastIdleSent.get(sessionId) || 0
+              if (now - lastSent < IDLE_DEDUP_MS) break
+              lastIdleSent.set(sessionId, now)
+              
+              // Wait briefly — cancel() fires idle BEFORE processor fires session.error
+              // This gives the abort error time to arrive and set recentAborts flag
+              await new Promise(r => setTimeout(r, 150))
+              
+              // Check if this idle follows an abort — if so, skip bing entirely
+              // User pressed ESC → they don't need a notification for their own action
+              if (recentAborts.has(sessionId)) {
+                recentAborts.delete(sessionId)
+                // Still tell backend session is idle, but mark silent so it skips broadcast
+                send({ type: "session.idle", sessionId, silent: true })
+                break
+              }
+              
               // Send pending message first, THEN idle — order matters so backend
               // processes timeline before marking session idle (which triggers bing)
               const msg = pendingMessages.get(sessionId)
@@ -186,6 +215,26 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
         case "session.error": {
           const sessionId = props?.sessionID
           const errorMsg = props?.error?.data?.message || props?.error?.name || "Unknown error"
+          
+          // User-initiated cancel (ESC) fires "The operation was aborted." — not a real error
+          // Don't bing, don't send error event, just log it in timeline as info
+          const isAbort = errorMsg.includes("aborted") || errorMsg.includes("AbortError")
+          if (isAbort && sessionId) {
+            // Mark this session as recently aborted so idle handler knows to skip pending msg
+            recentAborts.add(sessionId)
+            // Still record in timeline so user sees it happened, but as a mild event
+            send({
+              type: "timeline",
+              eventType: "error",
+              sessionId,
+              summary: "Cancelled"
+            })
+            // Clear partial AI response — abort means incomplete, don't flush garbage
+            pendingMessages.delete(sessionId)
+            break
+          }
+          
+          // Real errors — send normally with bing
           send({
             type: "timeline",
             eventType: "error",

@@ -117,22 +117,39 @@ export function createWebhookHandler(app: Hono, db: Database) {
           break
 
         case 'session.idle': {
+          // Dedup: skip broadcast if session is already idle in DB
+          // OpenCode can fire multiple idle events per cancel — only bing once
+          const current = db.prepare('SELECT status, title, parent_session_id FROM sessions WHERE id = ?')
+            .get(sessionId) as { status: string; title: string; parent_session_id: string | null } | null
+          
+          if (current?.status === 'idle') {
+            // Already idle — update timestamp but don't broadcast (no duplicate bing)
+            db.prepare('UPDATE sessions SET updated_at = ? WHERE id = ?')
+              .run(event.timestamp, sessionId)
+            break
+          }
+          
           db.prepare('UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?')
             .run('idle', event.timestamp, sessionId)
           
-          // Get session title and parent_session_id for TTS
-          const session = db.prepare('SELECT title, parent_session_id FROM sessions WHERE id = ?')
-            .get(sessionId) as { title: string; parent_session_id: string | null } | null
-          const isSubagent = !!session?.parent_session_id
+          // Silent flag: plugin sends silent=true for user-initiated aborts (ESC)
+          // Update DB status but skip broadcast — no bing for user's own action
+          if ((event as any).silent) {
+            // Still notify frontend of status change (no audio), so UI updates
+            wsManager.broadcastSessionUpdated({ id: sessionId, status: 'idle' })
+            break
+          }
+          
+          const isSubagent = !!current?.parent_session_id
           let audioUrl: string | undefined
 
           // Generate signed TTS URL if model is ready
-          if (session && isTTSReady()) {
+          if (current && isTTSReady()) {
             const prefix = isSubagent ? 'Subagent ' : ''
-            audioUrl = generateSignedUrl(prefix + session.title + ' is idle', 5) // 5 min expiry
+            audioUrl = generateSignedUrl(prefix + current.title + ' is idle', 5) // 5 min expiry
           }
           
-          wsManager.broadcastIdle(sessionId, audioUrl, isSubagent, session?.title)
+          wsManager.broadcastIdle(sessionId, audioUrl, isSubagent, current?.title)
           break
         }
 
