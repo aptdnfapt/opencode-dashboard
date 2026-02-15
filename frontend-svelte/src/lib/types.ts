@@ -29,7 +29,7 @@ export interface TimelineEvent {
   id: number
   session_id: string
   timestamp: number
-  event_type: 'tool' | 'message' | 'user' | 'error' | 'permission'
+  event_type: 'tool' | 'message' | 'user' | 'error' | 'permission' | 'question'
   summary: string
   tool_name: string | null
   provider_id: string | null

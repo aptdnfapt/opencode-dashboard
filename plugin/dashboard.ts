@@ -275,6 +275,20 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
           break
         }
         
+        // AI model asked user a question via the question tool — needs attention
+        case "question.asked": {
+          const questions = props?.questions || []
+          // Build summary from first question's text, fallback to header
+          const summary = questions[0]?.question || questions[0]?.header || "Question asked"
+          send({
+            type: "timeline",
+            eventType: "question",
+            sessionId: props?.sessionID,
+            summary: `Question: ${summary}`
+          })
+          break
+        }
+        
         case "message.updated": {
           const msg = props?.info
           

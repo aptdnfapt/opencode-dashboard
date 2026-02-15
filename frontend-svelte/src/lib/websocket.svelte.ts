@@ -490,7 +490,7 @@ class WebSocketService {
 
   // Validate event_type string to TimelineEvent union type
   private validateEventType(eventType: string): TimelineEvent['event_type'] {
-    const validTypes: TimelineEvent['event_type'][] = ['tool', 'message', 'user', 'error', 'permission']
+    const validTypes: TimelineEvent['event_type'][] = ['tool', 'message', 'user', 'error', 'permission', 'question']
     if (validTypes.includes(eventType as TimelineEvent['event_type'])) {
       return eventType as TimelineEvent['event_type']
     }

@@ -200,8 +200,8 @@ export function createWebhookHandler(app: Hono, db: Database) {
           }
           wsManager.broadcastTimeline(timelineEvent)
 
-          // Set needs_attention on permission events
-          if (event.eventType === 'permission') {
+          // Set needs_attention on permission/question events
+          if (event.eventType === 'permission' || event.eventType === 'question') {
             db.prepare('UPDATE sessions SET needs_attention = 1 WHERE id = ?')
               .run(sessionId)
 

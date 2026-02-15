@@ -55,7 +55,7 @@
         currentTurn = { user: event, tools: [], message: undefined }
       } else if (event.event_type === 'tool') {
         currentTurn.tools.push(event)
-      } else if (event.event_type === 'message' || event.event_type === 'error' || event.event_type === 'permission') {
+      } else if (event.event_type === 'message' || event.event_type === 'error' || event.event_type === 'permission' || event.event_type === 'question') {
         currentTurn.message = event
         turns.push(currentTurn)
         currentTurn = { tools: [] }
