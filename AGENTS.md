@@ -18,6 +18,13 @@ bun run build        # Production build (vite build)
 bun run preview      # Preview production build
 bun run check        # svelte-kit sync + svelte-check (type checking)
 bun run check:watch  # Type checking in watch mode
+bun run lint         # ESLint — TS/Svelte code quality
+bun run lint:fix     # ESLint with auto-fix
+bun run lint:css     # Stylelint — CSS in .css + .svelte files
+bun run lint:css:fix # Stylelint with auto-fix
+bun run lint:all     # Both ESLint + Stylelint
+bun run test         # Vitest — frontend unit tests
+bun run test:watch   # Vitest in watch mode
 ```
 
 ### Backend (run in `/backend`)
@@ -30,13 +37,14 @@ bun run test:watch   # Tests in watch mode
 
 ### Running a Single Test
 ```bash
-# Backend only (no frontend tests exist yet)
 cd backend && bun test path/to/file.test.ts
+cd frontend-svelte && bun run test path/to/file.test.ts
 ```
 
 ### Pre-commit Checks
 ```bash
 cd frontend-svelte && bun run check
+cd frontend-svelte && bun run lint:all
 cd backend && bun test
 ```
 

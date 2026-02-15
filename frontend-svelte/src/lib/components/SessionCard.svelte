@@ -373,6 +373,7 @@
     position: absolute;
     inset: 0;
     border-radius: inherit;
+
     /* Static shadow + border painted once */
     box-shadow: 0 0 8px rgba(234, 179, 8, 0.3);
     border: 1px solid rgba(234, 179, 8, 0.5);
@@ -422,6 +423,7 @@
     position: absolute;
     inset: 0;
     border-radius: inherit;
+
     /* Static shadow painted once */
     box-shadow: 0 0 0 1px var(--accent-amber), 0 0 8px rgba(210, 153, 34, 0.3);
     pointer-events: none;

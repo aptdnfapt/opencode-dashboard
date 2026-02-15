@@ -7,14 +7,11 @@
   --bg-tertiary: #21262d;
   --bg-elevated: #282e36;
   --bg-hover: #30363d;
-  
   --border: #30363d;
   --border-subtle: rgba(240, 246, 252, 0.1);
-  
   --fg-primary: #e6edf3;
   --fg-secondary: #8b949e;
   --fg-muted: #6e7681;
-  
   --accent-blue: #58a6ff;
   --accent-green: #3fb950;
   --accent-amber: #d29922;
@@ -31,25 +28,21 @@
 
 /* Light theme - GitHub Light inspired */
 .light {
-  --bg-primary: #ffffff;
+  --bg-primary: #fff;
   --bg-secondary: #f6f8fa;
   --bg-tertiary: #eaeef2;
-  --bg-elevated: #ffffff;
+  --bg-elevated: #fff;
   --bg-hover: #d0d7de;
-  
   --border: #d0d7de;
   --border-subtle: rgba(31, 35, 40, 0.15);
-  
   --fg-primary: #1f2328;
   --fg-secondary: #656d76;
   --fg-muted: #8c959f;
-  
   --accent-blue: #0969da;
   --accent-green: #1a7f37;
   --accent-amber: #9a6700;
   --accent-red: #cf222e;
   --accent-purple: #8250df;
-
   --shadow-sm: 0 1px 3px rgba(31, 35, 40, 0.1);
   --shadow-md: 0 4px 12px rgba(31, 35, 40, 0.15);
   --gradient-subtle: linear-gradient(135deg, rgba(0,0,0,0.02) 0%, transparent 60%);
@@ -57,26 +50,22 @@
 
 /* System preference fallback (when no class applied) */
 @media (prefers-color-scheme: light) {
-  :root:not(.light):not(.dark) {
-    --bg-primary: #ffffff;
+  :root:not(.light, .dark) {
+    --bg-primary: #fff;
     --bg-secondary: #f6f8fa;
     --bg-tertiary: #eaeef2;
-    --bg-elevated: #ffffff;
+    --bg-elevated: #fff;
     --bg-hover: #d0d7de;
-    
     --border: #d0d7de;
     --border-subtle: rgba(31, 35, 40, 0.15);
-    
     --fg-primary: #1f2328;
     --fg-secondary: #656d76;
     --fg-muted: #8c959f;
-    
     --accent-blue: #0969da;
     --accent-green: #1a7f37;
     --accent-amber: #9a6700;
     --accent-red: #cf222e;
     --accent-purple: #8250df;
-
     --shadow-sm: 0 1px 3px rgba(31, 35, 40, 0.1);
     --shadow-md: 0 4px 12px rgba(31, 35, 40, 0.15);
     --gradient-subtle: linear-gradient(135deg, rgba(0,0,0,0.02) 0%, transparent 60%);
@@ -89,7 +78,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--bg-primary);
   min-height: 100vh;
 }
@@ -149,7 +138,7 @@ body {
 
 /* Ring pulse — expanding ring for attention states */
 @keyframes ring-pulse {
-  0% { box-shadow: 0 0 0 0 currentColor; }
+  0% { box-shadow: 0 0 0 0 currentcolor; }
   70% { box-shadow: 0 0 0 4px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
