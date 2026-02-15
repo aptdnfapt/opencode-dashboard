@@ -185,3 +185,6 @@ kill <pid>
 
 
 dont auto commit 
+
+
+make detail commit when user asks for it 

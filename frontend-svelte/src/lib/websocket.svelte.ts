@@ -411,8 +411,8 @@ class WebSocketService {
             event_type: eventType,
             summary: data.summary,
             tool_name: data.toolName,
-            provider_id: null,
-            model_id: null
+            provider_id: data.providerId ?? null,
+            model_id: data.modelId ?? null
           }
           store.addTimelineEvent(event.session_id, event)
         }

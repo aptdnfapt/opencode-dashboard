@@ -99,6 +99,9 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
   // Store last message per session - only send on idle
   const pendingMessages = new Map<string, string>()
   
+  // Track last model used per session — captured from message.updated streaming events
+  const pendingModels = new Map<string, { modelId: string; providerId: string }>()
+  
   // Track which messages we've already sent tokens for (prevent duplicates)
   const sentTokenMessages = new Set<string>()
   
@@ -190,13 +193,17 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
               // processes timeline before marking session idle (which triggers bing)
               const msg = pendingMessages.get(sessionId)
               if (msg) {
+                const model = pendingModels.get(sessionId)
                 await send({
                   type: "timeline",
                   eventType: "message",
                   sessionId,
-                  summary: msg
+                  summary: msg,
+                  // Include model info so timeline events show which model responded
+                  ...(model && { modelId: model.modelId, providerId: model.providerId })
                 })
                 pendingMessages.delete(sessionId)
+                pendingModels.delete(sessionId)
               }
               // Now safe to mark idle — backend won't flip status back to active
               send({ type: "session.idle", sessionId })
@@ -269,9 +276,16 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
         }
         
         case "message.updated": {
+          const msg = props?.info
+          
+          // Track model for this session — available on every streaming update
+          // Used when flushing pending message on idle so timeline events have model_id
+          if (msg?.role === "assistant" && msg?.modelID && msg?.sessionID) {
+            pendingModels.set(msg.sessionID, { modelId: msg.modelID, providerId: msg.providerID || "" })
+          }
+          
           // Only count tokens when message is FINISHED (has finish field)
           // message.updated fires on every streaming update - we only want final count
-          const msg = props?.info
           if (msg?.role === "assistant" && msg?.tokens && msg?.finish && !sentTokenMessages.has(msg.id)) {
             // Mark as sent to prevent duplicates
             sentTokenMessages.add(msg.id)
