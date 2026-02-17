@@ -235,11 +235,16 @@ export async function getTimeByProject(): Promise<{
 }
 
 // --- Notes ---
-import type { Note } from './types'
+import type { Note, ProjectNote } from './types'
 
 // Get all notes for a session
 export async function getSessionNotes(sessionId: string): Promise<Note[]> {
   return fetchAPI(`/api/sessions/${sessionId}/notes`)
+}
+
+// Get all notes for a project (across all sessions sharing same directory)
+export async function getProjectNotes(directory: string): Promise<ProjectNote[]> {
+  return fetchAPI(`/api/projects/notes?directory=${encodeURIComponent(directory)}`)
 }
 
 // Create a new note for a session

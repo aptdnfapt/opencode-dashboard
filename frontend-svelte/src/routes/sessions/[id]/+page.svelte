@@ -426,6 +426,24 @@
       loadSession()
     }
   })
+
+  // Handle #event-N hash in URL — auto-scroll to event after timeline loads
+  // Used by project notes drawer when clicking #N refs from a different session
+  $effect(() => {
+    if (timeline.length > 0 && typeof window !== 'undefined') {
+      const hash = window.location.hash
+      const match = hash.match(/^#event-(\d+)$/)
+      if (match) {
+        const eventNum = parseInt(match[1])
+        // Small delay to let DOM render before scrolling
+        setTimeout(() => {
+          scrollToEvent(eventNum)
+          // Clear hash after scrolling so it doesn't re-trigger
+          history.replaceState(null, '', window.location.pathname)
+        }, 200)
+      }
+    }
+  })
 </script>
 
 
@@ -777,6 +795,7 @@
     {#if sessionId}
       <NotesDrawer
         sessionId={sessionId}
+        directory={session?.directory ?? null}
         totalEvents={timeline.length}
         onScrollToEvent={scrollToEvent}
       />

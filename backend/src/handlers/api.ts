@@ -1050,4 +1050,30 @@ export function createApiHandler(app: Hono, db: Database) {
     db.prepare('DELETE FROM notes WHERE id = ?').run(noteId)
     return c.json({ success: true, id: noteId })
   })
+
+  // GET /api/projects/notes?directory= - all notes for a project (across sessions sharing same directory)
+  app.get('/api/projects/notes', (c: Context) => {
+    const directory = c.req.query('directory')
+    if (!directory) return c.json({ error: 'directory query param is required' }, 400)
+
+    // JOIN notes with sessions to get session title + filter by directory
+    const notes = db.prepare(`
+      SELECT n.id, n.session_id, n.content, n.message_refs, n.created_at, n.updated_at,
+             s.title as session_title
+      FROM notes n
+      JOIN sessions s ON n.session_id = s.id
+      WHERE s.directory = ?
+      ORDER BY n.created_at DESC, n.id DESC
+    `).all(directory) as {
+      id: number; session_id: string; content: string; message_refs: string;
+      created_at: number; updated_at: number; session_title: string
+    }[]
+
+    const parsed = notes.map(n => ({
+      ...n,
+      message_refs: JSON.parse(n.message_refs || '[]')
+    }))
+
+    return c.json(parsed)
+  })
 }

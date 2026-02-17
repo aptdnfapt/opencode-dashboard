@@ -25,6 +25,11 @@ export interface Note {
   updated_at: number
 }
 
+// Note with session context — returned by project-level notes endpoint
+export interface ProjectNote extends Note {
+  session_title: string
+}
+
 export interface TimelineEvent {
   id: number
   session_id: string

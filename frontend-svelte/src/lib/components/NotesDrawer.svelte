@@ -1,21 +1,44 @@
 <script lang="ts">
-  // Pull-tab drawer for per-session notes with #N message references
-  import type { Note } from '$lib/types'
-  import { getSessionNotes, createNote, updateNote, deleteNote } from '$lib/api'
+  // Pull-tab drawer for notes — supports session-scoped and project-scoped views
+  // Session view: notes for current session only (existing behavior)
+  // Project view: notes across all sessions sharing same directory
+  import type { Note, ProjectNote } from '$lib/types'
+  import { getSessionNotes, getProjectNotes, createNote, updateNote, deleteNote } from '$lib/api'
   import { formatRelativeTime } from '$lib/utils'
-  import { StickyNote, Plus, Trash2, ChevronLeft, ChevronRight, Pencil, Check, X } from 'lucide-svelte'
+  import { goto } from '$app/navigation'
+  import { page } from '$app/stores'
+  import { StickyNote, Plus, Trash2, ChevronLeft, ChevronRight, Pencil, Check, X, FolderOpen, MessageSquare } from 'lucide-svelte'
 
-  // Props: session ID + total event count (for validating #N refs)
+  // Props
   interface Props {
     sessionId: string
+    directory: string | null        // project directory — needed for project-scoped queries
     totalEvents: number
     onScrollToEvent?: (index: number) => void
   }
-  let { sessionId, totalEvents, onScrollToEvent }: Props = $props()
+  let { sessionId, directory, totalEvents, onScrollToEvent }: Props = $props()
 
-  // Drawer state
+  // View mode toggle: 'session' = this session only, 'project' = all sessions in same directory
+  let viewMode = $state<'session' | 'project'>('session')
+
+  // Drawer state — auto-open if ?notes= param present (preserves drawer across navigation)
   let open = $state(false)
-  let notes = $state<Note[]>([])
+
+  // On mount: if URL has ?notes=project or ?notes=session, open drawer in that mode
+  $effect(() => {
+    const notesParam = $page.url.searchParams.get('notes')
+    if (notesParam === 'project' || notesParam === 'session') {
+      open = true
+      viewMode = notesParam
+      loadCurrentView()
+      // Clean up the URL param so it doesn't stick around
+      const url = new URL(window.location.href)
+      url.searchParams.delete('notes')
+      history.replaceState(null, '', url.pathname + url.hash)
+    }
+  })
+  let sessionNotes = $state<Note[]>([])
+  let projectNotes = $state<ProjectNote[]>([])
   let loading = $state(false)
 
   // New note form
@@ -23,18 +46,34 @@
   let newContent = $state('')
   let saving = $state(false)
 
-  // Edit state: which note ID is being edited
+  // Edit state
   let editingId = $state<number | null>(null)
   let editContent = $state('')
   let editSaving = $state(false)
 
-  // Load notes when drawer opens
-  async function loadNotes() {
+  // Derive which notes list to show based on toggle
+  let notes = $derived<(Note | ProjectNote)[]>(viewMode === 'session' ? sessionNotes : projectNotes)
+
+  // Load session notes
+  async function loadSessionNotes() {
     loading = true
     try {
-      notes = await getSessionNotes(sessionId)
+      sessionNotes = await getSessionNotes(sessionId)
     } catch (err) {
-      console.warn('Failed to load notes:', err)
+      console.warn('Failed to load session notes:', err)
+    } finally {
+      loading = false
+    }
+  }
+
+  // Load project notes (all sessions in same directory)
+  async function loadProjectNotes() {
+    if (!directory) return
+    loading = true
+    try {
+      projectNotes = await getProjectNotes(directory)
+    } catch (err) {
+      console.warn('Failed to load project notes:', err)
     } finally {
       loading = false
     }
@@ -43,18 +82,34 @@
   // Toggle drawer open/close
   function toggle() {
     open = !open
-    if (open && notes.length === 0) {
-      loadNotes()
-    }
+    if (open) loadCurrentView()
   }
 
-  // Create a new note
+  // Load whichever view is active
+  function loadCurrentView() {
+    if (viewMode === 'session') loadSessionNotes()
+    else loadProjectNotes()
+  }
+
+  // Switch view mode and reload
+  function switchMode(mode: 'session' | 'project') {
+    if (viewMode === mode) return
+    viewMode = mode
+    loadCurrentView()
+  }
+
+  // Create a new note (always tied to current session)
   async function handleSave() {
     if (!newContent.trim() || saving) return
     saving = true
     try {
       const note = await createNote(sessionId, newContent.trim())
-      notes = [note, ...notes]
+      // Add to session notes list
+      sessionNotes = [note, ...sessionNotes]
+      // If in project view, also add with session_title context
+      if (viewMode === 'project') {
+        loadProjectNotes()  // reload to get session_title from server
+      }
       newContent = ''
       composing = false
     } catch (err) {
@@ -64,19 +119,21 @@
     }
   }
 
-  // Start editing a note
-  function startEdit(note: Note) {
+  // Start editing
+  function startEdit(note: Note | ProjectNote) {
     editingId = note.id
     editContent = note.content
   }
 
-  // Save edited note
+  // Save edit
   async function handleEditSave() {
     if (!editContent.trim() || editSaving || editingId === null) return
     editSaving = true
     try {
       const updated = await updateNote(editingId, editContent.trim())
-      notes = notes.map(n => n.id === editingId ? updated : n)
+      sessionNotes = sessionNotes.map(n => n.id === editingId ? updated : n)
+      // Refresh project notes too if in project view
+      if (viewMode === 'project') loadProjectNotes()
       editingId = null
       editContent = ''
     } catch (err) {
@@ -86,7 +143,6 @@
     }
   }
 
-  // Cancel editing
   function cancelEdit() {
     editingId = null
     editContent = ''
@@ -96,22 +152,36 @@
   async function handleDelete(noteId: number) {
     try {
       await deleteNote(noteId)
-      notes = notes.filter(n => n.id !== noteId)
+      sessionNotes = sessionNotes.filter(n => n.id !== noteId)
+      projectNotes = projectNotes.filter(n => n.id !== noteId)
     } catch (err) {
       console.warn('Failed to delete note:', err)
     }
   }
 
-  // Cancel composing
   function handleCancel() {
     composing = false
     newContent = ''
   }
 
-  // Handle #N pill click → scroll to that event in the timeline
-  function handleRefClick(refNum: number) {
-    if (refNum < 1 || refNum > totalEvents) return
-    onScrollToEvent?.(refNum)
+  // Handle #N ref click — in project view, may navigate to a different session first
+  function handleRefClick(refNum: number, note: Note | ProjectNote) {
+    if (refNum < 1) return
+
+    const noteBelongsToCurrentSession = note.session_id === sessionId
+
+    if (noteBelongsToCurrentSession) {
+      // Same session: scroll to event directly (existing behavior)
+      if (refNum <= totalEvents) onScrollToEvent?.(refNum)
+    } else {
+      // Different session: navigate there with scroll target in URL hash
+      goto(`/sessions/${note.session_id}?notes=${viewMode}#event-${refNum}`)
+    }
+  }
+
+  // Check if a note is a ProjectNote (has session_title)
+  function isProjectNote(note: Note | ProjectNote): note is ProjectNote {
+    return 'session_title' in note
   }
 
   // Parse note content into segments: plain text + #N references
@@ -138,13 +208,12 @@
   }
 </script>
 
-<!-- Drawer wrapper: handle + panel are one unit, slide together -->
-<!-- Closed state: translateX(350px) hides panel off-screen, handle stays visible at right edge -->
+<!-- Drawer wrapper: handle + panel slide together -->
 <div
   class="fixed top-0 right-0 h-full z-40 flex transition-transform duration-300 ease-in-out pointer-events-none"
   style="width: calc(350px + 24px); transform: translateX({open ? '0px' : '350px'});"
 >
-  <!-- Pull-tab handle: left edge of wrapper, vertically centered, always interactive -->
+  <!-- Pull-tab handle -->
   <button
     onclick={toggle}
     class="self-center shrink-0 flex items-center justify-center w-6 h-16 bg-[var(--bg-secondary)] border border-r-0 border-[var(--border-subtle)] rounded-l-md hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer pointer-events-auto"
@@ -159,7 +228,7 @@
 
   <!-- Panel body -->
   <div class="h-full w-[350px] bg-[var(--bg-primary)] border-l border-[var(--border-subtle)] shadow-[-4px_0_16px_rgba(0,0,0,0.2)] flex flex-col pointer-events-auto">
-    <!-- Header -->
+    <!-- Header: icon + title + new note button -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)] shrink-0">
       <div class="flex items-center gap-2">
         <StickyNote class="w-4 h-4 text-[var(--accent-amber)]" />
@@ -178,9 +247,28 @@
       </button>
     </div>
 
+    <!-- Session | Project toggle -->
+    {#if directory}
+      <div class="flex items-center gap-1 px-4 py-2 border-b border-[var(--border-subtle)] shrink-0">
+        <button
+          onclick={() => switchMode('session')}
+          class="flex-1 px-2 py-1 text-xs font-medium rounded transition-colors {viewMode === 'session' ? 'bg-[var(--accent-blue)]/15 text-[var(--accent-blue)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)]'}"
+        >
+          Session
+        </button>
+        <button
+          onclick={() => switchMode('project')}
+          class="flex-1 flex items-center justify-center gap-1 px-2 py-1 text-xs font-medium rounded transition-colors {viewMode === 'project' ? 'bg-[var(--accent-blue)]/15 text-[var(--accent-blue)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)]'}"
+        >
+          <FolderOpen class="w-3 h-3" />
+          Project
+        </button>
+      </div>
+    {/if}
+
     <!-- Scrollable notes list -->
     <div class="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-      <!-- New note form (inline at top) -->
+      <!-- New note compose form (inline at top) -->
       {#if composing}
         <div class="bg-[var(--bg-secondary)] rounded-lg p-3 border border-[var(--accent-blue)]/40">
           <textarea
@@ -223,15 +311,17 @@
         <!-- Empty state -->
         <div class="flex flex-col items-center justify-center py-12 text-center">
           <StickyNote class="w-8 h-8 text-[var(--fg-muted)] mb-2 opacity-40" />
-          <span class="text-sm text-[var(--fg-muted)]">No notes yet</span>
+          <span class="text-sm text-[var(--fg-muted)]">
+            {viewMode === 'session' ? 'No notes for this session' : 'No notes for this project'}
+          </span>
           <span class="text-xs text-[var(--fg-muted)] mt-1">Click "New Note" to get started</span>
         </div>
       {:else}
-        <!-- Notes list -->
+        <!-- Note cards -->
         {#each notes as note (note.id)}
           <div class="bg-[var(--bg-secondary)] rounded-lg p-3 border border-[var(--border-subtle)] group">
             {#if editingId === note.id}
-              <!-- Edit mode: inline textarea -->
+              <!-- Edit mode -->
               <textarea
                 bind:value={editContent}
                 class="w-full h-24 bg-transparent text-sm text-[var(--fg-primary)] placeholder:text-[var(--fg-muted)] resize-none outline-none"
@@ -263,29 +353,40 @@
               <div class="text-sm text-[var(--fg-secondary)] break-words whitespace-pre-wrap leading-relaxed">
                 {#each parseContent(note.content) as segment}
                   {#if segment.type === 'ref'}
-                    {#if segment.refNum && segment.refNum >= 1 && segment.refNum <= totalEvents}
-                      <button
-                        onclick={() => handleRefClick(segment.refNum!)}
-                        class="inline-flex items-center px-1.5 py-0.5 text-xs font-medium mono bg-[var(--accent-blue)]/15 text-[var(--accent-blue)] rounded-md hover:bg-[var(--accent-blue)]/25 transition-colors cursor-pointer"
-                      >
-                        {segment.value}
-                      </button>
-                    {:else}
-                      <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-medium mono bg-[var(--bg-tertiary)] text-[var(--fg-muted)] rounded-md">
-                        {segment.value}
-                      </span>
-                    {/if}
+                    <!-- #N ref pill — clickable: same session scrolls, diff session navigates -->
+                    {@const isSameSession = note.session_id === sessionId}
+                    {@const inRange = isSameSession && segment.refNum! >= 1 && segment.refNum! <= totalEvents}
+                    <button
+                      onclick={() => handleRefClick(segment.refNum!, note)}
+                      class="inline-flex items-center px-1.5 py-0.5 text-xs font-medium mono rounded-md transition-colors cursor-pointer {inRange ? 'bg-[var(--accent-blue)]/15 text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/25' : isSameSession ? 'bg-[var(--bg-tertiary)] text-[var(--fg-muted)]' : 'bg-[var(--accent-amber)]/15 text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/25'}"
+                      title={isSameSession ? `Scroll to event ${segment.refNum}` : `Open session & go to event ${segment.refNum}`}
+                    >
+                      {segment.value}
+                    </button>
                   {:else}
                     {segment.value}
                   {/if}
                 {/each}
               </div>
 
-              <!-- Footer: timestamp + edit + delete -->
+              <!-- Footer: session label (project view only) + timestamp + actions -->
               <div class="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border-subtle)]">
-                <span class="text-[10px] text-[var(--fg-muted)] mono">
-                  {formatRelativeTime(note.created_at)}
-                </span>
+                <div class="flex flex-col gap-0.5 min-w-0">
+                  {#if viewMode === 'project' && isProjectNote(note)}
+                    <!-- Session origin label — clickable to navigate -->
+                    <button
+                      onclick={() => goto(`/sessions/${note.session_id}?notes=${viewMode}`)}
+                      class="inline-flex items-center gap-1 text-[10px] text-[var(--accent-amber)] hover:text-[var(--accent-amber)]/80 mono truncate text-left transition-colors"
+                      title="Open session: {note.session_title}"
+                    >
+                      <MessageSquare class="w-2.5 h-2.5 shrink-0" />
+                      {note.session_title}
+                    </button>
+                  {/if}
+                  <span class="text-[10px] text-[var(--fg-muted)] mono">
+                    {formatRelativeTime(note.created_at)}
+                  </span>
+                </div>
                 <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onclick={() => startEdit(note)}

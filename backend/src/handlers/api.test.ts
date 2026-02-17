@@ -264,4 +264,78 @@ describe('API Endpoints', () => {
     const notesCount = db.prepare('SELECT COUNT(*) as cnt FROM notes WHERE session_id = ?').get('s1') as { cnt: number }
     expect(notesCount.cnt).toBe(0)
   })
+
+  // --- Project notes tests ---
+
+  it('GET /api/projects/notes returns 400 without directory param', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/projects/notes'))
+    expect(res.status).toBe(400)
+  })
+
+  it('GET /api/projects/notes returns empty array for directory with no notes', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/projects/notes?directory=/home'))
+    const data = await res.json()
+    expect(res.status).toBe(200)
+    expect(data).toEqual([])
+  })
+
+  it('GET /api/projects/notes returns notes across sessions sharing same directory', async () => {
+    // s1 and s2 both have directory=/home (from seed data)
+    // Add a note to each session
+    await app.fetch(new Request('http://localhost/api/sessions/s1/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'note from s1' })
+    }))
+    await app.fetch(new Request('http://localhost/api/sessions/s2/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'note from s2' })
+    }))
+
+    const res = await app.fetch(new Request('http://localhost/api/projects/notes?directory=/home'))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.length).toBe(2)
+    // Each note should include session_title from the JOIN
+    expect(data[0].session_title).toBeDefined()
+    expect(data[1].session_title).toBeDefined()
+    // Newest first
+    expect(data[0].content).toBe('note from s2')
+    expect(data[0].session_title).toBe('Session 2')
+    expect(data[1].content).toBe('note from s1')
+    expect(data[1].session_title).toBe('Session 1')
+  })
+
+  it('GET /api/projects/notes does not return notes from other directories', async () => {
+    // Add a session with a different directory
+    const now = Date.now()
+    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('s3', 'Session 3', 'vps1', '/other', null, 'active', now, now, 0, 0, 0)
+
+    // Add notes to both directories
+    await app.fetch(new Request('http://localhost/api/sessions/s1/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'note in /home' })
+    }))
+    await app.fetch(new Request('http://localhost/api/sessions/s3/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'note in /other' })
+    }))
+
+    // Query /home — should only get s1's note
+    const res = await app.fetch(new Request('http://localhost/api/projects/notes?directory=/home'))
+    const data = await res.json()
+    expect(data.length).toBe(1)
+    expect(data[0].content).toBe('note in /home')
+
+    // Query /other — should only get s3's note
+    const res2 = await app.fetch(new Request('http://localhost/api/projects/notes?directory=/other'))
+    const data2 = await res2.json()
+    expect(data2.length).toBe(1)
+    expect(data2[0].content).toBe('note in /other')
+  })
 })
