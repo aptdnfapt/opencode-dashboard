@@ -4,6 +4,16 @@
 
 A way to keep up with multiple agents on multiple projects across multiple systems at the same time.
 
+---
+
+<div align="center">
+  <a href="https://discord.com/invite/6S7HwCxbMy">
+    <img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white&logoSize=40" alt="Join our Discord">
+  </a>
+</div>
+
+---
+
 ## How It Works
 
 1. Install the OpenCode plugin on each machine you want to monitor
