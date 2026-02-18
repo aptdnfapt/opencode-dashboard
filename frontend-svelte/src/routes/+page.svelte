@@ -114,25 +114,8 @@
         <span class="text-xs text-[var(--fg-muted)]">Sessions will appear when OpenCode instances connect</span>
       {/if}
     </div>
-  {:else if mainSessions.length > VIRTUAL_SCROLL_THRESHOLD}
-    <!-- Virtual scroll for large lists (50+ sessions) -->
-    <div class="h-[calc(100vh-280px)]">
-      <VirtualScroll
-        data={mainSessions}
-        key="id"
-        let:data={session}
-        estimateSize={140}
-      >
-        <div class="pb-3">
-          <SessionCard 
-            {session} 
-            selected={store.selectedSessionId === session.id}
-          />
-        </div>
-      </VirtualScroll>
-    </div>
   {:else}
-    <!-- Regular grid for small lists -->
+    <!-- Grid view - main sessions only (no subagents) -->
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-stretch">
       {#each mainSessions as session, i (session.id)}
         <div style="animation-delay: {Math.min(i * 50, 500)}ms" class="animate-fade-in-up h-full">
