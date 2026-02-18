@@ -220,6 +220,7 @@
         </div>
         <button
           onclick={toggleSortActiveFirst}
+          aria-label="Toggle sort active first"
           class="w-14 h-7 rounded-full transition-colors {sortActiveFirst ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
         >
           <span 
@@ -247,6 +248,7 @@
           </div>
           <button
             onclick={toggleAgentSound}
+            aria-label="Toggle agent sound"
             class="w-14 h-7 rounded-full transition-colors {agentSoundEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
           >
             <span 
@@ -292,6 +294,7 @@
           </div>
           <button
             onclick={toggleSubagentSound}
+            aria-label="Toggle sub-agent sound"
             class="w-14 h-7 rounded-full transition-colors {subagentSoundEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
           >
             <span 
@@ -343,6 +346,7 @@
           </button>
           <button
             onclick={toggleNotifications}
+            aria-label="Toggle browser notifications"
             class="w-14 h-7 rounded-full transition-colors {notificationsEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
           >
             <span 
@@ -366,6 +370,7 @@
           </button>
           <button
             onclick={toggleTTS}
+            aria-label="Toggle text-to-speech"
             class="w-14 h-7 rounded-full transition-colors {ttsEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-tertiary)]'}"
           >
             <span 

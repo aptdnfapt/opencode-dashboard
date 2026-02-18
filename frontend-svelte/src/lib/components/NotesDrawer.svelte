@@ -275,7 +275,6 @@
             bind:value={newContent}
             placeholder="Write a note... Use #N to reference messages"
             class="w-full h-24 bg-transparent text-sm text-[var(--fg-primary)] placeholder:text-[var(--fg-muted)] resize-none outline-none"
-            autofocus
             onkeydown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSave()
               if (e.key === 'Escape') handleCancel()
@@ -325,7 +324,6 @@
               <textarea
                 bind:value={editContent}
                 class="w-full h-24 bg-transparent text-sm text-[var(--fg-primary)] placeholder:text-[var(--fg-muted)] resize-none outline-none"
-                autofocus
                 onkeydown={(e) => {
                   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleEditSave()
                   if (e.key === 'Escape') cancelEdit()

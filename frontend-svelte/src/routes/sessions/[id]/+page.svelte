@@ -497,6 +497,7 @@
 
         <!-- Floating frosted glass header (absolute center) — expands inline on hover -->
         <div
+          role="banner"
           class="floating-bar-wrapper absolute left-1/2 -translate-x-1/2 w-full max-w-2xl px-4" style="top: 5px;"
           onmouseenter={() => showFloatingHeader = true}
           onmouseleave={() => showFloatingHeader = false}

@@ -16,6 +16,7 @@ import { initTTS } from './services/tts'
 const app = new Hono()
 
 app.use('*', cors())
+app.get('/', (c) => c.text('OpenCode Dashboard API'))
 app.get('/health', (c) => c.json({ status: 'ok', clients: wsManager.clientCount }))
 
 // Auth middleware for /api/* routes - require FRONTEND_PASSWORD

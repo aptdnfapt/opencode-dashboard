@@ -161,6 +161,8 @@
         <!-- Cells -->
         {#each grid as cell}
           <rect
+            role="img"
+            aria-label="{cell.value} sessions on {cell.date}"
             x={cell.x}
             y={cell.y}
             width={cellSize}
