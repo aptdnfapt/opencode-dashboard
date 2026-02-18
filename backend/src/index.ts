@@ -90,13 +90,29 @@ if (import.meta.main) {
         const filePath = join(staticDir, url.pathname)
         const file = Bun.file(filePath)
         if (await file.exists()) {
-          return new Response(file, { headers: { 'Content-Type': file.type } })
+          // Cache immutable assets (hashed filenames) for 1 year
+          // Don't cache index.html (SPA entry point)
+          const isImmutable = url.pathname.includes('/_app/') || url.pathname.includes('/assets/')
+          const cacheControl = isImmutable
+            ? 'public, max-age=31536000, immutable'
+            : 'public, max-age=0, must-revalidate'
+          return new Response(file, {
+            headers: {
+              'Content-Type': file.type,
+              'Cache-Control': cacheControl
+            }
+          })
         }
 
-        // SPA fallback — return index.html for all non-file routes
+        // SPA fallback — return index.html for all non-file routes (no cache)
         const indexFile = Bun.file(join(staticDir, 'index.html'))
         if (await indexFile.exists()) {
-          return new Response(indexFile, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+          return new Response(indexFile, {
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Cache-Control': 'public, max-age=0, must-revalidate'
+            }
+          })
         }
       }
 

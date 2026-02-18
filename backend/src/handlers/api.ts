@@ -745,14 +745,16 @@ export function createApiHandler(app: Hono, db: Database) {
     db.prepare('DELETE FROM token_usage WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM file_edits WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM notes WHERE session_id = ?').run(id)
-    // Delete child sessions (subagents)
+    // Delete child sessions (subagents) — batch delete to avoid N+1
     const children = db.prepare('SELECT id FROM sessions WHERE parent_session_id = ?').all(id) as { id: string }[]
-    for (const child of children) {
-      db.prepare('DELETE FROM timeline_events WHERE session_id = ?').run(child.id)
-      db.prepare('DELETE FROM token_usage WHERE session_id = ?').run(child.id)
-      db.prepare('DELETE FROM file_edits WHERE session_id = ?').run(child.id)
-      db.prepare('DELETE FROM notes WHERE session_id = ?').run(child.id)
-      db.prepare('DELETE FROM sessions WHERE id = ?').run(child.id)
+    if (children.length > 0) {
+      const childIds = children.map(c => c.id)
+      const placeholders = childIds.map(() => '?').join(',')
+      db.prepare(`DELETE FROM timeline_events WHERE session_id IN (${placeholders})`).run(...childIds)
+      db.prepare(`DELETE FROM token_usage WHERE session_id IN (${placeholders})`).run(...childIds)
+      db.prepare(`DELETE FROM file_edits WHERE session_id IN (${placeholders})`).run(...childIds)
+      db.prepare(`DELETE FROM notes WHERE session_id IN (${placeholders})`).run(...childIds)
+      db.prepare(`DELETE FROM sessions WHERE id IN (${placeholders})`).run(...childIds)
     }
     // Delete the session itself
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id)

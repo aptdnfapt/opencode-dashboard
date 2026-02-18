@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores'
+  import { onMount } from 'svelte'
   import { getSession } from '$lib/api'
   import { formatRelativeTime, formatTokens, formatCost, getProjectName, getProjectColor, cn } from '$lib/utils'
   import type { Session, TimelineEvent } from '$lib/types'
@@ -10,7 +11,10 @@
   import { ArrowLeft, Copy, Check, ChevronDown, ChevronRight, Cpu } from 'lucide-svelte'
   import SessionCard from '$lib/components/SessionCard.svelte'
   import NotesDrawer from '$lib/components/NotesDrawer.svelte'
-  import { codeToHtml } from 'shiki'
+  
+  // Lazy-load shiki (426KB gzip) — only when this page is visited
+  let codeToHtml: typeof import('shiki').codeToHtml | null = null
+  let shikiLoading = $state(true)
 
   // Stale threshold: idle > 3 min = stale
   const STALE_THRESHOLD_MS = 3 * 60 * 1000
@@ -208,8 +212,13 @@
     renderer
   })
 
-  // Highlight code using shiki
+  // Highlight code using shiki (lazy-loaded)
   async function highlightCode(code: string, lang: string): Promise<string> {
+    // If shiki not loaded yet, return plain code
+    if (!codeToHtml) {
+      const escaped = code.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      return `<pre class="shiki"><code>${escaped}</code></pre>`
+    }
     try {
       const html = await codeToHtml(code, {
         lang: lang || 'text',
@@ -394,6 +403,22 @@
       loading = false
     }
   }
+
+  // Lazy-load shiki in background (doesn't block page render)
+  onMount(async () => {
+    try {
+      const shiki = await import('shiki')
+      codeToHtml = shiki.codeToHtml
+      shikiLoading = false
+      // Re-process any placeholders now that shiki is loaded
+      if (timelineContainer) {
+        processShikiPlaceholders(timelineContainer)
+      }
+    } catch (err) {
+      console.warn('[Shiki] Failed to load:', err)
+      shikiLoading = false
+    }
+  })
 
   // Auto-scroll to bottom when timeline updates (reacts to WS events too)
   $effect(() => {

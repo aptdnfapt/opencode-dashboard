@@ -67,18 +67,28 @@ class DashboardStore {
     return this.sessions.map(s => s.directory).filter(Boolean) as string[]
   }
 
-  // Derived: filtered sessions (handles computed 'stale' status + sorting)
+  // Compute effective status for a session (idle > 3min = stale)
+  // Call this where needed instead of depending on tick globally
+  getEffectiveStatus(session: Session): string {
+    const STALE_THRESHOLD_MS = 3 * 60 * 1000
+    if (session.status === 'archived') return 'archived'
+    if (session.status !== 'idle') return session.status
+    const idleTime = Date.now() - (typeof session.updated_at === 'number' ? session.updated_at : new Date(session.updated_at).getTime())
+    if (this.activeChildrenSet.has(session.id)) return 'idle-with-subagents'
+    return idleTime > STALE_THRESHOLD_MS ? 'stale' : 'idle'
+  }
+
+  // Derived: filtered sessions (no tick dependency — stale computed on demand)
   get filteredSessions() {
-    void this.tick // force re-eval every 30s
     const STALE_THRESHOLD_MS = 3 * 60 * 1000
     const now = Date.now()
-    const activeSubs = this.activeChildrenSet // O(1) ref to precomputed Set
+    const activeSubs = this.activeChildrenSet
     
     const filtered = this.sessions.filter(s => {
-      // Compute effective status: idle > 3min = stale (unless sub-agents are active)
+      // Compute effective status
       let effectiveStatus = s.status
       if (s.status === 'idle') {
-        const idleTime = now - new Date(s.updated_at).getTime()
+        const idleTime = now - (typeof s.updated_at === 'number' ? s.updated_at : new Date(s.updated_at).getTime())
         effectiveStatus = (idleTime > STALE_THRESHOLD_MS && !activeSubs.has(s.id)) ? 'stale' : 'idle'
       }
       
@@ -100,15 +110,16 @@ class DashboardStore {
       return filtered.sort((a, b) => {
         if (a.status === 'active' && b.status !== 'active') return -1
         if (b.status === 'active' && a.status !== 'active') return 1
-        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        const aTime = typeof a.updated_at === 'number' ? a.updated_at : new Date(a.updated_at).getTime()
+        const bTime = typeof b.updated_at === 'number' ? b.updated_at : new Date(b.updated_at).getTime()
+        return bTime - aTime
       })
     }
     return filtered
   }
 
-  // Derived: stats — single loop over sessions (was 6 separate .filter/.reduce passes)
+  // Derived: stats (no tick dependency)
   get stats() {
-    void this.tick // force re-eval every 30s
     const STALE_THRESHOLD_MS = 3 * 60 * 1000
     const now = Date.now()
     const activeSubs = this.activeChildrenSet
@@ -117,7 +128,7 @@ class DashboardStore {
     for (const s of this.sessions) {
       if (s.status === 'active') active++
       else if (s.status === 'idle') {
-        const idleTime = now - new Date(s.updated_at).getTime()
+        const idleTime = now - (typeof s.updated_at === 'number' ? s.updated_at : new Date(s.updated_at).getTime())
         if (idleTime > STALE_THRESHOLD_MS && !activeSubs.has(s.id)) stale++
         else idle++
       }

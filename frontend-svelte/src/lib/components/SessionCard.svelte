@@ -20,7 +20,7 @@
   
   // Compute effective status: idle > 3min → stale (unless sub-agents are active)
   // Uses store.activeChildrenSet (O(1) lookup) instead of O(N) .some() scan
-  let displayStatus = $derived(() => {
+  let displayStatus = $derived.by(() => {
     void store.tick
     if (session.status === 'archived') return 'archived'
     if (session.status !== 'idle') return session.status
@@ -94,14 +94,14 @@
   let timeline = $derived(store.timelines.get(session.id) || [])
   
   // Get latest message
-  let latestMessage = $derived(() => {
+  let latestMessage = $derived.by(() => {
     const last = timeline[timeline.length - 1]
     if (!last?.summary) return ''
     return last.summary.length > 50 ? last.summary.slice(0, 50) + '...' : last.summary
   })
   
   // Get model name from session (set by backend from token_usage)
-  let modelName = $derived(() => {
+  let modelName = $derived.by(() => {
     return (session as unknown as { model_id?: string | null }).model_id || null
   })
   
@@ -170,8 +170,8 @@
   let activeSubAgents = $derived(subAgents.filter(s => s.status === 'active').length)
   let idleSubAgents = $derived(subAgents.filter(s => s.status !== 'active').length)
 
-  let StatusIcon = $derived(getStatusIcon(displayStatus()))
-  let statusColor = $derived(getStatusColor(displayStatus()))
+  let StatusIcon = $derived(getStatusIcon(displayStatus))
+  let statusColor = $derived(getStatusColor(displayStatus))
 </script>
 
 <a
@@ -184,9 +184,9 @@
       ? 'bg-[var(--bg-tertiary)] border-[var(--accent-blue)]' 
       : 'bg-[var(--bg-secondary)] border-[var(--border-subtle)]',
     session.needs_attention ? 'ring-1 ring-[var(--accent-amber)] attention-pulse' : '',
-    displayStatus() === 'active' ? 'spinning-border' : '',
-    displayStatus() === 'idle-with-subagents' ? 'idle-blue-spin' : '',
-    displayStatus() === 'idle' ? 'idle-blink' : '',
+    displayStatus === 'active' ? 'spinning-border' : '',
+    displayStatus === 'idle-with-subagents' ? 'idle-blue-spin' : '',
+    displayStatus === 'idle' ? 'idle-blink' : '',
     !isVisible ? 'animations-paused' : ''
   )}
 
@@ -270,9 +270,9 @@
     <span class="mono truncate" style="color: {getProjectColor(session.directory, allDirs)}">{getProjectName(session.directory)}</span>
     <span class="text-[var(--fg-muted)]">•</span>
     <span class="mono">{session.hostname}</span>
-    {#if modelName()}
+    {#if modelName}
       <span class="text-[var(--fg-muted)]">•</span>
-      <span class="mono text-[var(--accent-blue)]">{modelName()}</span>
+      <span class="mono text-[var(--accent-blue)]">{modelName}</span>
     {/if}
     {#if subAgents.length > 0}
       <span class="text-[var(--fg-muted)]">•</span>
@@ -296,13 +296,13 @@
   </div>
 
   <!-- Message preview: live animation for active, static for idle -->
-  {#if latestMessage()}
+  {#if latestMessage}
     <div class="mb-2 h-5 overflow-hidden">
       <p 
         class="text-xs truncate {session.status === 'active' ? 'text-[var(--fg-secondary)]' : 'text-[var(--fg-muted)]'}"
         class:animate-fade-in={shouldAnimate}
       >
-        {latestMessage()}
+        {latestMessage}
       </p>
     </div>
   {/if}
