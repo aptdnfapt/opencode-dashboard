@@ -1,36 +1,71 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { store } from '$lib/store.svelte'
-  import { getSessions } from '$lib/api'
+  import { getSessions, getAnalyticsSummary } from '$lib/api'
   import { formatTokens, formatCost } from '$lib/utils'
   import SessionCard from '$lib/components/SessionCard.svelte'
   import StatCard from '$lib/components/StatCard.svelte'
   import SessionFilters from '$lib/components/SessionFilters.svelte'
-  
+
+  const PAGE_SIZE = 50
+
   let loading = $state(true)
+  let loadingMore = $state(false)
   let error = $state<string | null>(null)
-  
-  // Get main sessions only (no parent_session_id = not a subagent)
+  let nextCursor = $state<string | null>(null)
+  let hasMore = $state(false)
+  let sentinel = $state<HTMLElement | null>(null)
+
   let mainSessions = $derived(
     store.filteredSessions.filter(s => !s.parent_session_id)
   )
-  
-  // Check if showing filtered view
+
   let hasFilters = $derived(
     store.filters.status || store.filters.hostname || store.filters.directory || store.filters.search
   )
-  
+
+  async function loadSessions(cursor?: string) {
+    const result = await getSessions({ cursor, limit: PAGE_SIZE })
+    store.setSessions(cursor ? [...store.sessions, ...result.sessions] : result.sessions)
+    hasMore = result.hasMore
+    nextCursor = result.nextCursor
+  }
+
+  async function loadMore() {
+    if (loadingMore || !hasMore || !nextCursor) return
+    loadingMore = true
+    try {
+      await loadSessions(nextCursor)
+    } catch (err) {
+      console.warn('Failed to load more sessions', err)
+    } finally {
+      loadingMore = false
+    }
+  }
+
+  $effect(() => {
+    if (!sentinel) return
+    const observer = new IntersectionObserver(
+      entries => { if (entries[0].isIntersecting) loadMore() },
+      { rootMargin: '200px' }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  })
+
   onMount(async () => {
     try {
-      const sessions = await getSessions()
-      store.setSessions(sessions)
+      await Promise.all([
+        loadSessions(),
+        getAnalyticsSummary().then(s => store.setGlobalStats(s)).catch(() => {})
+      ])
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load sessions'
     } finally {
       loading = false
     }
   })
-  
+
   function clearFilters() {
     store.clearFilters()
   }
@@ -44,14 +79,14 @@
         <h1 class="text-2xl font-bold text-[var(--fg-primary)]">Sessions</h1>
         {#if !loading && !error}
           <span class="text-xs font-medium mono px-2 py-0.5 rounded-full bg-[var(--accent-blue)]/15 text-[var(--accent-blue)]">
-            {mainSessions.length}
+            {store.globalStats.total}
           </span>
         {/if}
       </div>
       <p class="text-sm text-[var(--fg-secondary)]">
         {#if hasFilters}
           Filtered view
-          <button 
+          <button
             class="ml-2 text-[var(--accent-blue)] hover:underline"
             onclick={clearFilters}
           >
@@ -69,17 +104,17 @@
     <SessionFilters sessions={store.sessions} />
   </div>
 
-  <!-- Stats row -->
+  <!-- Stats row — global counts from DB, independent of pagination -->
   <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-    <StatCard label="Total" value={store.stats.total} />
-    <StatCard label="Active" value={store.stats.active} color="green" />
-    <StatCard label="Idle" value={store.stats.idle} color="amber" />
-    <StatCard label="Attention" value={store.stats.attention} color="red" />
-    <StatCard 
-      label="Tokens" 
-      value={formatTokens(store.stats.totalTokens)} 
-      subvalue={formatCost(store.stats.totalCost)}
-      color="blue" 
+    <StatCard label="Total" value={store.globalStats.total} />
+    <StatCard label="Active" value={store.globalStats.active} color="green" />
+    <StatCard label="Idle" value={store.globalStats.idle} color="amber" />
+    <StatCard label="Attention" value={store.globalStats.attention} color="red" />
+    <StatCard
+      label="Tokens"
+      value={formatTokens(store.globalStats.totalTokens)}
+      subvalue={formatCost(store.globalStats.totalCost)}
+      color="blue"
     />
   </div>
 
@@ -94,9 +129,8 @@
     <div class="flex items-center justify-center py-12">
       <span class="text-[var(--accent-red)]">{error}</span>
     </div>
-  {:else if store.filteredSessions.length === 0}
+  {:else if mainSessions.length === 0}
     <div class="flex flex-col items-center justify-center py-16 gap-3">
-      <!-- Empty state icon -->
       <svg class="w-12 h-12 text-[var(--fg-muted)] opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
         <line x1="8" y1="21" x2="16" y2="21"/>
@@ -104,7 +138,7 @@
       </svg>
       <span class="text-[var(--fg-muted)] text-sm">No sessions found</span>
       {#if hasFilters}
-        <button 
+        <button
           class="text-sm text-[var(--accent-blue)] hover:underline"
           onclick={clearFilters}
         >
@@ -115,26 +149,22 @@
       {/if}
     </div>
   {:else}
-    <!-- Grid view - main sessions only (no subagents) -->
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-stretch">
-      {#each mainSessions as session, i (session.id)}
-        <div style="animation-delay: {Math.min(i * 50, 500)}ms" class="animate-fade-in-up h-full">
-          <SessionCard 
-            {session} 
-            selected={store.selectedSessionId === session.id}
-          />
-        </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+      {#each mainSessions as session (session.id)}
+        <SessionCard
+          {session}
+          selected={store.selectedSessionId === session.id}
+        />
       {/each}
     </div>
+
+    <!-- Sentinel: when visible, triggers loadMore -->
+    {#if hasMore}
+      <div bind:this={sentinel} class="h-8 mt-3 flex items-center justify-center">
+        {#if loadingMore}
+          <span class="text-xs text-[var(--fg-muted)]">Loading more...</span>
+        {/if}
+      </div>
+    {/if}
   {/if}
 </div>
-
-<style>
-  @keyframes fade-in-up {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .animate-fade-in-up {
-    animation: fade-in-up 0.3s ease-out both;
-  }
-</style>

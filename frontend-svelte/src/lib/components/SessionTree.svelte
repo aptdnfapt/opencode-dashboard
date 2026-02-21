@@ -1,48 +1,91 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import { store } from '$lib/store.svelte'
   import { page } from '$app/stores'
   import type { Session } from '$lib/types'
   import StatusDot from './StatusDot.svelte'
   import { getProjectName, getProjectColor } from '$lib/utils'
-  import { archiveSession, unarchiveSession, dismissSession, deleteSession } from '$lib/api'
+  import { getProjects, getSessions, archiveSession, unarchiveSession, dismissSession, deleteSession } from '$lib/api'
   import { ChevronRight, Folder, FolderOpen, GitBranch, MoreVertical, Archive, ArchiveRestore, BellOff, Trash2 } from 'lucide-svelte'
-  
-  // Stale threshold
+
   const STALE_THRESHOLD_MS = 3 * 60 * 1000
-  
-  // Use store's precomputed allDirs — computed once, shared across components
-  let allDirs = $derived(store.allDirs)
-  
-  // Compute effective status using store.activeChildrenSet (O(1)) instead of O(N) .some()
-  // store.tick forces re-eval every 30s so stale transitions happen on time
+
+  // allDirs from projects (all dirs in DB, not just loaded sessions)
+  let allDirs = $derived(store.projects.map(p => p.directory))
+
+  // Total session count from real project data
+  let totalSessionCount = $derived(store.projects.reduce((sum, p) => sum + p.session_count, 0))
+
   function getEffectiveStatus(session: Session, _sessions: Session[], _tick: number): 'active' | 'idle' | 'error' | 'stale' | 'archived' {
     if (session.status === 'archived') return 'archived'
     if (session.status !== 'idle') return session.status
     const idleTime = Date.now() - new Date(session.updated_at).getTime()
     return (idleTime > STALE_THRESHOLD_MS && !store.activeChildrenSet.has(session.id)) ? 'stale' : 'idle'
   }
-  
-  // Props for collapsed mode
+
   let { collapsed = false } = $props()
-  
-  // Track expanded state for projects and sessions
+
   let expandedProjects = $state<Set<string>>(new Set())
   let expandedSessions = $state<Set<string>>(new Set())
-  
-  // 3-dot menu state — only one open at a time
-  let openMenu = $state<string | null>(null) // "project:dir" or "session:id"
-  
+  // Track which directories have been fetched already
+  let fetchedDirs = $state<Set<string>>(new Set())
+
+  let openMenu = $state<string | null>(null)
+
   function toggleMenu(key: string, e: MouseEvent) {
     e.preventDefault()
     e.stopPropagation()
     openMenu = openMenu === key ? null : key
   }
-  
-  // Close menu on outside click
+
   function handleGlobalClick() {
     if (openMenu) openMenu = null
   }
-  
+
+  // Fetch sessions for a directory on expand (lazy)
+  async function fetchDirSessions(dir: string) {
+    if (fetchedDirs.has(dir)) return
+    fetchedDirs = new Set([...fetchedDirs, dir])
+    try {
+      const result = await getSessions({ directory: dir, limit: 200 })
+      // Merge into store without replacing existing sessions from other dirs
+      const incoming = result.sessions
+      const existingIds = new Set(store.sessions.map(s => s.id))
+      const newOnes = incoming.filter(s => !existingIds.has(s.id))
+      if (newOnes.length > 0) {
+        store.setSessions([...store.sessions, ...newOnes])
+      }
+      // Update any already-loaded sessions with fresh data
+      for (const s of incoming) {
+        if (existingIds.has(s.id)) store.updateSession(s as Session & { id: string })
+      }
+    } catch (err) {
+      console.warn('[SessionTree] Failed to fetch sessions for dir:', dir, err)
+      // Allow retry next time
+      fetchedDirs = new Set([...fetchedDirs].filter(d => d !== dir))
+    }
+  }
+
+  async function toggleProject(dir: string) {
+    if (expandedProjects.has(dir)) {
+      expandedProjects.delete(dir)
+      expandedProjects = new Set(expandedProjects)
+    } else {
+      expandedProjects.add(dir)
+      expandedProjects = new Set(expandedProjects)
+      await fetchDirSessions(dir)
+    }
+  }
+
+  onMount(async () => {
+    try {
+      const projects = await getProjects()
+      store.setProjects(projects)
+    } catch (err) {
+      console.warn('[SessionTree] Failed to load projects:', err)
+    }
+  })
+
   // Archive a single session
   async function handleArchive(sessionId: string, e: MouseEvent) {
     e.preventDefault()
@@ -160,8 +203,13 @@
     return count
   }
   
-  // Check if project has any active sessions
-  function hasActiveSession(group: ProjectGroup): boolean {
+  // Check if project has any active sessions — use real project data when available
+  function hasActiveProject(dir: string): boolean {
+    const project = store.projects.find(p => p.directory === dir)
+    if (project) return project.active_count > 0
+    // fallback to loaded sessions
+    const group = projectGroups.find(g => g.directory === dir)
+    if (!group) return false
     for (const s of group.sessions) {
       if (s.status === 'active') return true
       for (const child of getChildren(group, s.id)) {
@@ -170,14 +218,14 @@
     }
     return false
   }
-  
-  function toggleProject(dir: string) {
-    if (expandedProjects.has(dir)) {
-      expandedProjects.delete(dir)
-    } else {
-      expandedProjects.add(dir)
-    }
-    expandedProjects = new Set(expandedProjects)  // trigger reactivity
+
+  // Get real session count for a project from DB data
+  function getProjectCount(dir: string): number {
+    const project = store.projects.find(p => p.directory === dir)
+    if (project) return project.session_count
+    // fallback to loaded sessions
+    const group = projectGroups.find(g => g.directory === dir)
+    return group ? getProjectSessionCount(group) : 0
   }
   
   function toggleSession(id: string) {
@@ -188,26 +236,6 @@
     }
     expandedSessions = new Set(expandedSessions)
   }
-  
-  // Auto-expand projects with active sessions on mount (run once)
-  let initialized = false
-  
-  $effect(() => {
-    if (initialized) return
-    if (projectGroups.length === 0) return
-    
-    let changed = false
-    for (const group of projectGroups) {
-      if (hasActiveSession(group) && !expandedProjects.has(group.directory)) {
-        expandedProjects.add(group.directory)
-        changed = true
-      }
-    }
-    if (changed) {
-      expandedProjects = new Set(expandedProjects)
-    }
-    initialized = true
-  })
   
   // Check if a session is currently selected (via URL)
   function isSelected(sessionId: string): boolean {
@@ -264,57 +292,58 @@
     <div class="px-3 py-2 border-b border-[var(--border-subtle)]">
       <div class="flex items-center justify-between">
         <span class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wider">Projects</span>
-        <span class="text-xs mono text-[var(--fg-muted)]">{store.filteredSessions.length}</span>
+        <span class="text-xs mono text-[var(--fg-muted)]">{totalSessionCount}</span>
       </div>
     </div>
   {/if}
   
   <!-- Tree view -->
   <div class="flex-1 overflow-y-auto py-1">
-    {#if projectGroups.length === 0}
+    {#if store.projects.length === 0 && projectGroups.length === 0}
       <div class="px-3 py-4 text-sm text-[var(--fg-muted)] text-center">
         No sessions found
       </div>
     {:else}
-      {#each projectGroups as group}
+      {#each (store.projects.length > 0 ? store.projects.map(p => ({ directory: p.directory, name: getProjectName(p.directory) })) : projectGroups.map(g => ({ directory: g.directory, name: g.name }))) as proj}
+        {@const group = projectGroups.find(g => g.directory === proj.directory)}
         <!-- Project node -->
         <div class="select-none">
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div 
             class="group flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-[var(--bg-tertiary)] transition-colors"
-            onclick={() => toggleProject(group.directory)}
-            title={collapsed ? group.name : undefined}
+            onclick={() => toggleProject(proj.directory)}
+            title={collapsed ? proj.name : undefined}
           >
             <!-- Expand icon -->
             {#if !collapsed}
               <ChevronRight 
-                class="w-4 h-4 text-[var(--fg-muted)] transition-transform {expandedProjects.has(group.directory) ? 'rotate-90' : ''}" 
+                class="w-4 h-4 text-[var(--fg-muted)] transition-transform {expandedProjects.has(proj.directory) ? 'rotate-90' : ''}" 
               />
             {/if}
             <!-- Folder icon -->
-            {#if expandedProjects.has(group.directory)}
-              <FolderOpen class="w-4 h-4 {hasActiveSession(group) ? 'text-[var(--accent-blue)]' : 'text-[var(--fg-muted)]'}" />
+            {#if expandedProjects.has(proj.directory)}
+              <FolderOpen class="w-4 h-4 {hasActiveProject(proj.directory) ? 'text-[var(--accent-blue)]' : 'text-[var(--fg-muted)]'}" />
             {:else}
-              <Folder class="w-4 h-4 {hasActiveSession(group) ? 'text-[var(--accent-blue)]' : 'text-[var(--fg-muted)]'}" />
+              <Folder class="w-4 h-4 {hasActiveProject(proj.directory) ? 'text-[var(--accent-blue)]' : 'text-[var(--fg-muted)]'}" />
             {/if}
             <!-- Project name -->
             {#if !collapsed}
-              <span class="flex-1 text-base truncate" style="color: {getProjectColor(group.directory, allDirs)}">{group.name}</span>
-              <!-- Count badge -->
+              <span class="flex-1 text-base truncate" style="color: {getProjectColor(proj.directory, allDirs)}">{proj.name}</span>
+              <!-- Count badge — real count from DB -->
               <span class="text-xs mono px-1.5 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-[var(--fg-muted)]">
-                {getProjectSessionCount(group)}
+                {getProjectCount(proj.directory)}
               </span>
               <!-- 3-dot menu for folder -->
               <div class="relative">
                 <button
                   type="button"
-                  onclick={(e) => toggleMenu(`project:${group.directory}`, e)}
+                  onclick={(e) => toggleMenu(`project:${proj.directory}`, e)}
                   class="p-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--fg-muted)] hover:text-[var(--fg-primary)] transition-colors opacity-0 group-hover:opacity-100"
                 >
                   <MoreVertical class="w-3.5 h-3.5" />
                 </button>
-                {#if openMenu === `project:${group.directory}`}
+                {#if openMenu === `project:${proj.directory}` && group}
                   <div 
                     class="absolute right-0 top-full mt-1 z-50 bg-[var(--bg-elevated)] border border-[var(--border)] rounded-lg py-1 min-w-[140px]"
                     style="box-shadow: var(--shadow-md);"
@@ -333,8 +362,8 @@
             {/if}
           </div>
           
-          <!-- Sessions under project -->
-          {#if expandedProjects.has(group.directory) && !collapsed}
+          <!-- Sessions under project — only shown after lazy fetch -->
+          {#if expandedProjects.has(proj.directory) && !collapsed && group}
             <div class="ml-4">
               {#each group.sessions as session}
                 {@const children = getChildren(group, session.id)}

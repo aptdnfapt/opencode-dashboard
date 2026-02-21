@@ -64,9 +64,10 @@ export function createApiHandler(app: Hono, db: Database) {
   // GET /api/sessions - list sessions with optional filters
   // Sessions not updated for 60s while "active" are marked as "stale"
   app.get('/api/sessions', (c: Context) => {
-    const { hostname, status, search, date, directory } = c.req.query()
+    const { hostname, status, search, date, directory, cursor, limit: limitParam } = c.req.query()
     const STALE_THRESHOLD = 60 * 1000 // 1 minute
     const now = Date.now()
+    const limit = Math.min(parseInt(limitParam || '50', 10), 200)
 
     let sql = 'SELECT * FROM sessions WHERE 1=1'
     const params: unknown[] = []
@@ -90,9 +91,17 @@ export function createApiHandler(app: Hono, db: Database) {
       sql += ' AND created_at >= ? AND created_at < ?'
       params.push(start, end)
     }
+    // Keyset cursor: fetch sessions older than the last seen updated_at
+    if (cursor) {
+      sql += ' AND updated_at < ?'
+      params.push(parseInt(cursor, 10))
+    }
 
     sql += ' ORDER BY updated_at DESC'
-    const sessions = db.prepare(sql).all(...(params as (string | number)[])) as any[]
+    sql += ` LIMIT ${limit + 1}` // fetch one extra to detect if more pages exist
+    const rawSessions = db.prepare(sql).all(...(params as (string | number)[])) as any[]
+    const hasMore = rawSessions.length > limit
+    const sessions = hasMore ? rawSessions.slice(0, limit) : rawSessions
 
     // P2: Single query for latest model_id per session (eliminates N+1)
     // JOIN on MAX(timestamp) per session → 1 query instead of N
@@ -132,7 +141,11 @@ export function createApiHandler(app: Hono, db: Database) {
       ? withNotes.filter(s => s.status === status)
       : withNotes
 
-    return c.json(filtered)
+    const nextCursor = hasMore && filtered.length > 0
+      ? String(filtered[filtered.length - 1].updated_at)
+      : null
+
+    return c.json({ sessions: filtered, hasMore, nextCursor })
   })
 
   // GET /api/sessions/:id - session detail with timeline
@@ -168,16 +181,28 @@ export function createApiHandler(app: Hono, db: Database) {
 
   // GET /api/analytics/summary - totals for dashboard
   app.get('/api/analytics/summary', (c: Context) => {
-    const { startDate, endDate, hostname } = c.req.query()
+    const { hostname } = c.req.query()
+    const STALE_ACTIVE_MS = 60 * 1000       // active but no heartbeat in 60s = stale
+    const STALE_IDLE_MS = 3 * 60 * 1000    // idle > 3min = stale
+    const now = Date.now()
 
     let sql = `
       SELECT
         COUNT(DISTINCT id) as total_sessions,
         SUM(token_total) as total_tokens,
-        SUM(cost_total) as total_cost
-      FROM sessions WHERE 1=1
+        SUM(cost_total) as total_cost,
+        SUM(CASE
+          WHEN status = 'active' AND (? - updated_at) <= ? THEN 1
+          ELSE 0
+        END) as active_count,
+        SUM(CASE
+          WHEN status = 'idle' AND (? - updated_at) <= ? THEN 1
+          ELSE 0
+        END) as idle_count,
+        SUM(CASE WHEN needs_attention = 1 THEN 1 ELSE 0 END) as attention_count
+      FROM sessions WHERE status != 'archived'
     `
-    const params: unknown[] = []
+    const params: unknown[] = [now, STALE_ACTIVE_MS, now, STALE_IDLE_MS]
 
     if (hostname) {
       sql += ' AND hostname = ?'
@@ -185,7 +210,7 @@ export function createApiHandler(app: Hono, db: Database) {
     }
 
     const result = db.prepare(sql).get(...(params as (string | number)[])) as Record<string, number>
-    return c.json(result || { total_sessions: 0, total_tokens: 0, total_cost: 0 })
+    return c.json(result || { total_sessions: 0, total_tokens: 0, total_cost: 0, active_count: 0, idle_count: 0, attention_count: 0 })
   })
 
   // GET /api/analytics/models - token usage by model

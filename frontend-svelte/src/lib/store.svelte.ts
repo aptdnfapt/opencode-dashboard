@@ -1,6 +1,6 @@
 // Svelte 5 runes-based state management
 
-import type { Session, TimelineEvent, ConnectionStatus } from './types'
+import type { Session, TimelineEvent, ConnectionStatus, Project } from './types'
 
 // Limit timeline events to prevent unbounded growth
 const MAX_TIMELINE_EVENTS = 1000
@@ -20,6 +20,19 @@ class DashboardStore {
   // Periodic tick to force stale re-evaluation (bumps every 30s)
   tick = $state(0)
   
+  // Global stats from DB (independent of loaded sessions)
+  globalStats = $state({
+    total: 0,
+    active: 0,
+    idle: 0,
+    attention: 0,
+    totalTokens: 0,
+    totalCost: 0
+  })
+
+  // All projects from DB (independent of loaded sessions)
+  projects = $state<Project[]>([])
+
   // Settings
   sortActiveFirst = $state(true)
   
@@ -140,6 +153,21 @@ class DashboardStore {
   }
 
   // Actions
+  setGlobalStats(stats: { total_sessions: number; total_tokens: number; total_cost: number; active_count: number; idle_count: number; attention_count: number }) {
+    this.globalStats = {
+      total: stats.total_sessions || 0,
+      active: stats.active_count || 0,
+      idle: stats.idle_count || 0,
+      attention: stats.attention_count || 0,
+      totalTokens: stats.total_tokens || 0,
+      totalCost: stats.total_cost || 0
+    }
+  }
+
+  setProjects(projects: Project[]) {
+    this.projects = projects
+  }
+
   setSessions(sessions: Session[]) {
     this.sessions = sessions
   }

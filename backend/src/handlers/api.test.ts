@@ -30,23 +30,24 @@ describe('API Endpoints', () => {
     const data = await res.json()
 
     expect(res.status).toBe(200)
-    expect(data.length).toBe(2)
+    expect(data.sessions.length).toBe(2)
+    expect(data.hasMore).toBe(false)
   })
 
   it('GET /api/sessions filters by hostname', async () => {
     const res = await app.fetch(new Request('http://localhost/api/sessions?hostname=vps1'))
     const data = await res.json()
 
-    expect(data.length).toBe(1)
-    expect(data[0].hostname).toBe('vps1')
+    expect(data.sessions.length).toBe(1)
+    expect(data.sessions[0].hostname).toBe('vps1')
   })
 
   it('GET /api/sessions filters by status', async () => {
     const res = await app.fetch(new Request('http://localhost/api/sessions?status=idle'))
     const data = await res.json()
 
-    expect(data.length).toBe(1)
-    expect(data[0].status).toBe('idle')
+    expect(data.sessions.length).toBe(1)
+    expect(data.sessions[0].status).toBe('idle')
   })
 
   it('GET /api/sessions/:id returns session with timeline', async () => {
@@ -231,8 +232,8 @@ describe('API Endpoints', () => {
     const res = await app.fetch(new Request('http://localhost/api/sessions'))
     const data = await res.json()
 
-    const s1 = data.find((s: any) => s.id === 's1')
-    const s2 = data.find((s: any) => s.id === 's2')
+    const s1 = data.sessions.find((s: any) => s.id === 's1')
+    const s2 = data.sessions.find((s: any) => s.id === 's2')
     expect(s1.notes_count).toBe(2)
     expect(s2.notes_count).toBe(0)
   })

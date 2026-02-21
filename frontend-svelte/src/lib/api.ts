@@ -28,13 +28,17 @@ export async function getSessions(params?: {
   hostname?: string
   directory?: string
   search?: string
-}): Promise<Session[]> {
+  cursor?: string
+  limit?: number
+}): Promise<{ sessions: Session[]; hasMore: boolean; nextCursor: string | null }> {
   const query = new URLSearchParams()
   if (params?.status) query.set('status', params.status)
   if (params?.hostname) query.set('hostname', params.hostname)
   if (params?.directory) query.set('directory', params.directory)
   if (params?.search) query.set('search', params.search)
-  
+  if (params?.cursor) query.set('cursor', params.cursor)
+  if (params?.limit) query.set('limit', String(params.limit))
+
   const qs = query.toString()
   return fetchAPI(`/api/sessions${qs ? `?${qs}` : ''}`)
 }
@@ -57,6 +61,9 @@ export async function getAnalyticsSummary(): Promise<{
   total_sessions: number
   total_tokens: number
   total_cost: number
+  active_count: number
+  idle_count: number
+  attention_count: number
 }> {
   return fetchAPI('/api/analytics/summary')
 }
