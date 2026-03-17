@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Session } from '$lib/types'
   import { chamberStore } from '$lib/chamber-store.svelte'
+  import { store } from '$lib/store.svelte'
   import { formatRelativeTime, cn } from '$lib/utils'
   import { Archive, CheckCircle, X } from 'lucide-svelte'
   import { markSessionDone, setSessionTracked, archiveSession } from '$lib/api'
@@ -23,6 +24,13 @@
     chamberStore.tracked.filter(s => s.parent_session_id === session.id)
   )
   let activeSubAgents = $derived(subAgents.filter(s => s.status === 'active').length)
+
+  let timeline = $derived(store.timelines.get(session.id) || [])
+  let latestMessage = $derived.by(() => {
+    const last = timeline[timeline.length - 1]
+    if (!last?.summary) return ''
+    return last.summary.length > 72 ? `${last.summary.slice(0, 72)}...` : last.summary
+  })
 
   // Context menu actions
   async function handleDone(e: MouseEvent) {
@@ -166,6 +174,12 @@
   <div class="text-[10px] text-[var(--fg-muted)] mono">
     {formatRelativeTime(session.updated_at)}
   </div>
+
+  {#if latestMessage}
+    <div class="mt-1 text-[11px] leading-4 text-[var(--fg-secondary)] line-clamp-2 text-left">
+      {latestMessage}
+    </div>
+  {/if}
 
   <!-- Attention ring (if needed) -->
   {#if session.needs_attention}

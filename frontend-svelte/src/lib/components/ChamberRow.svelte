@@ -92,9 +92,9 @@
   </div>
 
   <!-- Running / Idle zones -->
-  <div class="p-2 flex flex-col md:flex-row gap-2">
+  <div class="p-2 flex flex-col md:flex-row gap-0 md:items-start md:divide-x-0">
     <!-- Running zone -->
-    <div class="flex-1 min-h-[80px]">
+    <div class="flex-1 min-h-[80px] pr-0 md:pr-1">
       <div class="text-[10px] uppercase tracking-wide text-emerald-500 mb-1 font-medium">
         Running
       </div>
@@ -136,7 +136,7 @@
     </div>
 
     <!-- Idle zone -->
-    <div class="flex-1 min-h-[80px] md:pl-2 pt-2 md:pt-0">
+    <div class="flex-1 min-h-[80px] pt-2 md:pt-0 pl-0 md:pl-1 ml-0 border-0 shadow-none">
       <div class="text-[10px] uppercase tracking-wide text-amber-500 mb-1 font-medium">
         Idle
       </div>

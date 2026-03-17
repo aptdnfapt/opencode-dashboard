@@ -31,15 +31,18 @@
     onkeydown={handleKeydown}
   >
     <div class="relative h-full w-full rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl overflow-hidden">
-      <div class="absolute top-2 left-2 z-10">
-        <button
-          type="button"
-          onclick={onClose}
-          class="px-2.5 py-1 rounded-md bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[var(--fg-secondary)] hover:text-[var(--fg-primary)]"
-        >
-          Close
-        </button>
-      </div>
+      <!-- macOS-style close button (traffic light style) -->
+      <button
+        type="button"
+        onclick={onClose}
+        class="absolute top-2.5 left-3 z-20 w-3 h-3 rounded-full bg-[#ff5f57] hover:bg-red-500 active:bg-red-700 transition-colors cursor-pointer group"
+        title="Close"
+        aria-label="Close session viewer"
+      >
+        <svg class="w-2 h-2 mx-auto text-white opacity-0 group-hover:opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M18 6L6 18M6 6l12 12" />
+        </svg>
+      </button>
       <iframe
         title="Session Viewer"
         src={`/sessions/${sessionId}?embed=1`}
