@@ -3,6 +3,7 @@
 import type { Hono, Context } from 'hono'
 import type { Database } from 'bun:sqlite'
 import { generateSpeech, isTTSReady, verifySignedUrl, generateSignedUrl } from '../services/tts'
+import { wsManager } from '../websocket/server'
 
 export function createApiHandler(app: Hono, db: Database) {
   // GET /api/tts/test - get signed URL for TTS (for testing)
@@ -1102,5 +1103,114 @@ export function createApiHandler(app: Hono, db: Database) {
     }))
 
     return c.json(parsed)
+  })
+
+  // --- Chamber / Captain's Chamber endpoints ---
+
+  // GET /api/chamber/tracked - list all tracked sessions
+  app.get('/api/chamber/tracked', (c: Context) => {
+    const sessions = db.prepare(`
+      SELECT * FROM sessions 
+      WHERE is_tracked = 1 
+      ORDER BY updated_at DESC
+    `).all()
+    return c.json(sessions)
+  })
+
+  // GET /api/chamber/recent-done - list recently completed chamber sessions
+  app.get('/api/chamber/recent-done', (c: Context) => {
+    const limit = parseInt(c.req.query('limit') || '20')
+    const sessions = db.prepare(`
+      SELECT * FROM sessions 
+      WHERE completed_at IS NOT NULL 
+      ORDER BY completed_at DESC 
+      LIMIT ?
+    `).all(limit)
+    return c.json(sessions)
+  })
+
+  // PATCH /api/sessions/:id/track - set tracking state
+  app.patch('/api/sessions/:id/track', async (c: Context) => {
+    const id = c.req.param('id')
+    const body = await c.req.json<{ isTracked?: boolean; groupTag?: string | null }>()
+    
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id)
+    if (!session) return c.json({ error: 'Session not found' }, 404)
+    
+    const now = Date.now()
+
+    if (body.isTracked === true && (session as Record<string, unknown>).is_tracked === 1) {
+      return c.json({ error: 'Session is already tracked' }, 409)
+    }
+
+    if (body.isTracked === false && (session as Record<string, unknown>).is_tracked === 0) {
+      return c.json({ error: 'Session is not tracked' }, 409)
+    }
+    
+    if (body.isTracked !== undefined) {
+      const isTracked = body.isTracked ? 1 : 0
+      db.prepare('UPDATE sessions SET is_tracked = ?, updated_at = ? WHERE id = ?')
+        .run(isTracked, now, id)
+    }
+    
+    if (body.groupTag !== undefined) {
+      db.prepare('UPDATE sessions SET group_tag = ?, updated_at = ? WHERE id = ?')
+        .run(body.groupTag, now, id)
+    }
+    
+    const updated = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id)
+    wsManager.broadcastTrackedChanged(id, (updated as any).is_tracked === 1, (updated as any).group_tag)
+    
+    return c.json(updated)
+  })
+
+  // POST /api/sessions/:id/done - mark session as chamber-done
+  app.post('/api/sessions/:id/done', (c: Context) => {
+    const id = c.req.param('id')
+    
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id)
+    if (!session) return c.json({ error: 'Session not found' }, 404)
+
+    if ((session as Record<string, unknown>).is_tracked !== 1) {
+      return c.json({ error: 'Session must be tracked before marking done' }, 409)
+    }
+    
+    const now = Date.now()
+    db.prepare(`
+      UPDATE sessions 
+      SET is_tracked = 0, completed_at = ?, completed_reason = 'cc_done', updated_at = ?
+      WHERE id = ?
+    `).run(now, now, id)
+    
+    wsManager.broadcastTrackedChanged(id, false, null)
+    
+    const updated = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id)
+    return c.json(updated)
+  })
+
+  // GET /api/projects/holds - get all project holds
+  app.get('/api/projects/holds', (c: Context) => {
+    const holds = db.prepare('SELECT * FROM project_holds WHERE is_held = 1').all()
+    return c.json(holds)
+  })
+
+  // PATCH /api/projects/:dir/hold - set hold state for a project
+  // Note: directory is URL-encoded in path
+  app.patch('/api/projects/:dir/hold', async (c: Context) => {
+    const directory = decodeURIComponent(c.req.param('dir'))
+    const body = await c.req.json<{ isHeld: boolean }>()
+    
+    const now = Date.now()
+    const isHeld = body.isHeld ? 1 : 0
+    
+    db.prepare(`
+      INSERT INTO project_holds (directory, is_held, updated_at) 
+      VALUES (?, ?, ?)
+      ON CONFLICT(directory) DO UPDATE SET is_held = ?, updated_at = ?
+    `).run(directory, isHeld, now, isHeld, now)
+    
+    wsManager.broadcastHoldChanged(directory, body.isHeld)
+    
+    return c.json({ directory, is_held: isHeld, updated_at: now })
   })
 }

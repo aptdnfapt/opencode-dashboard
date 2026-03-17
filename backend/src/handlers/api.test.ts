@@ -15,12 +15,12 @@ describe('API Endpoints', () => {
     app = new Hono()
     createApiHandler(app, db)
 
-    // Seed test data (11 columns: id, title, hostname, directory, parent_session_id, status, created_at, updated_at, needs_attention, token_total, cost_total)
+    // Seed test data (15 columns: id, title, hostname, directory, parent_session_id, status, created_at, updated_at, needs_attention, token_total, cost_total, is_tracked, group_tag, completed_at, completed_reason)
     const now = Date.now()
-    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run('s1', 'Session 1', 'vps1', '/home', null, 'active', now, now, 0, 1000, 0.05)
-    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run('s2', 'Session 2', 'vps2', '/home', null, 'idle', now, now, 1, 500, 0.02)
+    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('s1', 'Session 1', 'vps1', '/home', null, 'active', now, now, 0, 1000, 0.05, 0, null, null, null)
+    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('s2', 'Session 2', 'vps2', '/home', null, 'idle', now, now, 1, 500, 0.02, 0, null, null, null)
   })
 
   afterEach(() => db.close())
@@ -312,8 +312,8 @@ describe('API Endpoints', () => {
   it('GET /api/projects/notes does not return notes from other directories', async () => {
     // Add a session with a different directory
     const now = Date.now()
-    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run('s3', 'Session 3', 'vps1', '/other', null, 'active', now, now, 0, 0, 0)
+    db.prepare('INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('s3', 'Session 3', 'vps1', '/other', null, 'active', now, now, 0, 0, 0, 0, null, null, null)
 
     // Add notes to both directories
     await app.fetch(new Request('http://localhost/api/sessions/s1/notes', {
@@ -338,5 +338,98 @@ describe('API Endpoints', () => {
     const data2 = await res2.json()
     expect(data2.length).toBe(1)
     expect(data2[0].content).toBe('note in /other')
+  })
+
+  // --- Chamber endpoints tests ---
+
+  it('PATCH /api/sessions/:id/track sets tracked state', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/sessions/s1/track', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isTracked: true })
+    }))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.is_tracked).toBe(1)
+  })
+
+  it('PATCH /api/sessions/:id/track returns 409 if already tracked', async () => {
+    db.prepare('UPDATE sessions SET is_tracked = 1 WHERE id = ?').run('s1')
+
+    const res = await app.fetch(new Request('http://localhost/api/sessions/s1/track', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isTracked: true })
+    }))
+
+    expect(res.status).toBe(409)
+  })
+
+  it('PATCH /api/sessions/:id/track updates group tag independently', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/sessions/s1/track', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupTag: 'urgent' })
+    }))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.group_tag).toBe('urgent')
+    expect(data.is_tracked).toBe(0)
+  })
+
+  it('POST /api/sessions/:id/done returns 409 if session is not tracked', async () => {
+    const res = await app.fetch(new Request('http://localhost/api/sessions/s1/done', {
+      method: 'POST'
+    }))
+
+    expect(res.status).toBe(409)
+  })
+
+  it('POST /api/sessions/:id/done marks tracked session done', async () => {
+    db.prepare('UPDATE sessions SET is_tracked = 1 WHERE id = ?').run('s1')
+
+    const res = await app.fetch(new Request('http://localhost/api/sessions/s1/done', {
+      method: 'POST'
+    }))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.is_tracked).toBe(0)
+    expect(data.completed_reason).toBe('cc_done')
+    expect(data.completed_at).toBeDefined()
+  })
+
+  it('GET /api/chamber/tracked returns only tracked sessions', async () => {
+    db.prepare('UPDATE sessions SET is_tracked = 1 WHERE id = ?').run('s1')
+
+    const res = await app.fetch(new Request('http://localhost/api/chamber/tracked'))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.length).toBe(1)
+    expect(data[0].id).toBe('s1')
+  })
+
+  it('PATCH /api/projects/:dir/hold persists hold and GET /api/projects/holds returns it', async () => {
+    const setRes = await app.fetch(new Request('http://localhost/api/projects/%2Fhome/hold', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isHeld: true })
+    }))
+    const setData = await setRes.json()
+
+    expect(setRes.status).toBe(200)
+    expect(setData.directory).toBe('/home')
+    expect(setData.is_held).toBe(1)
+
+    const getRes = await app.fetch(new Request('http://localhost/api/projects/holds'))
+    const getData = await getRes.json()
+
+    expect(getRes.status).toBe(200)
+    expect(getData.length).toBe(1)
+    expect(getData[0].directory).toBe('/home')
+    expect(getData[0].is_held).toBe(1)
   })
 })

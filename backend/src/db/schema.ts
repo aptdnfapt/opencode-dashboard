@@ -7,6 +7,7 @@ export function initSchema(db: Database): void {
   db.exec('PRAGMA journal_mode = WAL')
 
   // Sessions: tracks each OpenCode session
+  // Chamber metadata: is_tracked, group_tag, completed_at, completed_reason
   db.exec(`
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
@@ -19,7 +20,39 @@ export function initSchema(db: Database): void {
       updated_at INTEGER NOT NULL,
       needs_attention INTEGER DEFAULT 0,
       token_total INTEGER DEFAULT 0,
-      cost_total REAL DEFAULT 0
+      cost_total REAL DEFAULT 0,
+      is_tracked INTEGER DEFAULT 0,
+      group_tag TEXT,
+      completed_at INTEGER,
+      completed_reason TEXT
+    )
+  `)
+
+  // Migration: add new columns if they don't exist (for existing databases)
+  // SQLite doesn't support IF NOT EXISTS for ALTER TABLE ADD COLUMN
+  // Use PRAGMA table_info to check column existence
+  const columns = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]
+  const columnNames = columns.map(c => c.name)
+  
+  if (!columnNames.includes('is_tracked')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN is_tracked INTEGER DEFAULT 0')
+  }
+  if (!columnNames.includes('group_tag')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN group_tag TEXT')
+  }
+  if (!columnNames.includes('completed_at')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN completed_at INTEGER')
+  }
+  if (!columnNames.includes('completed_reason')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN completed_reason TEXT')
+  }
+
+  // Project holds: row-level hold state for Captain's Chamber
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS project_holds (
+      directory TEXT PRIMARY KEY,
+      is_held INTEGER DEFAULT 0,
+      updated_at INTEGER NOT NULL
     )
   `)
 
@@ -105,6 +138,10 @@ export function initSchema(db: Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_status ON sessions(status, updated_at)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_parent ON sessions(parent_session_id)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_directory ON sessions(directory)')
+  // New indexes for Chamber metadata (these will be added if they don't exist)
+  db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_tracked ON sessions(is_tracked, updated_at)')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_group_tag ON sessions(group_tag)')
+  db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_completed ON sessions(completed_at)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_file_edits_session ON file_edits(session_id)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_file_edits_ext ON file_edits(file_extension)')
   db.exec('CREATE INDEX IF NOT EXISTS idx_notes_session ON notes(session_id)')

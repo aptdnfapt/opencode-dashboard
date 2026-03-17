@@ -13,6 +13,16 @@ export interface Session {
   token_total: number
   cost_total: number
   notes_count?: number
+  is_tracked: number  // 0 or 1 for SQLite compatibility
+  group_tag: string | null
+  completed_at: number | null
+  completed_reason: string | null
+}
+
+export interface ProjectHold {
+  directory: string
+  is_held: number  // 0 or 1
+  updated_at: number
 }
 
 // Per-session note with inline message references
@@ -198,6 +208,10 @@ export interface SessionCreatedWSData {
   needs_attention?: number
   token_total?: number
   cost_total?: number
+  is_tracked?: number
+  group_tag?: string | null
+  completed_at?: number | null
+  completed_reason?: string | null
 }
 
 export interface SessionUpdatedWSData {
@@ -210,6 +224,10 @@ export interface SessionUpdatedWSData {
   needs_attention?: number
   token_total?: number
   cost_total?: number
+  is_tracked?: number
+  group_tag?: string | null
+  completed_at?: number | null
+  completed_reason?: string | null
 }
 
 export interface AttentionWSData {
@@ -218,6 +236,8 @@ export interface AttentionWSData {
   title?: string
   audioUrl?: string
   isSubagent?: boolean
+  isTracked?: boolean
+  isHeld?: boolean
 }
 
 export interface IdleWSData {
@@ -225,6 +245,8 @@ export interface IdleWSData {
   title?: string
   audioUrl?: string
   isSubagent?: boolean
+  isTracked?: boolean
+  isHeld?: boolean
 }
 
 export interface ErrorWSData {
@@ -233,6 +255,20 @@ export interface ErrorWSData {
   title?: string
   audioUrl?: string
   isSubagent?: boolean
+  isTracked?: boolean
+  isHeld?: boolean
+}
+
+// Chamber/hold event data
+export interface TrackedChangedWSData {
+  sessionId: string
+  isTracked: boolean
+  groupTag?: string | null
+}
+
+export interface HoldChangedWSData {
+  directory: string
+  isHeld: boolean
 }
 
 export interface AuthWSData {
@@ -248,6 +284,8 @@ export type WSMessage =
   | { type: 'idle'; data: IdleWSData }
   | { type: 'error'; data: ErrorWSData }
   | { type: 'auth'; success: boolean }
+  | { type: 'tracked.changed'; data: TrackedChangedWSData }
+  | { type: 'hold.changed'; data: HoldChangedWSData }
 
 // Type guards for runtime validation
 export function isTimelineWSData(data: unknown): data is TimelineWSData {
@@ -301,4 +339,16 @@ export function isAuthMessage(msg: unknown): msg is { type: 'auth'; success: boo
   if (typeof msg !== 'object' || msg === null) return false
   const m = msg as Record<string, unknown>
   return m.type === 'auth' && typeof m.success === 'boolean'
+}
+
+export function isTrackedChangedWSData(data: unknown): data is TrackedChangedWSData {
+  if (typeof data !== 'object' || data === null) return false
+  const d = data as Record<string, unknown>
+  return typeof d.sessionId === 'string' && typeof d.isTracked === 'boolean'
+}
+
+export function isHoldChangedWSData(data: unknown): data is HoldChangedWSData {
+  if (typeof data !== 'object' || data === null) return false
+  const d = data as Record<string, unknown>
+  return typeof d.directory === 'string' && typeof d.isHeld === 'boolean'
 }

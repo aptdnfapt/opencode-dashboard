@@ -10,7 +10,8 @@ import {
   isAttentionWSData,
   isIdleWSData,
   isErrorWSData,
-  isAuthMessage
+  isAuthMessage,
+  isTrackedChangedWSData
 } from './types'
 import { playBing, playSubagentBing, queueAudio } from './audio'
 import { showNotification } from './notifications'
@@ -378,7 +379,11 @@ class WebSocketService {
             updated_at: data.updated_at ?? Date.now(),
             needs_attention: data.needs_attention ?? 0,
             token_total: data.token_total ?? 0,
-            cost_total: data.cost_total ?? 0
+            cost_total: data.cost_total ?? 0,
+            is_tracked: data.is_tracked ?? 0,
+            group_tag: data.group_tag ?? null,
+            completed_at: data.completed_at ?? null,
+            completed_reason: data.completed_reason ?? null
           }
           store.addSession(session)
         }
@@ -395,7 +400,11 @@ class WebSocketService {
             ...(data.updated_at !== undefined && { updated_at: data.updated_at }),
             ...(data.needs_attention !== undefined && { needs_attention: data.needs_attention }),
             ...(data.token_total !== undefined && { token_total: data.token_total }),
-            ...(data.cost_total !== undefined && { cost_total: data.cost_total })
+            ...(data.cost_total !== undefined && { cost_total: data.cost_total }),
+            ...(data.is_tracked !== undefined && { is_tracked: data.is_tracked }),
+            ...(data.group_tag !== undefined && { group_tag: data.group_tag }),
+            ...(data.completed_at !== undefined && { completed_at: data.completed_at }),
+            ...(data.completed_reason !== undefined && { completed_reason: data.completed_reason })
           })
         }
         break
@@ -425,7 +434,11 @@ class WebSocketService {
             needs_attention: data.needsAttention ? 1 : 0
           })
           
-          if (data.needsAttention) {
+          // Gate: only tracked sessions can alert (for Chamber)
+          // Held sessions suppress sound/OS notifications but UI still updates
+          const shouldNotify = data.isTracked === true && data.isHeld !== true
+          
+          if (data.needsAttention && shouldNotify) {
             // Subagents get their own sound, main agents get bing + OS notification
             if (data.isSubagent) {
               playSubagentBing()
@@ -449,16 +462,22 @@ class WebSocketService {
             status: 'idle'
           })
           
-          // Subagents get their own sound, main agents get bing + OS notification
-          if (data.isSubagent) {
-            playSubagentBing()
-          } else {
-            playBing()
-            const title = data.title ?? 'Session'
-            showNotification('Session Idle', `${title} is now idle`)
-            
-            if (data.audioUrl) {
-              queueAudio(data.audioUrl)
+          // Gate: only tracked sessions can alert (for Chamber)
+          // Held sessions suppress sound/OS notifications but UI still updates
+          const shouldNotify = data.isTracked === true && data.isHeld !== true
+          
+          if (shouldNotify) {
+            // Subagents get their own sound, main agents get bing + OS notification
+            if (data.isSubagent) {
+              playSubagentBing()
+            } else {
+              playBing()
+              const title = data.title ?? 'Session'
+              showNotification('Session Idle', `${title} is now idle`)
+              
+              if (data.audioUrl) {
+                queueAudio(data.audioUrl)
+              }
             }
           }
         }
@@ -471,19 +490,40 @@ class WebSocketService {
             status: 'error'
           })
 
-          // Subagents get their own sound, main agents get bing + OS notification
-          if (data.isSubagent) {
-            playSubagentBing()
-          } else {
-            playBing()
-            const title = data.title ?? 'Session'
-            showNotification('Session Error', `${title} encountered an error`)
+          // Gate: only tracked sessions can alert (for Chamber)
+          // Held sessions suppress sound/OS notifications but UI still updates
+          const shouldNotify = data.isTracked === true && data.isHeld !== true
+          
+          if (shouldNotify) {
+            // Subagents get their own sound, main agents get bing + OS notification
+            if (data.isSubagent) {
+              playSubagentBing()
+            } else {
+              playBing()
+              const title = data.title ?? 'Session'
+              showNotification('Session Error', `${title} encountered an error`)
 
-            if (data.audioUrl) {
-              queueAudio(data.audioUrl)
+              if (data.audioUrl) {
+                queueAudio(data.audioUrl)
+              }
             }
           }
         }
+        break
+
+      case 'tracked.changed':
+        if (isTrackedChangedWSData(data)) {
+          store.updateSession({
+            id: data.sessionId,
+            is_tracked: data.isTracked ? 1 : 0,
+            ...(data.groupTag !== undefined && { group_tag: data.groupTag })
+          })
+        }
+        break
+
+      case 'hold.changed':
+        // Store doesn't need hold state - it's project-level, not session-level
+        // Frontend components that care about holds will fetch from API
         break
     }
   }

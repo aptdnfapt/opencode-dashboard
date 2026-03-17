@@ -32,6 +32,10 @@ interface PluginEvent {
   linesAdded?: number
   linesRemoved?: number
   timestamp: number
+  // Chamber event fields
+  isTracked?: boolean
+  groupTag?: string | null
+  completedReason?: string
 }
 
 export function createWebhookHandler(app: Hono, db: Database) {
@@ -119,8 +123,8 @@ export function createWebhookHandler(app: Hono, db: Database) {
         case 'session.idle': {
           // Dedup: skip broadcast if session is already idle in DB
           // OpenCode can fire multiple idle events per cancel — only bing once
-          const current = db.prepare('SELECT status, title, parent_session_id FROM sessions WHERE id = ?')
-            .get(sessionId) as { status: string; title: string; parent_session_id: string | null } | null
+          const current = db.prepare('SELECT status, title, parent_session_id, is_tracked, directory FROM sessions WHERE id = ?')
+            .get(sessionId) as { status: string; title: string; parent_session_id: string | null; is_tracked: number; directory: string | null } | null
           
           if (current?.status === 'idle') {
             // Already idle — update timestamp but don't broadcast (no duplicate bing)
@@ -140,16 +144,31 @@ export function createWebhookHandler(app: Hono, db: Database) {
             break
           }
           
+          // Gate notifications: only tracked sessions can alert
+          // Check if project is on hold
+          const isTracked = current?.is_tracked === 1
+          const directory = current?.directory
+          
+          let isHeld = false
+          if (directory) {
+            const holdRow = db.prepare('SELECT is_held FROM project_holds WHERE directory = ?').get(directory) as { is_held: number } | null
+            isHeld = holdRow?.is_held === 1
+          }
+          
+          // Broadcast idle status to frontend regardless of tracking
+          // Frontend will decide whether to play sound based on tracking/hold state
           const isSubagent = !!current?.parent_session_id
           let audioUrl: string | undefined
 
-          // Generate signed TTS URL if model is ready
-          if (current && isTTSReady()) {
+          // Only generate TTS URL for tracked sessions not on hold (for Chamber)
+          if (isTracked && !isHeld && current && isTTSReady()) {
             const prefix = isSubagent ? 'Subagent ' : ''
             audioUrl = generateSignedUrl(prefix + current.title + ' is idle', 5) // 5 min expiry
           }
           
-          wsManager.broadcastIdle(sessionId, audioUrl, isSubagent, current?.title)
+          // Always broadcast idle - frontend will decide whether to notify
+          // Include isTracked and isHeld info so frontend can gate notifications
+          wsManager.broadcastIdle(sessionId, audioUrl, isSubagent, current?.title, isTracked, isHeld)
           break
         }
 
@@ -158,18 +177,29 @@ export function createWebhookHandler(app: Hono, db: Database) {
             .run('error', event.timestamp, sessionId)
           
           // Get session title and parent info for notification and TTS
-          const session = db.prepare('SELECT title, parent_session_id FROM sessions WHERE id = ?')
-            .get(sessionId) as { title: string; parent_session_id: string | null } | null
+          const session = db.prepare('SELECT title, parent_session_id, is_tracked, directory FROM sessions WHERE id = ?')
+            .get(sessionId) as { title: string; parent_session_id: string | null; is_tracked: number; directory: string | null } | null
           const title = session?.title || 'Unknown'
           const isSubagent = !!session?.parent_session_id
-          let audioUrl: string | undefined
           
-          // Generate signed TTS URL if model is ready
-          if (isTTSReady()) {
+          // Gate notifications: only tracked sessions can alert
+          const isTracked = session?.is_tracked === 1
+          const directory = session?.directory
+          
+          let isHeld = false
+          if (directory) {
+            const holdRow = db.prepare('SELECT is_held FROM project_holds WHERE directory = ?').get(directory) as { is_held: number } | null
+            isHeld = holdRow?.is_held === 1
+          }
+          
+          let audioUrl: string | undefined
+          // Only generate TTS for tracked sessions not on hold
+          if (isTracked && !isHeld && isTTSReady()) {
             audioUrl = generateSignedUrl(title + ' encountered an error', 5) // 5 min expiry
           }
           
-          wsManager.broadcastError(sessionId, (event as PluginEvent & { error?: string }).error || 'Unknown error', title, audioUrl, isSubagent)
+          // Always broadcast error - frontend decides whether to notify
+          wsManager.broadcastError(sessionId, (event as PluginEvent & { error?: string }).error || 'Unknown error', title, audioUrl, isSubagent, isTracked, isHeld)
           break
         }
 
@@ -205,17 +235,28 @@ export function createWebhookHandler(app: Hono, db: Database) {
             db.prepare('UPDATE sessions SET needs_attention = 1 WHERE id = ?')
               .run(sessionId)
 
-            // Get session title and parent_session_id for TTS
-            const attentionSession = db.prepare('SELECT title, parent_session_id FROM sessions WHERE id = ?')
-              .get(sessionId) as { title: string; parent_session_id: string | null } | null
+            // Get session info for TTS and notification gating
+            const attentionSession = db.prepare('SELECT title, parent_session_id, is_tracked, directory FROM sessions WHERE id = ?')
+              .get(sessionId) as { title: string; parent_session_id: string | null; is_tracked: number; directory: string | null } | null
             const isSubagentAttention = !!attentionSession?.parent_session_id
-            let attentionAudioUrl: string | undefined
-            if (attentionSession && isTTSReady()) {
-              const prefix = isSubagentAttention ? 'Subagent ' : ''
-              attentionAudioUrl = generateSignedUrl(prefix + attentionSession.title + ' needs attention', 5) // 5 min expiry
+            
+            // Gate notifications: only tracked sessions can alert
+            const isTracked = attentionSession?.is_tracked === 1
+            const directory = attentionSession?.directory
+            
+            let isHeld = false
+            if (directory) {
+              const holdRow = db.prepare('SELECT is_held FROM project_holds WHERE directory = ?').get(directory) as { is_held: number } | null
+              isHeld = holdRow?.is_held === 1
             }
             
-            wsManager.broadcastAttention(sessionId, true, attentionAudioUrl, isSubagentAttention, attentionSession?.title)
+            let attentionAudioUrl: string | undefined
+            if (isTracked && !isHeld && attentionSession && isTTSReady()) {
+              const prefix = isSubagentAttention ? 'Subagent ' : ''
+              attentionAudioUrl = generateSignedUrl(prefix + attentionSession.title + ' needs attention', 5)
+            }
+            
+            wsManager.broadcastAttention(sessionId, true, attentionAudioUrl, isSubagentAttention, attentionSession?.title, isTracked, isHeld)
           } else {
             // Any activity clears needs_attention and sets status to active
             const currentSession = db.prepare('SELECT needs_attention, status FROM sessions WHERE id = ?')
@@ -297,6 +338,67 @@ export function createWebhookHandler(app: Hono, db: Database) {
             event.timestamp
           )
           break
+
+        // Chamber events: track/untrack sessions
+        case 'chamber.track': {
+          // Auto-create session if missing
+          ensureSession(sessionId, event.hostname, event.timestamp || Date.now())
+
+          const existing = db.prepare('SELECT id, is_tracked, group_tag FROM sessions WHERE id = ?')
+            .get(sessionId) as { id: string; is_tracked: number; group_tag: string | null } | null
+
+          if (!existing) {
+            return c.json({ error: 'Session not found' }, 404)
+          }
+
+          if (event.isTracked === true && existing.is_tracked === 1) {
+            return c.json({ error: 'Session is already tracked' }, 409)
+          }
+
+          if (event.isTracked === false && existing.is_tracked === 0) {
+            return c.json({ error: 'Session is not tracked' }, 409)
+          }
+          
+          const isTracked = event.isTracked ? 1 : 0
+          db.prepare(`
+            UPDATE sessions SET is_tracked = ?, updated_at = ? WHERE id = ?
+          `).run(isTracked, Date.now(), sessionId)
+          
+          // Broadcast tracked state change
+          const trackedSession = db.prepare('SELECT id, title, is_tracked, group_tag FROM sessions WHERE id = ?').get(sessionId)
+          if (trackedSession) {
+            wsManager.broadcastTrackedChanged(sessionId, isTracked === 1, (trackedSession as any).group_tag)
+          }
+          break
+        }
+
+        // Chamber event: mark session done
+        case 'chamber.done': {
+          // Auto-create session if missing
+          ensureSession(sessionId, event.hostname, event.timestamp || Date.now())
+
+          const existing = db.prepare('SELECT id, is_tracked FROM sessions WHERE id = ?')
+            .get(sessionId) as { id: string; is_tracked: number } | null
+
+          if (!existing) {
+            return c.json({ error: 'Session not found' }, 404)
+          }
+
+          if (existing.is_tracked === 0) {
+            return c.json({ error: 'Session must be tracked before marking done' }, 409)
+          }
+          
+          const now = Date.now()
+          db.prepare(`
+            UPDATE sessions 
+            SET is_tracked = 0, completed_at = ?, completed_reason = ?, updated_at = ?
+            WHERE id = ?
+          `).run(now, event.completedReason || 'cc_done', now, sessionId)
+          
+          // Broadcast done state change
+          wsManager.broadcastTrackedChanged(sessionId, false, null)
+          break
+        }
       }
 
       return c.json({ success: true })

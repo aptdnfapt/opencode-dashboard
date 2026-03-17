@@ -46,16 +46,18 @@ Each item should be verifiable.
 
 ## Phase 1 Backend / Plugin / Migration
 
-- backend stores tracked state
-- backend stores generic group tags
-- backend stores completion metadata for chamber-done sessions
-- migration is additive and safe for old data
-- plugin can emit tracked-state changes
-- plugin can emit done-state changes
-- web UI can edit tracked state
-- web UI can edit group tag
-- realtime contract exposes needed live state for Chamber
-- notifications are gated so untracked sessions do not alert
+- [x] backend stores tracked state (`is_tracked` column in sessions)
+- [x] backend stores generic group tags (`group_tag` column in sessions)
+- [x] backend stores completion metadata for chamber-done sessions (`completed_at`, `completed_reason`)
+- [x] migration is additive and safe for old data (ALTER TABLE ADD COLUMN with defaults)
+- [x] plugin can emit tracked-state changes (`chamber.track` event)
+- [x] plugin can emit done-state changes (`chamber.done` event)
+- [x] web UI can edit tracked state (PATCH /api/sessions/:id/track)
+- [x] web UI can edit group tag (PATCH /api/sessions/:id/track with groupTag)
+- [x] project holds table created (`project_holds`)
+- [x] web UI can set hold state (PATCH /api/projects/:dir/hold)
+- [x] realtime contract exposes needed live state for Chamber (tracked, hold in WS messages)
+- [x] notifications are gated so untracked sessions do not alert (frontend checks isTracked/isHeld)
 
 ---
 

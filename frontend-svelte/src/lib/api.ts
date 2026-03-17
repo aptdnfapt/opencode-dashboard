@@ -294,3 +294,68 @@ export async function deleteNote(noteId: number): Promise<{ success: boolean }> 
   if (!res.ok) throw new Error(`API error: ${res.status}`)
   return res.json()
 }
+
+// --- Chamber / Captain's Chamber ---
+
+// Get all tracked sessions
+export async function getChamberTracked(): Promise<Session[]> {
+  return fetchAPI('/api/chamber/tracked')
+}
+
+// Get recently completed chamber sessions
+export async function getChamberRecentDone(limit = 20): Promise<Session[]> {
+  return fetchAPI(`/api/chamber/recent-done?limit=${limit}`)
+}
+
+// Set tracking state for a session
+export async function setSessionTracked(
+  id: string, 
+  opts: { isTracked?: boolean; groupTag?: string | null }
+): Promise<Session> {
+  const key = getApiKey()
+  const res = await fetch(`/api/sessions/${id}/track`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(key ? { 'X-API-Key': key } : {})
+    },
+    body: JSON.stringify(opts)
+  })
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  return res.json()
+}
+
+// Mark session as chamber-done
+export async function markSessionDone(id: string): Promise<Session> {
+  const key = getApiKey()
+  const res = await fetch(`/api/sessions/${id}/done`, {
+    method: 'POST',
+    headers: key ? { 'X-API-Key': key } : {}
+  })
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  return res.json()
+}
+
+// Get all project holds
+export async function getProjectHolds(): Promise<{ directory: string; is_held: number; updated_at: number }[]> {
+  return fetchAPI('/api/projects/holds')
+}
+
+// Set hold state for a project
+export async function setProjectHold(directory: string, isHeld: boolean): Promise<{ 
+  directory: string
+  is_held: number
+  updated_at: number 
+}> {
+  const key = getApiKey()
+  const res = await fetch(`/api/projects/${encodeURIComponent(directory)}/hold`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(key ? { 'X-API-Key': key } : {})
+    },
+    body: JSON.stringify({ isHeld })
+  })
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  return res.json()
+}

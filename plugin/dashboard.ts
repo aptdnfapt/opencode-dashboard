@@ -3,6 +3,11 @@ import { existsSync, readFileSync } from "fs"
 import { join } from "path"
 import { homedir, hostname as getHostname } from "os"
 
+// Chamber slash command names
+const CC_ADD = 'cc-add'
+const CC_REMOVE = 'cc-remove'
+const CC_DONE = 'cc-done'
+
 // ============================================
 // Helper functions
 // ============================================
@@ -92,7 +97,7 @@ function loadConfig(directory: string): DashboardConfig {
 // ============================================
 // Plugin export
 // ============================================
-export const DashboardPlugin: Plugin = async ({ directory }) => {
+export const DashboardPlugin: Plugin = async ({ directory, client }) => {
   const config = loadConfig(directory || process.cwd())
   const BACKEND_URL = `${config.url}/events`
   
@@ -106,23 +111,44 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
   const sentTokenMessages = new Set<string>()
   
   // Dedup: track last idle send time per session to prevent duplicate bing sounds
-  // OpenCode's cancel() can fire session.status idle multiple times rapidly
   const lastIdleSent = new Map<string, number>()
   const IDLE_DEDUP_MS = 2000 // ignore duplicate idle events within 2 seconds
   
-  // Track sessions that were just aborted (ESC) — abort fires session.error THEN session.status idle
-  // We suppress the bing on session.error for aborts, but still need to send session.idle
-  // so backend knows session is idle — just without a bing-triggering event
+  // Track sessions that were just aborted (ESC)
   const recentAborts = new Set<string>()
   
-  // Send event to backend. Returns promise so callers can await if ordering matters.
-  function send(payload: any): Promise<void> {
+  // Show TUI toast by publishing the exact bus event the TUI listens for.
+  async function showToast(
+    title: string,
+    message: string,
+    variant: 'success' | 'error' | 'info' | 'warning' = 'success',
+  ): Promise<void> {
+    if (!client?.tui?.publish) {
+      return
+    }
+
+    await client.tui.publish({
+      directory,
+      body: {
+        type: 'tui.toast.show',
+        properties: {
+          title,
+          message,
+          variant,
+          duration: 5000,
+        },
+      },
+    })
+  }
+  
+  // Send event to backend. Reject on failed HTTP so command toast can show errors.
+  async function send(payload: any): Promise<void> {
     const headers: Record<string, string> = { "Content-Type": "application/json" }
     if (config.apiKey) {
       headers["X-API-Key"] = config.apiKey
     }
-    
-    return fetch(BACKEND_URL, {
+
+    const response = await fetch(BACKEND_URL, {
       method: "POST",
       headers,
       body: JSON.stringify({ 
@@ -131,10 +157,72 @@ export const DashboardPlugin: Plugin = async ({ directory }) => {
         hostname: config.hostname,
         timestamp: Date.now() 
       })
-    }).then(() => {}).catch(() => {})
+    })
+
+    if (!response.ok) {
+      throw new Error(`Dashboard backend returned ${response.status}`)
+    }
   }
   
   return {
+    // Register Chamber slash commands so they appear in TUI command list
+    config: async (input) => {
+      if (!input.command) {
+        input.command = {}
+      }
+      input.command[CC_ADD] = {
+        template: 'Add this session to Captain\'s Chamber for live tracking.',
+        description: 'Add session to Captain\'s Chamber',
+      }
+      input.command[CC_REMOVE] = {
+        template: 'Remove this session from Captain\'s Chamber without marking complete.',
+        description: 'Remove session from Captain\'s Chamber',
+      }
+      input.command[CC_DONE] = {
+        template: 'Mark this tracked session as completed and remove from Captain\'s Chamber.',
+        description: 'Mark session done in Captain\'s Chamber',
+      }
+    },
+    // Intercept Chamber slash commands before they become prompt text
+    'command.execute.before': async (input) => {
+      const command = input.command
+      const sessionId = input.sessionID
+      
+      if (command !== CC_ADD && command !== CC_REMOVE && command !== CC_DONE) {
+        return // Not our command, let it pass through
+      }
+      
+      try {
+        if (command === CC_ADD) {
+          await send({
+            type: 'chamber.track',
+            sessionId,
+            isTracked: true,
+          })
+          await showToast('Added to Captain\'s Chamber', 'Session is now being tracked live.')
+        } else if (command === CC_REMOVE) {
+          await send({
+            type: 'chamber.track',
+            sessionId,
+            isTracked: false,
+          })
+          await showToast('Removed from Captain\'s Chamber', 'Session remains in Library history.')
+        } else if (command === CC_DONE) {
+          await send({
+            type: 'chamber.done',
+            sessionId,
+            completedReason: 'cc_done',
+          })
+          await showToast('Marked done', 'Session removed from Chamber and marked complete.')
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error'
+        await showToast('Command failed', msg, 'error')
+      }
+      
+      // Stop normal prompt execution by throwing
+      throw new Error('Command handled by dashboard plugin')
+    },
     event: async ({ event }) => {
       const props = (event as any).properties
       

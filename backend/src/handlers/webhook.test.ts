@@ -13,6 +13,7 @@ const mockWsManager = {
   broadcastAttention: () => {},
   broadcastIdle: () => { idleBroadcastCount++ },
   broadcastError: () => {},
+  broadcastTrackedChanged: () => {},
 }
 
 // Create a local version of webhook handler that uses mocked wsManager
@@ -29,6 +30,8 @@ function createTestWebhookHandler(app: Hono, db: Database) {
     tokensIn?: number
     tokensOut?: number
     cost?: number
+    isTracked?: boolean
+    completedReason?: string
     timestamp: number
   }
 
@@ -84,6 +87,27 @@ function createTestWebhookHandler(app: Hono, db: Database) {
           WHERE id = ?
         `).run(totalTokens, event.cost || 0, event.timestamp, sessionId)
         break
+
+      case 'chamber.track': {
+        const existing = db.prepare('SELECT is_tracked FROM sessions WHERE id = ?').get(sessionId) as { is_tracked: number } | null
+        if (!existing) return c.json({ error: 'Session not found' }, 404)
+        if (event.isTracked === true && existing.is_tracked === 1) return c.json({ error: 'Session is already tracked' }, 409)
+        if (event.isTracked === false && existing.is_tracked === 0) return c.json({ error: 'Session is not tracked' }, 409)
+        db.prepare('UPDATE sessions SET is_tracked = ?, updated_at = ? WHERE id = ?')
+          .run(event.isTracked ? 1 : 0, event.timestamp, sessionId)
+        mockWsManager.broadcastTrackedChanged()
+        break
+      }
+
+      case 'chamber.done': {
+        const existing = db.prepare('SELECT is_tracked FROM sessions WHERE id = ?').get(sessionId) as { is_tracked: number } | null
+        if (!existing) return c.json({ error: 'Session not found' }, 404)
+        if (existing.is_tracked === 0) return c.json({ error: 'Session must be tracked before marking done' }, 409)
+        db.prepare('UPDATE sessions SET is_tracked = 0, completed_at = ?, completed_reason = ? WHERE id = ?')
+          .run(event.timestamp, event.completedReason || 'cc_done', sessionId)
+        mockWsManager.broadcastTrackedChanged()
+        break
+      }
     }
 
     return c.json({ success: true })
@@ -242,5 +266,42 @@ describe('Webhook Handler', () => {
     const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get('child-123') as any
     expect(session).toBeDefined()
     expect(session.parent_session_id).toBe('parent-456')
+  })
+
+  it('marks session tracked on chamber.track', async () => {
+    db.prepare('INSERT INTO sessions (id, title, hostname, created_at, updated_at, is_tracked) VALUES (?, ?, ?, ?, ?, ?)')
+      .run('test-123', 'Test', 'vps1', Date.now(), Date.now(), 0)
+
+    const res = await app.fetch(new Request('http://localhost/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'chamber.track',
+        sessionId: 'test-123',
+        isTracked: true,
+        timestamp: Date.now(),
+      })
+    }))
+
+    expect(res.status).toBe(200)
+    const session = db.prepare('SELECT is_tracked FROM sessions WHERE id = ?').get('test-123') as { is_tracked: number }
+    expect(session.is_tracked).toBe(1)
+  })
+
+  it('returns 409 on chamber.done for untracked session', async () => {
+    db.prepare('INSERT INTO sessions (id, title, hostname, created_at, updated_at, is_tracked) VALUES (?, ?, ?, ?, ?, ?)')
+      .run('test-123', 'Test', 'vps1', Date.now(), Date.now(), 0)
+
+    const res = await app.fetch(new Request('http://localhost/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'chamber.done',
+        sessionId: 'test-123',
+        timestamp: Date.now(),
+      })
+    }))
+
+    expect(res.status).toBe(409)
   })
 })

@@ -2,7 +2,7 @@
 // WebSocket manager - handles client connections and broadcasting
 
 interface BroadcastMessage {
-  type: 'session.created' | 'session.updated' | 'timeline' | 'attention' | 'idle' | 'error'
+  type: 'session.created' | 'session.updated' | 'timeline' | 'attention' | 'idle' | 'error' | 'tracked.changed' | 'hold.changed'
   data: Record<string, unknown>
 }
 
@@ -62,16 +62,24 @@ export class WebSocketManager {
     this.broadcast({ type: 'timeline', data: event as unknown as Record<string, unknown> })
   }
 
-  broadcastAttention(sessionId: string, needsAttention: boolean, audioUrl?: string, isSubagent?: boolean, title?: string): void {
-    this.broadcast({ type: 'attention', data: { sessionId, needsAttention, audioUrl, isSubagent, title } })
+  broadcastAttention(sessionId: string, needsAttention: boolean, audioUrl?: string, isSubagent?: boolean, title?: string, isTracked?: boolean, isHeld?: boolean): void {
+    this.broadcast({ type: 'attention', data: { sessionId, needsAttention, audioUrl, isSubagent, title, isTracked, isHeld } })
   }
 
-  broadcastIdle(sessionId: string, audioUrl?: string, isSubagent?: boolean, title?: string): void {
-    this.broadcast({ type: 'idle', data: { sessionId, audioUrl, isSubagent, title } })
+  broadcastIdle(sessionId: string, audioUrl?: string, isSubagent?: boolean, title?: string, isTracked?: boolean, isHeld?: boolean): void {
+    this.broadcast({ type: 'idle', data: { sessionId, audioUrl, isSubagent, title, isTracked, isHeld } })
   }
 
-  broadcastError(sessionId: string, error: string, title?: string, audioUrl?: string, isSubagent?: boolean): void {
-    this.broadcast({ type: 'error', data: { sessionId, error, title, audioUrl, isSubagent } })
+  broadcastError(sessionId: string, error: string, title?: string, audioUrl?: string, isSubagent?: boolean, isTracked?: boolean, isHeld?: boolean): void {
+    this.broadcast({ type: 'error', data: { sessionId, error, title, audioUrl, isSubagent, isTracked, isHeld } })
+  }
+
+  broadcastTrackedChanged(sessionId: string, isTracked: boolean, groupTag?: string | null): void {
+    this.broadcast({ type: 'tracked.changed', data: { sessionId, isTracked, groupTag: groupTag || null } })
+  }
+
+  broadcastHoldChanged(directory: string, isHeld: boolean): void {
+    this.broadcast({ type: 'hold.changed', data: { directory, isHeld } })
   }
 }
 

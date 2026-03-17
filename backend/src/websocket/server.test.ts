@@ -46,4 +46,63 @@ describe('WebSocket Manager', () => {
 
     expect(received.length).toBe(1)
   })
+
+  it('broadcastIdle includes isTracked and isHeld flags', () => {
+    const manager = new WebSocketManager()
+    const received: string[] = []
+    const mockWs = { send: (msg: string) => received.push(msg), readyState: 1 } as any
+
+    manager.register(mockWs)
+    manager.broadcastIdle('s1', 'https://audio.test/idle.wav', false, 'Session A', true, true)
+
+    expect(received.length).toBe(1)
+    expect(JSON.parse(received[0])).toEqual({
+      type: 'idle',
+      data: {
+        sessionId: 's1',
+        audioUrl: 'https://audio.test/idle.wav',
+        isSubagent: false,
+        title: 'Session A',
+        isTracked: true,
+        isHeld: true,
+      },
+    })
+  })
+
+  it('broadcastTrackedChanged sends tracked.changed payload', () => {
+    const manager = new WebSocketManager()
+    const received: string[] = []
+    const mockWs = { send: (msg: string) => received.push(msg), readyState: 1 } as any
+
+    manager.register(mockWs)
+    manager.broadcastTrackedChanged('s2', false, 'urgent')
+
+    expect(received.length).toBe(1)
+    expect(JSON.parse(received[0])).toEqual({
+      type: 'tracked.changed',
+      data: {
+        sessionId: 's2',
+        isTracked: false,
+        groupTag: 'urgent',
+      },
+    })
+  })
+
+  it('broadcastHoldChanged sends hold.changed payload', () => {
+    const manager = new WebSocketManager()
+    const received: string[] = []
+    const mockWs = { send: (msg: string) => received.push(msg), readyState: 1 } as any
+
+    manager.register(mockWs)
+    manager.broadcastHoldChanged('/repo/app', true)
+
+    expect(received.length).toBe(1)
+    expect(JSON.parse(received[0])).toEqual({
+      type: 'hold.changed',
+      data: {
+        directory: '/repo/app',
+        isHeld: true,
+      },
+    })
+  })
 })
