@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCode Library</title>
+    <style>
+        /* OpenCode Dark Theme - Matched exactly to your screenshot */
+        :root {
+            --bg-main: #13151a;
+            --bg-canvas: #0f1115;
+            --bg-card: #1e2128;
+            --bg-card-hover: #262a33;
+            --bg-ralph-group: rgba(30, 33, 40, 0.4);
+            --border-color: #2b303b;
+            --border-highlight: #374151;
+            --text-main: #e5e7eb;
+            --text-muted: #9ca3af;
+            --text-watermark: rgba(255, 255, 255, 0.03);
+            
+            /* Status Colors */
+            --color-success: #10b981;
+            --color-error: #ef4444;
+            --color-manual: #60a5fa;
+            --color-ralph: #c678dd;
+            
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- TOP NAVIGATION BAR --- */
+        .library-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 32px;
+            background-color: var(--bg-main);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 10;
+        }
+
+        .header-title-group {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-title {
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        .filter-badge {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Toggle Switch for Views */
+        .view-toggle {
+            display: flex;
+            background-color: var(--bg-canvas);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 4px;
+        }
+
+        .toggle-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .toggle-btn.active {
+            background-color: var(--bg-card);
+            color: var(--text-main);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        .toggle-btn svg { width: 14px; height: 14px; fill: currentColor; }
+
+        /* --- VIEW WRAPPERS --- */
+        .view-container {
+            flex: 1;
+            display: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        .view-container.active {
+            display: block;
+        }
+
+        /* =========================================
+           VIEW 1: INFINITE VIDEO TIMELINE
+           ========================================= */
+        .timeline-view {
+            overflow-x: auto;
+            overflow-y: auto;
+            background-color: var(--bg-canvas);
+            position: relative;
+            cursor: grab; /* For drag-to-scroll */
+        }
+
+        .timeline-view:active { cursor: grabbing; }
+
+        /* The infinite scrolling canvas area */
+        .timeline-canvas {
+            min-width: 3000px; /* Represents infinite time */
+            position: relative;
+            padding-top: 40px; /* Space for time axis */
+        }
+
+        /* Time Axis Ruler */
+        .time-axis {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 40px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            color: var(--text-muted);
+            font-size: 11px;
+            font-family: var(--font-mono);
+            background-color: rgba(19, 21, 26, 0.9);
+            z-index: 5;
+        }
+
+        .time-marker {
+            width: 500px; /* Fixed width per time block */
+            padding: 12px 16px;
+            border-left: 1px solid var(--border-color);
+        }
+
+        /* Project Track (Horizontal Row) */
+        .project-track {
+            position: relative;
+            height: 180px; /* Fits both lanes */
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* Massive Transparent Background Text */
+        .track-watermark {
+            position: absolute;
+            left: 60px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 80px;
+            font-weight: 800;
+            color: var(--text-watermark);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            pointer-events: none; /* Let clicks pass through to blocks */
+            white-space: nowrap;
+            z-index: 0;
+        }
+
+        /* Two Vertical Lanes per track */
+        .lane {
+            position: relative;
+            width: 100%;
+            z-index: 1;
+        }
+        
+        .lane-ralph { height: 90px; }
+        .lane-manual { height: 70px; }
+
+        /* Base Block Style */
+        .block {
+            position: absolute;
+            border-radius: 6px;
+            font-size: 11px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+        }
+
+        /* RALPH OUTER CONTAINER */
+        .ralph-group-block {
+            border: 1px dashed #5c6370;
+            background-color: var(--bg-ralph-group);
+            height: 70px;
+            top: 10px; /* Center in lane */
+            padding: 4px;
+            display: flex;
+            flex-direction: row; /* Inner sessions flow horizontally */
+            gap: 6px;
+        }
+
+        .ralph-group-label {
+            position: absolute;
+            top: -20px;
+            left: 0;
+            font-size: 10px;
+            color: var(--color-ralph);
+            font-family: var(--font-mono);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* INNER SESSIONS (Inside Ralph) */
+        .inner-session {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            flex: 1; /* Stretch to fill Ralph block */
+            min-width: 120px;
+            padding: 6px 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            transition: border-color 0.2s;
+        }
+        .inner-session:hover { border-color: var(--border-highlight); }
+
+        /* MANUAL SESSIONS (No Outer Tag) */
+        .manual-block {
+            background-color: var(--bg-card);
+            border: 1px solid var(--color-manual);
+            height: 44px;
+            top: 13px;
+            padding: 6px 10px;
+            min-width: 150px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        /* Block Text Formatting */
+        .block-title {
+            color: var(--text-main);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .block-meta {
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Status Icons (SVG, NO EMOJIS) */
+        .icon { width: 10px; height: 10px; }
+        .icon-success { fill: var(--color-success); }
+        .icon-error { fill: var(--color-error); }
+
+
+        /* =========================================
+           VIEW 2: NOTION-STYLE DATABASE TABLE
+           ========================================= */
+        .database-view {
+            padding: 24px 32px;
+            overflow-y: auto;
+        }
+
+        .db-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .db-table th {
+            text-align: left;
+            padding: 12px 16px;
+            color: var(--text-muted);
+            font-weight: 500;
+            border-bottom: 1px solid var(--border-highlight);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-size: 11px;
+        }
+
+        .db-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+
+        .db-table tr:hover td {
+            background-color: var(--bg-card-hover);
+        }
+
+        /* Database Badges */
+        .tag-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            border: 1px solid;
+        }
+
+        .tag-ralph { color: var(--color-ralph); border-color: rgba(198, 120, 221, 0.3); background: rgba(198, 120, 221, 0.05); }
+        .tag-manual { color: var(--color-manual); border-color: rgba(96, 165, 250, 0.3); background: rgba(96, 165, 250, 0.05); }
+
+        .cell-prompt {
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-muted);
+        }
+
+        /* SVG Paths for UI */
+        .svg-timeline path { d: path('M3 3v18h18M3 10h18M3 16h18M7 6v12M13 6v12M19 6v12'); stroke: currentColor; stroke-width: 2; fill: none; }
+        .svg-table path { d: path('M3 4h18v16H3zM3 10h18M9 4v16'); stroke: currentColor; stroke-width: 2; fill: none; }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="library-header">
+        <div class="header-title-group">
+            <div class="header-title">Session Library</div>
+            <div class="filter-badge">
+                <svg viewBox="0 0 24 24" style="width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+                Showing 3 Active Projects (Last 48h)
+            </div>
+        </div>
+
+        <div class="view-toggle">
+            <button class="toggle-btn active" id="btn-timeline">
+                <svg viewBox="0 0 24 24" class="svg-timeline"><path></path></svg>
+                Timeline
+            </button>
+            <button class="toggle-btn" id="btn-database">
+                <svg viewBox="0 0 24 24" class="svg-table"><path></path></svg>
+                Database
+            </button>
+        </div>
+    </header>
+
+    <!-- VIEW 1: Infinite Timeline -->
+    <main class="view-container active" id="view-timeline">
+        <div class="timeline-view" id="timeline-scroll-area">
+            <div class="timeline-canvas">
+                
+                <!-- Time Axis -->
+                <div class="time-axis">
+                    <div class="time-marker">Mar 14, 08:00 AM</div>
+                    <div class="time-marker">Mar 14, 12:00 PM</div>
+                    <div class="time-marker">Mar 14, 04:00 PM</div>
+                    <div class="time-marker">Mar 14, 08:00 PM</div>
+                    <div class="time-marker">Mar 15, 12:00 AM</div>
+                    <div class="time-marker">Mar 15, 04:00 AM</div>
+                </div>
+
+                <!-- Track 1: openshare -->
+                <div class="project-track">
+                    <div class="track-watermark">openshare</div>
+                    
+                    <!-- Ralph Lane (Top) -->
+                    <div class="lane lane-ralph">
+                        <!-- A Multi-session Ralph Loop -->
+                        <div class="block ralph-group-block" style="left: 150px; width: 650px;">
+                            <div class="ralph-group-label">
+                                <svg viewBox="0 0 24 24" style="width:10px;height:10px;fill:currentColor;"><path d="M12 2L2 22h20L12 2z"/></svg>
+                                tag: Ralph-Frontend-MVP
+                            </div>
+                            
+                            <!-- Inner Sessions (Automatically flow via flexbox) -->
+                            <div class="inner-session">
+                                <div class="block-title">UI Layout Spec</div>
+                                <div class="block-meta">
+                                    <svg class="icon icon-success" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                                    12 mins
+                                </div>
+                            </div>
+                            <div class="inner-session">
+                                <div class="block-title">Auth Components</div>
+                                <div class="block-meta">
+                                    <svg class="icon icon-success" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                                    24 mins
+                                </div>
+                            </div>
+                            <div class="inner-session" style="border-color: var(--color-error);">
+                                <div class="block-title">Router Setup</div>
+                                <div class="block-meta">
+                                    <svg class="icon icon-error" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                                    Failed (Tests)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Manual Lane (Bottom) -->
+                    <div class="lane lane-manual">
+                        <div class="block manual-block" style="left: 850px; width: 180px;">
+                            <div class="block-title">Fixing Router Error</div>
+                            <div class="block-meta">
+                                <svg viewBox="0 0 24 24" style="width:10px;height:10px;fill:currentColor;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                Manual Debug • 8m
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Track 2: context-editor -->
+                <div class="project-track">
+                    <div class="track-watermark">context-editor</div>
+                    
+                    <div class="lane lane-ralph">
+                        <!-- Empty Ralph Lane for this project currently -->
+                    </div>
+
+                    <div class="lane lane-manual">
+                        <div class="block manual-block" style="left: 400px; width: 220px;">
+                            <div class="block-title">AST Parser testing</div>
+                            <div class="block-meta">
+                                <svg viewBox="0 0 24 24" style="width:10px;height:10px;fill:currentColor;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                Manual • 45m
+                            </div>
+                        </div>
+                        <div class="block manual-block" style="left: 1100px; width: 140px;">
+                            <div class="block-title">Linting Sweep</div>
+                            <div class="block-meta">
+                                <svg viewBox="0 0 24 24" style="width:10px;height:10px;fill:currentColor;"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                Manual • 5m
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Track 3: pipe-cat-ai -->
+                <div class="project-track">
+                    <div class="track-watermark">pipe-cat-ai-vc-bot</div>
+                    
+                    <div class="lane lane-ralph">
+                        <div class="block ralph-group-block" style="left: 900px; width: 400px;">
+                            <div class="ralph-group-label">
+                                <svg viewBox="0 0 24 24" style="width:10px;height:10px;fill:currentColor;"><path d="M12 2L2 22h20L12 2z"/></svg>
+                                tag: Security-Audit
+                            </div>
+                            <div class="inner-session">
+                                <div class="block-title">Dependency Check</div>
+                                <div class="block-meta"><svg class="icon icon-success" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> 18 mins</div>
+                            </div>
+                            <div class="inner-session">
+                                <div class="block-title">Logging Overhaul</div>
+                                <div class="block-meta"><svg class="icon icon-success" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> 33 mins</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="lane lane-manual"></div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- VIEW 2: Database Table -->
+    <main class="view-container" id="view-database">
+        <div class="database-view">
+            <table class="db-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;"></th>
+                        <th>Project</th>
+                        <th>Tag / Type</th>
+                        <th>Task Summary</th>
+                        <th>Model</th>
+                        <th>Date</th>
+                        <th>Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><svg class="icon icon-success" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></td>
+                        <td style="color: #d4a373;">openshare</td>
+                        <td><span class="tag-badge tag-manual">Manual</span></td>
+                        <td class="cell-prompt">Fixing Router Error: Addressed the null pointer exception in the auth route.</td>
+                        <td style="font-family: var(--font-mono); color: var(--text-muted); font-size: 11px;">qwen3.5</td>
+                        <td>Mar 14, 02:45 PM</td>
+                        <td>8m</td>
+                    </tr>
+                    <tr>
+                        <td><svg class="icon icon-error" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></td>
+                        <td style="color: #d4a373;">openshare</td>
+                        <td><span class="tag-badge tag-ralph">Ralph-Frontend-MVP</span></td>
+                        <td class="cell-prompt">Router Setup: Spec failed due to missing test dependencies.</td>
+                        <td style="font-family: var(--font-mono); color: var(--text-muted); font-size: 11px;">qwen3.5</td>
+                        <td>Mar 14, 01:20 PM</td>
+                        <td>14m</td>
+                    </tr>
+                    <tr>
+                        <td><svg class="icon icon-success" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></td>
+                        <td style="color: #c678dd;">pipe-cat-ai-vc-bot</td>
+                        <td><span class="tag-badge tag-ralph">Security-Audit</span></td>
+                        <td class="cell-prompt">Logging Overhaul: Implemented markdown file writer for sessions.</td>
+                        <td style="font-family: var(--font-mono); color: var(--text-muted); font-size: 11px;">glm-5</td>
+                        <td>Mar 14, 11:30 AM</td>
+                        <td>33m</td>
+                    </tr>
+                    <tr>
+                        <td><svg class="icon icon-success" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></td>
+                        <td style="color: #61afef;">context-editor</td>
+                        <td><span class="tag-badge tag-manual">Manual</span></td>
+                        <td class="cell-prompt">AST Parser testing: bash loop to verify abstract syntax tree integrity.</td>
+                        <td style="font-family: var(--font-mono); color: var(--text-muted); font-size: 11px;">glm-5</td>
+                        <td>Mar 14, 09:15 AM</td>
+                        <td>45m</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        // --- View Toggling Logic ---
+        const btnTimeline = document.getElementById('btn-timeline');
+        const btnDatabase = document.getElementById('btn-database');
+        const viewTimeline = document.getElementById('view-timeline');
+        const viewDatabase = document.getElementById('view-database');
+
+        btnTimeline.addEventListener('click', () => {
+            btnTimeline.classList.add('active');
+            btnDatabase.classList.remove('active');
+            viewTimeline.classList.add('active');
+            viewDatabase.classList.remove('active');
+        });
+
+        btnDatabase.addEventListener('click', () => {
+            btnDatabase.classList.add('active');
+            btnTimeline.classList.remove('active');
+            viewDatabase.classList.add('active');
+            viewTimeline.classList.remove('active');
+        });
+
+        // --- Premium Drag-to-Scroll Logic for Timeline Canvas ---
+        const slider = document.getElementById('timeline-scroll-area');
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+
+        slider.addEventListener('mousedown', (e) => {
+            isDown = true;
+            slider.style.cursor = 'grabbing';
+            startX = e.pageX - slider.offsetLeft;
+            scrollLeft = slider.scrollLeft;
+        });
+        
+        slider.addEventListener('mouseleave', () => {
+            isDown = false;
+            slider.style.cursor = 'grab';
+        });
+        
+        slider.addEventListener('mouseup', () => {
+            isDown = false;
+            slider.style.cursor = 'grab';
+        });
+        
+        slider.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - slider.offsetLeft;
+            const walk = (x - startX) * 2; // Scroll-fast multiplier
+            slider.scrollLeft = scrollLeft - walk;
+        });
+    </script>
+</body>
+</html>
+

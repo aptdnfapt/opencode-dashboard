@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenCode Captain's Chamber</title>
+    <style>
+        /* Base Theme */
+        :root {
+            --bg-main: #13151a;
+            --bg-card: #1e2128;
+            --bg-card-hover: #262a33;
+            --border-color: #2b303b;
+            --text-main: #e5e7eb;
+            --text-muted: #9ca3af;
+            --color-project: #d4a373;
+            --color-running: #10b981;
+            --color-idle: #f59e0b;
+            --color-hold: #6b7280;
+            --color-model: #60a5fa;
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 32px;
+            box-sizing: border-box;
+        }
+
+        .header-title {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            letter-spacing: -0.5px;
+        }
+
+        /* Container */
+        .kanban-container {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--bg-main);
+            overflow: hidden;
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+        }
+
+        /* Grid Layout (4 columns: Project | Running | Idle | Hold) */
+        .kanban-grid {
+            display: grid;
+            grid-template-columns: 220px 1fr 1fr 1fr;
+            width: 100%;
+        }
+
+        /* Header */
+        .kanban-header {
+            background-color: #181a20;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .header-cell {
+            padding: 16px;
+        }
+
+        /* Project Row Container */
+        .kanban-row {
+            border-bottom: 1px solid var(--border-color);
+            position: relative;
+        }
+
+        .kanban-row:last-child {
+            border-bottom: none;
+        }
+
+        .project-cell {
+            padding: 24px 16px;
+            font-weight: 500;
+            color: var(--color-project);
+            display: flex;
+            align-items: flex-start;
+        }
+
+        /* The Slide Track (owns the 3 status columns) */
+        .slide-track {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            grid-column: 2 / -1; /* Spans across all 3 status columns */
+            position: relative;
+        }
+
+        /* Drop Zones / Columns (No vertical borders) */
+        .drop-zone {
+            padding: 16px;
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            position: relative;
+            transition: background-color 0.2s ease;
+        }
+
+        /* Subtly tint the zones when dragging */
+        .drop-zone.drag-active {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+        
+        .drop-zone.drag-error {
+            background-color: rgba(239, 68, 68, 0.05); /* Red restricted area */
+        }
+
+        /* The Session Card */
+        .session-card {
+            background-color: var(--bg-card);
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 14px;
+            cursor: grab;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            position: relative; /* For z-index to work */
+            z-index: 1;
+            /* Prevent text selection while sliding */
+            user-select: none; 
+            -webkit-user-select: none;
+            touch-action: none; /* Prevents page scroll on mobile */
+        }
+
+        .session-card:hover {
+            border-color: #4b5563;
+            background-color: var(--bg-card-hover);
+        }
+
+        /* State when actively sliding */
+        .session-card.is-dragging {
+            cursor: grabbing;
+            z-index: 100;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+            border-color: #6b7280;
+        }
+
+        /* Card Content Styles */
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .session-title {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .session-time {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .session-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+
+        .model-tag { color: var(--color-model); }
+
+        .session-prompt {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Status Dot Indicator */
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+        }
+        
+        .dot { width: 6px; height: 6px; border-radius: 50%; }
+        
+        .status-running { color: var(--color-running); }
+        .dot-running { background-color: var(--color-running); box-shadow: 0 0 8px var(--color-running); animation: pulse 2s infinite; }
+        
+        .status-idle { color: var(--color-idle); }
+        .dot-idle { background-color: var(--color-idle); }
+        
+        .status-hold { color: var(--color-hold); }
+        .dot-hold { background-color: var(--color-hold); }
+
+        @keyframes pulse {
+            0% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+            100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-title">Captain's Chamber</div>
+
+    <div class="kanban-container">
+        <!-- Header -->
+        <div class="kanban-grid kanban-header">
+            <div class="header-cell">Project Domain</div>
+            <div class="header-cell">Running</div>
+            <div class="header-cell">Needs Human Review</div>
+            <div class="header-cell">Hold</div>
+        </div>
+
+        <!-- Project 1 -->
+        <div class="kanban-grid kanban-row">
+            <div class="project-cell" style="color: #d4a373;">openshare</div>
+            <div class="slide-track">
+                <!-- Zone 1: Running -->
+                <div class="drop-zone" data-status="running">
+                    <div class="session-card" id="card-1">
+                        <div class="card-header">
+                            <div class="session-title">Backend exploration</div>
+                            <div class="session-time">4m ago</div>
+                        </div>
+                        <div class="session-meta">devbox • <span class="model-tag">qwen3.5</span></div>
+                        <div class="session-prompt">Searching through the core routers to trace the API calls and fixing the null pointer...</div>
+                        <div class="status-indicator status-running"><div class="dot dot-running"></div> Running</div>
+                    </div>
+                </div>
+                <!-- Zone 2: Idle -->
+                <div class="drop-zone" data-status="idle"></div>
+                <!-- Zone 3: Hold -->
+                <div class="drop-zone" data-status="hold">
+                    <div class="session-card" id="card-2">
+                        <div class="card-header">
+                            <div class="session-title">Server status check</div>
+                            <div class="session-time">5h ago</div>
+                        </div>
+                        <div class="session-meta">devbox • <span class="model-tag">qwen3.5</span></div>
+                        <div class="session-prompt">Task paused. Reviewing server logs before continuing.</div>
+                        <div class="status-indicator status-hold"><div class="dot dot-hold"></div> Hold</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Project 2 -->
+        <div class="kanban-grid kanban-row">
+            <div class="project-cell" style="color: #c678dd;">pipe-cat-ai-vc-bot</div>
+            <div class="slide-track">
+                <div class="drop-zone" data-status="running"></div>
+                
+                <div class="drop-zone" data-status="idle">
+                    <div class="session-card" id="card-3">
+                        <div class="card-header">
+                            <div class="session-title">Security Audit</div>
+                            <div class="session-time">Just now</div>
+                        </div>
+                        <div class="session-meta">idc • <span class="model-tag">glm-5</span></div>
+                        <div class="session-prompt">I understand now. You want: **Per-session markdown logging**. Should I implement the file writer class first?</div>
+                        <div class="status-indicator status-idle"><div class="dot dot-idle"></div> Idle</div>
+                    </div>
+                </div>
+                
+                <div class="drop-zone" data-status="hold"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Custom Physical Slider Logic (Locked to horizontal track)
+        const cards = document.querySelectorAll('.session-card');
+        
+        let activeCard = null;
+        let startMouseX = 0;
+        let currentTranslateX = 0;
+        let sourceZone = null;
+        let currentTrack = null;
+        let zonesInTrack =[];
+
+        cards.forEach(card => {
+            card.addEventListener('pointerdown', startSlide);
+        });
+
+        function startSlide(e) {
+            if (e.button !== 0) return; // Only left click
+            
+            activeCard = e.currentTarget;
+            sourceZone = activeCard.closest('.drop-zone');
+            currentTrack = activeCard.closest('.slide-track');
+            zonesInTrack = Array.from(currentTrack.querySelectorAll('.drop-zone'));
+            
+            // Capture initial mouse position
+            startMouseX = e.clientX;
+            
+            // Setup styles for sliding
+            activeCard.classList.add('is-dragging');
+            activeCard.style.transition = 'none'; // Remove CSS transition for instant drag follow
+            
+            // Highlight available zones
+            zonesInTrack.forEach(zone => zone.classList.add('drag-active'));
+
+            // Bind global move/up events
+            document.addEventListener('pointermove', onSlide);
+            document.addEventListener('pointerup', stopSlide);
+            
+            // Capture pointer so if user moves mouse really fast off the card, it still tracks
+            activeCard.setPointerCapture(e.pointerId);
+        }
+
+        function onSlide(e) {
+            if (!activeCard) return;
+
+            // Calculate horizontal movement ONLY
+            let deltaX = e.clientX - startMouseX;
+
+            // Physics Constraint: Lock card visually inside its track domain
+            const trackRect = currentTrack.getBoundingClientRect();
+            const sourceRect = sourceZone.getBoundingClientRect();
+            const cardRect = activeCard.getBoundingClientRect();
+            
+            // Calculate absolute boundaries relative to where the card started
+            const maxLeftBound = trackRect.left - sourceRect.left + 16; // 16px padding
+            const maxRightBound = trackRect.right - sourceRect.right - 16;
+
+            // Prevent card from sliding outside the project domain
+            if (deltaX < maxLeftBound) deltaX = maxLeftBound;
+            if (deltaX > maxRightBound) deltaX = maxRightBound;
+
+            // Apply horizontal transform
+            activeCard.style.transform = `translateX(${deltaX}px)`;
+
+            // Visual feedback for target zone
+            identifyTargetZone(e.clientX);
+        }
+
+        function identifyTargetZone(mouseX) {
+            // Find which column the mouse is currently hovering over
+            let currentHoverZone = null;
+            
+            zonesInTrack.forEach(zone => {
+                const rect = zone.getBoundingClientRect();
+                // Check if mouse X is within this zone's bounds
+                if (mouseX >= rect.left && mouseX <= rect.right) {
+                    currentHoverZone = zone;
+                }
+            });
+
+            // Handle Gatekeeping UI
+            zonesInTrack.forEach(zone => zone.classList.remove('drag-error'));
+            
+            if (currentHoverZone) {
+                const targetStatus = currentHoverZone.dataset.status;
+                const sourceStatus = sourceZone.dataset.status;
+
+                // GATEKEEPING RULE: Cannot drag manually into 'idle'
+                if (targetStatus === 'idle' && sourceStatus !== 'idle') {
+                    currentHoverZone.classList.add('drag-error');
+                }
+            }
+        }
+
+        function stopSlide(e) {
+            if (!activeCard) return;
+
+            // Remove global listeners
+            document.removeEventListener('pointermove', onSlide);
+            document.removeEventListener('pointerup', stopSlide);
+            activeCard.releasePointerCapture(e.pointerId);
+
+            // Find where we dropped it based on center of the card
+            const cardRect = activeCard.getBoundingClientRect();
+            const cardCenterX = cardRect.left + (cardRect.width / 2);
+            
+            let targetZone = sourceZone; // Default to snapping back
+
+            zonesInTrack.forEach(zone => {
+                const rect = zone.getBoundingClientRect();
+                if (cardCenterX >= rect.left && cardCenterX <= rect.right) {
+                    targetZone = zone;
+                }
+                zone.classList.remove('drag-active', 'drag-error');
+            });
+
+            const targetStatus = targetZone.dataset.status;
+            const sourceStatus = sourceZone.dataset.status;
+
+            // ENFORCE GATEKEEPING LOGIC ON DROP
+            // If trying to drop into 'idle' from another column, block it and snap back to source
+            if (targetStatus === 'idle' && sourceStatus !== 'idle') {
+                targetZone = sourceZone; 
+            }
+
+            // Snap physics
+            activeCard.style.transition = 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
+            
+            // If dropping in a new zone, move it in DOM
+            if (targetZone !== sourceZone) {
+                targetZone.appendChild(activeCard);
+                updateCardStatusUI(activeCard, targetStatus);
+            }
+            
+            // Reset transform to let CSS Flexbox handle the alignment
+            activeCard.style.transform = 'translateX(0px)';
+            
+            // Clean up state
+            activeCard.classList.remove('is-dragging');
+            activeCard = null;
+        }
+
+        // Update the internal dot and text color of the card based on column
+        function updateCardStatusUI(card, newStatus) {
+            const indicatorWrap = card.querySelector('.status-indicator');
+            const dot = card.querySelector('.dot');
+            
+            // Remove old classes
+            indicatorWrap.classList.remove('status-running', 'status-idle', 'status-hold');
+            dot.classList.remove('dot-running', 'dot-idle', 'dot-hold');
+
+            // Apply new classes
+            indicatorWrap.classList.add(`status-${newStatus}`);
+            dot.classList.add(`dot-${newStatus}`);
+
+            // Update text node
+            let text = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
+            indicatorWrap.childNodes[1].nodeValue = ` ${text}`;
+        }
+    </script>
+</body>
+</html>
+
