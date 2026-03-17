@@ -58,6 +58,21 @@
         </svg>
         {libraryStore.timelineModel.totalProjects} projects • {libraryStore.databaseRows.length} sessions
       </div>
+      <div class="time-filter-wrapper">
+        <div class="time-filter">
+          <select 
+            value={libraryStore.filters.timeRange}
+            onchange={(e) => libraryStore.setTimeRange((e.target as HTMLSelectElement).value as any)}
+          >
+            <option value="1h">Last 1 hour</option>
+            <option value="6h">Last 6 hours</option>
+            <option value="24h">Last 24 hours</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="all">All time</option>
+          </select>
+        </div>
+      </div>
     </div>
 
     <div class="view-toggle">
@@ -140,6 +155,26 @@
   .filter-badge svg {
     width: 12px;
     height: 12px;
+  }
+
+  .time-filter-wrapper {
+    display: inline-flex;
+  }
+
+  .time-filter select {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-main);
+    font-size: 11px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    outline: none;
+  }
+
+  .time-filter select:hover {
+    border-color: var(--border-highlight);
   }
 
   .view-toggle {

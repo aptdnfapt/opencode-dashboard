@@ -7,6 +7,8 @@
   }
 
   let { block, onClick }: Props = $props()
+  let isHovering = $state(false)
+  let hoverPosition = $state({ top: 0, left: 0, direction: 'up' as 'up' | 'down' })
 
   function getStatusColor(status: string) {
     switch (status) {
@@ -36,6 +38,38 @@
       handleActivate()
     }
   }
+
+  function handleMouseEnter(event: MouseEvent) {
+    isHovering = true
+    const target = event.currentTarget as HTMLElement
+    const rect = target.getBoundingClientRect()
+    const viewportHeight = window.innerHeight
+    
+    const distanceFromTop = rect.top
+    const distanceFromBottom = viewportHeight - rect.bottom
+    hoverPosition.direction = distanceFromTop > distanceFromBottom ? 'up' : 'down'
+    hoverPosition.left = rect.left
+    hoverPosition.top = rect.top
+  }
+
+  function handleMouseLeave() {
+    isHovering = false
+  }
+
+  function formatTimestamp(ts: number): string {
+    return new Date(ts).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
+  function truncate(text: string | null | undefined, len: number): string {
+    if (!text) return '—'
+    if (text.length <= len) return text
+    return text.slice(0, len - 3) + '...'
+  }
 </script>
 
 <div
@@ -49,6 +83,8 @@
   role="button"
   tabindex="0"
   aria-label={`Open session ${block.title}`}
+  onmouseenter={handleMouseEnter}
+  onmouseleave={handleMouseLeave}
 >
   <div class="block-header">
     <span class="block-title">{block.displayName}</span>
@@ -79,6 +115,53 @@
       <span class="subagent-pill">subagents</span>
     {/if}
   </div>
+
+  {#if isHovering}
+    <div 
+      class="hover-card"
+      class:direction-up={hoverPosition.direction === 'up'}
+      class:direction-down={hoverPosition.direction === 'down'}
+      style={`left:${block.renderLeft}px;`}
+    >
+      <div class="hover-title">{block.title}</div>
+
+      <div class="hover-grid">
+        <div>
+          <div class="hover-label">Created</div>
+          <div class="hover-value">{formatTimestamp(block.startAt)}</div>
+        </div>
+        <div>
+          <div class="hover-label">Last Active</div>
+          <div class="hover-value">{formatTimestamp(block.endAt)}</div>
+        </div>
+        <div>
+          <div class="hover-label">Duration</div>
+          <div class="hover-value">{block.displayMeta}</div>
+        </div>
+      </div>
+
+      {#if block.isCompletedViaChamber}
+        <div class="hover-section" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color);">
+          <div class="hover-label">Completed via Chamber</div>
+          <div class="hover-value">✓</div>
+        </div>
+      {/if}
+
+      {#if block.hasSubagentActivity}
+        <div class="hover-section" style="margin-top: 10px;">
+          <div class="hover-label">Subagent Activity</div>
+          <div class="hover-value">Yes</div>
+        </div>
+      {/if}
+
+      {#if block.segmentCount > 1}
+        <div class="hover-section" style="margin-top: 10px;">
+          <div class="hover-label">Session Segment</div>
+          <div class="hover-value">{block.segmentIndex + 1} of {block.segmentCount}</div>
+        </div>
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -98,6 +181,7 @@
     cursor: pointer;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
     transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    overflow: hidden;
   }
 
 .timeline-block:hover,
@@ -176,5 +260,71 @@
   .subagent-pill {
     color: var(--accent-blue);
     border-color: rgba(88, 166, 255, 0.25);
+  }
+
+  .hover-card {
+    position: fixed;
+    min-width: 380px;
+    max-width: 520px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-highlight);
+    border-radius: 8px;
+    padding: 14px 16px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    z-index: 10000;
+    pointer-events: none;
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .hover-card.direction-up {
+    bottom: calc(100% + 12px);
+  }
+
+  .hover-card.direction-down {
+    top: calc(100% + 12px);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hover-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 12px;
+    line-height: 1.4;
+  }
+
+  .hover-section {
+    margin-bottom: 10px;
+  }
+
+  .hover-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .hover-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 3px;
+  }
+
+  .hover-value {
+    font-size: 12px;
+    color: var(--text-main);
+  }
+
+  .hover-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
   }
 </style>

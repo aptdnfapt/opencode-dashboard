@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { libraryStore, type ChamberFilter, type LibraryTimeRange } from '$lib/library-store.svelte'
+  import { libraryStore, type ChamberFilter } from '$lib/library-store.svelte'
 
   let open = $state(false)
 
@@ -11,19 +11,8 @@
     { value: 'non-chamber', label: 'Non-chamber only' }
   ]
 
-  const rangeOptions: Array<{ value: LibraryTimeRange; label: string }> = [
-    { value: '1h', label: 'Last 1 hour' },
-    { value: '6h', label: 'Last 6 hours' },
-    { value: '24h', label: 'Last 24 hours' },
-    { value: '7d', label: 'Last 7 days' },
-    { value: '30d', label: 'Last 30 days' },
-    { value: 'all', label: 'All time' }
-  ]
-
   let summary = $derived.by(() => {
     const bits: string[] = []
-    const rangeLabel = rangeOptions.find((option) => option.value === libraryStore.filters.timeRange)?.label
-    if (rangeLabel) bits.push(rangeLabel)
     if (libraryStore.filters.projects.length) bits.push(`${libraryStore.filters.projects.length} projects`)
     if (libraryStore.filters.tags.length) bits.push(`${libraryStore.filters.tags.length} tags`)
     if (libraryStore.filters.search) bits.push(`search: ${libraryStore.filters.search}`)
@@ -51,15 +40,6 @@
             oninput={(event) => libraryStore.setSearch(event.currentTarget.value)}
             placeholder="Search title, project, tag"
           />
-        </label>
-
-        <label class="field">
-          <span>Time range</span>
-          <select value={libraryStore.filters.timeRange} onchange={(event) => libraryStore.setTimeRange(event.currentTarget.value as LibraryTimeRange)}>
-            {#each rangeOptions as option}
-              <option value={option.value}>{option.label}</option>
-            {/each}
-          </select>
         </label>
 
         <label class="field">

@@ -65,6 +65,18 @@
     const base = lane.type === 'tag' ? 92 : 78
     return base + Math.min(lane.maxStack, 3) * 10 + (lane.type === 'tag' ? 16 : 0)
   }
+
+  function getLaneWatermark(lane: TimelineLane): string {
+    if (lane.type === 'tag') return `Tag: ${lane.label.replace('Tag: ', '')}`
+    if (lane.type === 'tracked') return 'Tracked / Chamber'
+    return 'Manual / General'
+  }
+
+  function getLaneWatermarkColor(lane: TimelineLane): string {
+    if (lane.type === 'tag') return 'var(--color-ralph)'
+    if (lane.type === 'tracked') return 'var(--color-success)'
+    return 'var(--color-manual)'
+  }
 </script>
 
 <div class="timeline-view" bind:this={timelineRef}>
@@ -85,6 +97,12 @@
           <div class="track-lanes">
             {#each track.lanes as lane (lane.id)}
               <div class="lane-row" style={`height:${getLaneHeight(lane)}px;`}>
+                <div class="lane-watermark" style={`color:${getLaneWatermarkColor(lane)};`}>
+                  {getLaneWatermark(lane)}
+                </div>
+                {#if lane.type !== 'tag'}
+                  <div class="lane-divider"></div>
+                {/if}
                 <div class="lane-canvas">
                   {#if lane.type === 'tag'}
                     {#each lane.containers as container (container.id)}
@@ -181,14 +199,45 @@
     padding-left: 0;
   }
 
+  .lane-watermark {
+    position: absolute;
+    left: 80px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 32px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 0;
+    opacity: 0.15;
+  }
+
+  .lane-divider {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-bottom: 1px dashed rgba(92, 99, 112, 0.4);
+    pointer-events: none;
+    z-index: 0;
+  }
+
   .lane-canvas {
     position: relative;
+    z-index: 1;
     min-height: 100%;
   }
 
   @media (max-width: 900px) {
     .track-watermark {
       font-size: 54px;
+      left: 20px;
+    }
+
+    .lane-watermark {
+      font-size: 24px;
       left: 20px;
     }
   }
