@@ -15,6 +15,8 @@
   let ttsEnabled = $state(false)
   let notificationsEnabled = $state(false)
   let sortActiveFirst = $state(true)
+  let libraryGroupGapMinutes = $state(10)
+  let libraryActivityGapMinutes = $state(30)
   
   const themeOptions: { value: Theme; label: string }[] = [
     { value: 'light', label: 'Light' },
@@ -48,6 +50,8 @@
       notificationsEnabled = localStorage.getItem('dashboard_notifications_enabled') === 'true'
       const sortSetting = localStorage.getItem('dashboard_sort_active_first')
       sortActiveFirst = sortSetting === null || sortSetting === 'true'
+      libraryGroupGapMinutes = parseInt(localStorage.getItem('dashboard_library_group_gap_minutes') || '10')
+      libraryActivityGapMinutes = parseInt(localStorage.getItem('dashboard_library_activity_gap_minutes') || '30')
       store.loadSettings()
     }
   })
@@ -116,6 +120,18 @@
   
   function previewSubagentVolume() {
     playPreset(subagentSoundPreset, subagentVolume / 100)
+  }
+
+  function setLibraryGroupGap(e: Event) {
+    const value = Math.max(1, Math.min(parseInt((e.target as HTMLInputElement).value || '10'), 120))
+    libraryGroupGapMinutes = value
+    localStorage.setItem('dashboard_library_group_gap_minutes', String(value))
+  }
+
+  function setLibraryActivityGap(e: Event) {
+    const value = Math.max(5, Math.min(parseInt((e.target as HTMLInputElement).value || '30'), 180))
+    libraryActivityGapMinutes = value
+    localStorage.setItem('dashboard_library_activity_gap_minutes', String(value))
   }
   
   function testNotification() {
@@ -227,6 +243,36 @@
             class="block w-6 h-6 rounded-full bg-white shadow transition-transform {sortActiveFirst ? 'translate-x-7' : 'translate-x-0.5'}"
           ></span>
         </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Library Timeline -->
+  <section class="mb-8">
+    <h2 class="text-sm font-medium text-[var(--fg-muted)] uppercase tracking-wide mb-4 flex items-center gap-2">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18" /><path d="M7 12h3" /><path d="M12 7h5" /><path d="M12 17h7" /></svg>
+      Library Timeline
+    </h2>
+    <div class="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-lg divide-y divide-[var(--border-subtle)] transition-colors hover:border-[var(--border)]">
+      <div class="p-4">
+        <div class="mb-3">
+          <div class="text-sm text-[var(--fg-primary)]">Tag Group Split Gap</div>
+          <div class="text-xs text-[var(--fg-secondary)]">Start a new outer tag container after this many idle minutes</div>
+        </div>
+        <div class="flex items-center gap-3">
+          <input type="range" min="1" max="120" value={libraryGroupGapMinutes} oninput={setLibraryGroupGap} class="volume-slider flex-1" />
+          <span class="text-xs mono text-[var(--fg-muted)] w-12 text-right">{libraryGroupGapMinutes}m</span>
+        </div>
+      </div>
+      <div class="p-4">
+        <div class="mb-3">
+          <div class="text-sm text-[var(--fg-primary)]">Activity Segment Gap</div>
+          <div class="text-xs text-[var(--fg-secondary)]">Split resumed work into separate visible segments after this gap</div>
+        </div>
+        <div class="flex items-center gap-3">
+          <input type="range" min="5" max="180" step="5" value={libraryActivityGapMinutes} oninput={setLibraryActivityGap} class="volume-slider flex-1" />
+          <span class="text-xs mono text-[var(--fg-muted)] w-12 text-right">{libraryActivityGapMinutes}m</span>
+        </div>
       </div>
     </div>
   </section>

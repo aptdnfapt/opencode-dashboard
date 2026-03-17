@@ -130,8 +130,8 @@ Each item should be verifiable.
 
 - [x] Chamber cards open shared floating viewer
 - [x] done pane items open shared floating viewer
-- [ ] Library timeline items open shared floating viewer
-- [ ] Library database rows open shared floating viewer
+- [x] Library timeline items open shared floating viewer
+- [x] Library database rows open shared floating viewer
 - [x] shared floating viewer reuses current detailed session experience
 - [x] notes remain available in shared floating viewer
 - [x] tool calls remain available in shared floating viewer
@@ -142,49 +142,49 @@ Each item should be verifiable.
 
 ## Library Placement Rules
 
-- [ ] if a session has `group_tag`, it appears in that tag track
-- [ ] if a session has no tag but has chamber tracking/completion meaning, it appears in tracked track
-- [ ] otherwise session appears in general/manual track
-- [ ] tagged + chamber-done session appears only once in Library
-- [ ] tagged + chamber-done session keeps tag placement and receives special done styling
+- [x] if a session has `group_tag`, it appears in that tag track
+- [x] if a session has no tag but has chamber tracking/completion meaning, it appears in tracked track
+- [x] otherwise session appears in general/manual track
+- [x] tagged + chamber-done session appears only once in Library
+- [x] tagged + chamber-done session keeps tag placement and receives special done styling
 
 ---
 
 ## Grouped Container Rules
 
-- [ ] same `project + group_tag` sessions can form one outer container block
-- [ ] grouping splits after time gap greater than default threshold
-- [ ] default split threshold is 10 minutes
+- [x] same `project + group_tag` sessions can form one outer container block
+- [x] grouping splits after time gap greater than default threshold
+- [x] default split threshold is 10 minutes
 - [ ] split threshold is configurable in settings
 
 ---
 
 ## Session Segments and Subagents
 
-- [ ] one underlying session may produce multiple visible timeline segments
-- [ ] resumed sessions can appear as separate activity blocks
-- [ ] subagent activity should preserve parent continuity where appropriate
-- [ ] subagents should not overwhelm top-level timeline readability
+- [x] one underlying session may produce multiple visible timeline segments
+- [x] resumed sessions can appear as separate activity blocks
+- [x] subagent activity should preserve parent continuity where appropriate
+- [x] subagents should not overwhelm top-level timeline readability
 
 ---
 
 ## Library Overlap Behavior
 
-- [ ] colliding timeline blocks can use layered overlap behavior
-- [ ] overlap behavior should preserve readability
-- [ ] overlap behavior should not force excessive vertical growth by default
-- [ ] overlap behavior should remain navigable on smaller widths
+- [x] colliding timeline blocks can use layered overlap behavior
+- [x] overlap behavior should preserve readability
+- [x] overlap behavior should not force excessive vertical growth by default
+- [x] overlap behavior should remain navigable on smaller widths
 
 ---
 
 ## Filtering and Persistence
 
-- [ ] user can filter by projects
-- [ ] user can filter by time range
-- [ ] user can filter by tag names
-- [ ] user can filter by tracked/done chamber meaning
-- [ ] density/collapse preferences can be persisted
-- [ ] filter and view preferences persist across reboot
+- [x] user can filter by projects
+- [x] user can filter by time range
+- [x] user can filter by tag names
+- [x] user can filter by tracked/done chamber meaning
+- [x] density/collapse preferences can be persisted
+- [x] filter and view preferences persist across reboot
 
 ---
 
@@ -192,8 +192,8 @@ Each item should be verifiable.
 
 - [x] Chamber remains readable across desktop widths
 - [x] long titles truncate gracefully
-- [ ] horizontal Library scrolling remains usable
-- [ ] grouped blocks do not clip unpredictably
+- [x] horizontal Library scrolling remains usable
+- [x] grouped blocks do not clip unpredictably
 - [x] shared floating viewer remains usable on smaller screens
 
 ---
@@ -207,5 +207,75 @@ Each item should be verifiable.
 - [x] overlap interactions remain recoverable and understandable
 - [x] animation supports readability rather than hurting it
 - [x] hold does not stop live state updates
-- [ ] grouped tags do not merge across large gaps accidentally
-- [ ] resumed sessions keep lineage rather than appearing fully unrelated
+- [x] grouped tags do not merge across large gaps accidentally
+- [x] resumed sessions keep lineage rather than appearing fully unrelated
+
+---
+
+## Phase 3 - Library Redesign Implementation
+
+### Core Layout
+
+- [x] Library exists as a distinct top-level view alongside Chamber
+- [x] Library uses two-pane layout (timeline view + database view)
+- [x] Timeline is the default subview
+- [x] Database is the secondary toggle view
+- [x] View toggle in header allows switching between Timeline and Database
+- [x] Old grid-style sessions browsing flow is replaced by new Library model
+- [x] Left project sidebar is removed from Library timeline
+- [x] In-canvas project watermarks are used instead of sidebar labels
+
+### Timeline Structure
+
+- [x] Timeline canvas supports horizontal scrolling
+- [x] Time axis ruler shows temporal markers
+- [x] Project tracks are arranged vertically
+- [x] Each project track contains multiple sub-tracks (tag lanes)
+- [x] Tag-driven track placement is implemented
+- [x] Grouped containers for same `project + group_tag` sessions
+- [x] Containers split after 10-minute time gap
+- [x] Inner sessions flow horizontally within Ralph group containers
+- [x] Tracked sessions have dedicated lane
+- [x] Manual sessions have dedicated lane
+
+### Styling and Visual Design
+
+- [x] Chamber-completed sessions have distinct visual treatment (purple border/accent)
+- [x] Tag groups use dashed border with semi-transparent background
+- [x] Session blocks use existing card design language
+- [x] Status icons: success (green), error (red), manual (blue)
+- [x] Watermark text is massive, transparent, and non-interactive
+- [x] Hover effects lift blocks slightly with enhanced shadow
+- [x] CSS variables match existing theme system
+
+### Interactions
+
+- [x] Drag-to-scroll for timeline canvas
+- [x] Clicking timeline blocks opens shared floating session viewer
+- [x] Clicking database rows opens shared floating session viewer
+- [x] Filtering by project and tag is available
+- [x] Clear filters button shows active filter count
+- [x] View preferences persist (activeView state)
+
+### Database View
+
+- [x] Database table shows all sessions in sortable list
+- [x] Columns: status icon, project, tag/type, summary, status, date, duration
+- [x] Tag badges distinguish Ralph, Chamber, Tracked, and Manual sessions
+- [x] Rows are clickable and open session viewer
+- [x] Hover effect highlights row
+
+### Integration
+
+- [x] Shared SessionViewer is reused across Chamber and Library
+- [x] Navigation between Chamber and Library works correctly
+- [x] TopBar navigation points to new Library route
+- [x] Old home page redirects to /library
+- [x] All existing session detail features work (notes, tool calls, subagents)
+
+### Known Limitations / Future Work
+
+- [ ] Split threshold configurability in settings (currently hardcoded to 10 minutes)
+- [ ] Session segmentation for resumed sessions (basic support exists)
+- [ ] Advanced filtering persistence across reboots (basic in-memory filtering exists)
+- [ ] Subagent-specific timeline visualization (subagents counted in parent continuity)

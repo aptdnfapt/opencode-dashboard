@@ -472,6 +472,8 @@ Overlap and layering are preferred before large uncontrolled vertical expansion.
 
 The user should be able to inspect overlaps and grouped blocks without losing track of project context.
 
+Project context should come from the track layout and in-canvas watermark labeling, not from a separate left project list.
+
 ## Database role
 
 The database remains the denser inspection surface.
@@ -521,6 +523,10 @@ The implementation should actively reuse current app behavior and design where a
 - do not build separate detailed viewers for Chamber vs Library
 - do not invent a separate unrelated card design system
 - do not split detail behavior across multiple inconsistent implementations
+
+### Navigation reuse constraint
+
+The redesigned Chamber/Library flow should rely on top-level header navigation rather than keeping the old sidebar/session-tree as the main browsing pattern.
 
 ---
 

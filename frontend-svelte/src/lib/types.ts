@@ -51,6 +51,21 @@ export interface TimelineEvent {
   model_id: string | null
 }
 
+export interface ActivityWindow {
+  start: number
+  end: number
+  source: 'self' | 'child'
+}
+
+export interface LibraryActivitySummary {
+  sessionId: string
+  parentSessionId: string | null
+  childSessionIds: string[]
+  ownWindows: ActivityWindow[]
+  continuityWindows: ActivityWindow[]
+  hasSubagentActivity: boolean
+}
+
 export interface Project {
   directory: string
   session_count: number

@@ -6,6 +6,7 @@ import type {
   Instance, SummaryExtended, ModelPerformancePeriod, ProjectAnalytics,
   FileStats, CostBreakdown
 } from './types'
+import type { LibraryActivitySummary } from './types'
 
 // Get API key from localStorage (set at login) — no build-time baking
 function getApiKey(): string {
@@ -30,6 +31,8 @@ export async function getSessions(params?: {
   search?: string
   cursor?: string
   limit?: number
+  since?: number
+  until?: number
 }): Promise<{ sessions: Session[]; hasMore: boolean; nextCursor: string | null }> {
   const query = new URLSearchParams()
   if (params?.status) query.set('status', params.status)
@@ -38,9 +41,54 @@ export async function getSessions(params?: {
   if (params?.search) query.set('search', params.search)
   if (params?.cursor) query.set('cursor', params.cursor)
   if (params?.limit) query.set('limit', String(params.limit))
+  if (typeof params?.since === 'number') query.set('since', String(params.since))
+  if (typeof params?.until === 'number') query.set('until', String(params.until))
 
   const qs = query.toString()
   return fetchAPI(`/api/sessions${qs ? `?${qs}` : ''}`)
+}
+
+export async function getAllSessions(params?: {
+  status?: string
+  hostname?: string
+  directory?: string
+  search?: string
+  since?: number
+  until?: number
+}): Promise<Session[]> {
+  let cursor: string | undefined
+  const all: Session[] = []
+
+  while (true) {
+    const page = await getSessions({ ...params, cursor, limit: 200 })
+    all.push(...page.sessions)
+    if (!page.hasMore || !page.nextCursor) break
+    cursor = page.nextCursor
+  }
+
+  return all
+}
+
+export async function getLibraryActivity(gapMinutes = 30): Promise<{
+  splitGapMs: number
+  activities: LibraryActivitySummary[]
+}> {
+  return fetchAPI(`/api/library/activity?gapMinutes=${gapMinutes}`)
+}
+
+export async function getLibraryActivityRange(params: {
+  gapMinutes?: number
+  since?: number
+  until?: number
+}): Promise<{
+  splitGapMs: number
+  activities: LibraryActivitySummary[]
+}> {
+  const query = new URLSearchParams()
+  query.set('gapMinutes', String(params.gapMinutes ?? 30))
+  if (typeof params.since === 'number') query.set('since', String(params.since))
+  if (typeof params.until === 'number') query.set('until', String(params.until))
+  return fetchAPI(`/api/library/activity?${query.toString()}`)
 }
 
 export async function getSession(id: string): Promise<{ 

@@ -65,7 +65,17 @@ export function createApiHandler(app: Hono, db: Database) {
   // GET /api/sessions - list sessions with optional filters
   // Sessions not updated for 60s while "active" are marked as "stale"
   app.get('/api/sessions', (c: Context) => {
-    const { hostname, status, search, date, directory, cursor, limit: limitParam } = c.req.query()
+    const {
+      hostname,
+      status,
+      search,
+      date,
+      directory,
+      cursor,
+      limit: limitParam,
+      since,
+      until
+    } = c.req.query()
     const STALE_THRESHOLD = 60 * 1000 // 1 minute
     const now = Date.now()
     const limit = Math.min(parseInt(limitParam || '50', 10), 200)
@@ -91,6 +101,14 @@ export function createApiHandler(app: Hono, db: Database) {
       const end = start + 86400000
       sql += ' AND created_at >= ? AND created_at < ?'
       params.push(start, end)
+    }
+    if (since) {
+      sql += ' AND updated_at >= ?'
+      params.push(parseInt(since, 10))
+    }
+    if (until) {
+      sql += ' AND updated_at <= ?'
+      params.push(parseInt(until, 10))
     }
     // Keyset cursor: fetch sessions older than the last seen updated_at
     if (cursor) {
@@ -178,6 +196,139 @@ export function createApiHandler(app: Hono, db: Database) {
       timeline,
       models: distinctModels.map(m => m.model_id)
     })
+  })
+
+  // GET /api/library/activity - summarized activity windows for Library timeline
+  app.get('/api/library/activity', (c: Context) => {
+    const gapMinutes = Math.min(parseInt(c.req.query('gapMinutes') || '30', 10), 180)
+    const splitGapMs = Math.max(gapMinutes, 5) * 60 * 1000
+    const since = c.req.query('since')
+    const until = c.req.query('until')
+
+    let sessionSql = `
+      SELECT id, parent_session_id, created_at, updated_at
+      FROM sessions
+      WHERE 1=1
+    `
+    const sessionParams: number[] = []
+    if (since) {
+      sessionSql += ' AND updated_at >= ?'
+      sessionParams.push(parseInt(since, 10))
+    }
+    if (until) {
+      sessionSql += ' AND updated_at <= ?'
+      sessionParams.push(parseInt(until, 10))
+    }
+    sessionSql += ' ORDER BY created_at ASC'
+
+    const sessions = db.prepare(sessionSql).all(...sessionParams) as {
+      id: string
+      parent_session_id: string | null
+      created_at: number
+      updated_at: number
+    }[]
+
+    const eventRows = db.prepare(`
+      SELECT session_id, timestamp
+      FROM timeline_events
+      ORDER BY session_id ASC, timestamp ASC
+    `).all() as { session_id: string; timestamp: number }[]
+
+    const eventMap = new Map<string, number[]>()
+    for (const row of eventRows) {
+      const arr = eventMap.get(row.session_id)
+      if (arr) arr.push(row.timestamp)
+      else eventMap.set(row.session_id, [row.timestamp])
+    }
+
+    const sessionMap = new Map(sessions.map((session) => [session.id, session]))
+    const childMap = new Map<string, string[]>()
+    for (const session of sessions) {
+      if (!session.parent_session_id) continue
+      if (!sessionMap.has(session.parent_session_id)) continue
+      const arr = childMap.get(session.parent_session_id)
+      if (arr) arr.push(session.id)
+      else childMap.set(session.parent_session_id, [session.id])
+    }
+
+    type Window = { start: number; end: number; source: 'self' | 'child' }
+
+    function buildOwnWindows(sessionId: string, createdAt: number, updatedAt: number): Window[] {
+      const timestamps = eventMap.get(sessionId) || []
+      if (timestamps.length === 0) {
+        return [{ start: createdAt, end: Math.max(updatedAt, createdAt), source: 'self' }]
+      }
+
+      const windows: Window[] = []
+      let currentStart = Math.min(createdAt, timestamps[0])
+      let previous = timestamps[0]
+
+      for (let i = 1; i < timestamps.length; i += 1) {
+        const timestamp = timestamps[i]
+        if ((timestamp - previous) > splitGapMs) {
+          windows.push({ start: currentStart, end: Math.max(previous, currentStart), source: 'self' })
+          currentStart = timestamp
+        }
+        previous = timestamp
+      }
+
+      windows.push({ start: currentStart, end: Math.max(updatedAt, previous), source: 'self' })
+      return windows
+    }
+
+    function mergeWindows(windows: Window[]): Window[] {
+      if (windows.length === 0) return []
+      const sorted = [...windows].sort((a, b) => a.start - b.start)
+      const merged: Window[] = [sorted[0]]
+
+      for (let i = 1; i < sorted.length; i += 1) {
+        const current = sorted[i]
+        const last = merged[merged.length - 1]
+        if ((current.start - last.end) <= splitGapMs) {
+          last.end = Math.max(last.end, current.end)
+          if (current.source === 'child') last.source = 'child'
+        } else {
+          merged.push({ ...current })
+        }
+      }
+
+      return merged
+    }
+
+    function buildContinuityWindows(sessionId: string, seen = new Set<string>()): Window[] {
+      if (seen.has(sessionId)) return []
+      seen.add(sessionId)
+
+      const session = sessionMap.get(sessionId)
+      if (!session) return []
+
+      const ownWindows = buildOwnWindows(session.id, session.created_at, session.updated_at)
+      const childIds = childMap.get(sessionId) || []
+      const childWindows = childIds.flatMap((childId) =>
+        buildContinuityWindows(childId, new Set(seen)).map((window) => ({
+          start: window.start,
+          end: window.end,
+          source: 'child' as const
+        }))
+      )
+
+      return mergeWindows([...ownWindows, ...childWindows])
+    }
+
+    const activities = sessions.map((session) => {
+      const ownWindows = buildOwnWindows(session.id, session.created_at, session.updated_at)
+      const continuityWindows = buildContinuityWindows(session.id)
+      return {
+        sessionId: session.id,
+        parentSessionId: session.parent_session_id,
+        childSessionIds: childMap.get(session.id) || [],
+        ownWindows,
+        continuityWindows,
+        hasSubagentActivity: continuityWindows.some((window) => window.source === 'child')
+      }
+    })
+
+    return c.json({ splitGapMs, activities })
   })
 
   // GET /api/analytics/summary - totals for dashboard

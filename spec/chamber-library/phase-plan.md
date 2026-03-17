@@ -80,9 +80,19 @@ After Phase 2:
 
 Turn Library into the structured historical exploration surface.
 
+This phase also replaces the old grid-style primary browsing flow with the new Library model.
+
 ## Scope
 
+- make `Library` a top-level main view alongside `Captain's Chamber`
+- move primary redesigned navigation to a top-header view switch
+- inside `Library`, make `Timeline` the default subview
+- inside `Library`, keep `Database` as the secondary toggle view
+- remove the old grid/list-style sessions browsing flow from the redesigned primary path
+- remove the left project sidebar from the Library timeline
+- use in-canvas project watermarks instead of sidebar project labels
 - redesign timeline around project tracks and meaning-based subtracks
+- use `mock/video-timeline.html` as the baseline visual direction, then apply the Chamber/Library UX rules from the master spec
 - use tag-driven track placement
 - style chamber-completed sessions differently inside tag tracks
 - split grouped containers by configurable time gap (default 10m)
@@ -95,6 +105,10 @@ Turn Library into the structured historical exploration surface.
 ## Expected outcome
 
 After Phase 3:
+- the app's historical browsing flow centers on `Library`
+- `Timeline` becomes the default historical view
+- `Database` remains the denser fallback/query mode inside `Library`
+- the old grid-style browsing flow is no longer the primary redesigned surface
 - Library can explain grouped history clearly
 - tagged work, tracked work, and general work remain understandable
 - timeline stays readable without losing depth

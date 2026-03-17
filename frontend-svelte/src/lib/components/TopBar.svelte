@@ -6,7 +6,7 @@
   // Nav items for top bar
   const navItems = [
     { href: '/chamber', label: 'Chamber', icon: '◉' },
-    { href: '/', label: 'Library', icon: '◈' },
+    { href: '/library', label: 'Library', icon: '◈' },
     { href: '/analytics', label: 'Analytics', icon: '◈' },
     { href: '/settings', label: 'Settings', icon: '◎' }
   ]

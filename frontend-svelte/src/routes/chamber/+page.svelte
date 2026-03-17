@@ -7,7 +7,7 @@
   import SessionViewer from '$lib/components/SessionViewer.svelte'
 
   function goToLibrary() {
-    goto('/')
+    goto('/library')
   }
 
   function closeViewer() {
