@@ -9,6 +9,8 @@
   let { block, onClick }: Props = $props()
   let isHovering = $state(false)
   let hoverPosition = $state({ top: 0, left: 0, direction: 'up' as 'up' | 'down' })
+  let hoverHideTimer: ReturnType<typeof setTimeout> | null = null
+  const HOVER_CARD_WIDTH = 460
 
   function getStatusColor(status: string) {
     switch (status) {
@@ -21,6 +23,19 @@
       default:
         return 'var(--color-manual)'
     }
+  }
+
+  function getStatusDotClass(status: string): string {
+    if (status === 'active') return 'bg-emerald-500 animate-pulse'
+    if (status === 'error') return 'bg-rose-500'
+    if (status === 'idle') return 'bg-amber-500'
+    return 'bg-zinc-500'
+  }
+
+  function getFloatingBarClass(status: string): string {
+    if (status === 'active') return 'floating-bar-active'
+    if (status === 'idle') return 'floating-bar-idle-blink'
+    return ''
   }
 
   function handleActivate() {
@@ -39,21 +54,73 @@
     }
   }
 
-  function handleMouseEnter(event: MouseEvent) {
-    isHovering = true
-    const target = event.currentTarget as HTMLElement
+  function clearHoverHideTimer() {
+    if (hoverHideTimer) {
+      clearTimeout(hoverHideTimer)
+      hoverHideTimer = null
+    }
+  }
+
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node)
+
+    return {
+      destroy() {
+        node.remove()
+      }
+    }
+  }
+
+  function updateHoverPosition(target: HTMLElement) {
     const rect = target.getBoundingClientRect()
     const viewportHeight = window.innerHeight
-    
-    const distanceFromTop = rect.top
-    const distanceFromBottom = viewportHeight - rect.bottom
-    hoverPosition.direction = distanceFromTop > distanceFromBottom ? 'up' : 'down'
-    hoverPosition.left = rect.left
-    hoverPosition.top = rect.top
+    const viewportWidth = window.innerWidth
+    const idealLeft = rect.left + rect.width / 2
+    const minLeft = HOVER_CARD_WIDTH / 2 + 16
+    const maxLeft = viewportWidth - HOVER_CARD_WIDTH / 2 - 16
+
+    hoverPosition.direction = rect.top > viewportHeight - rect.bottom ? 'up' : 'down'
+    hoverPosition.left = Math.max(minLeft, Math.min(maxLeft, idealLeft))
+    hoverPosition.top = hoverPosition.direction === 'up' ? rect.top : rect.bottom
+  }
+
+  function showHoverCard(target: HTMLElement) {
+    clearHoverHideTimer()
+    updateHoverPosition(target)
+    isHovering = true
+  }
+
+  function handleMouseEnter(event: MouseEvent) {
+    showHoverCard(event.currentTarget as HTMLElement)
+  }
+
+  function scheduleHoverHide() {
+    clearHoverHideTimer()
+    hoverHideTimer = setTimeout(() => {
+      isHovering = false
+    }, 120)
   }
 
   function handleMouseLeave() {
-    isHovering = false
+    scheduleHoverHide()
+  }
+
+  function handleHoverCardEnter() {
+    clearHoverHideTimer()
+    isHovering = true
+  }
+
+  function handleHoverCardLeave() {
+    scheduleHoverHide()
+  }
+
+  async function copySessionId(event: MouseEvent) {
+    event.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(block.sessionId)
+    } catch (error) {
+      console.warn('Failed to copy session ID', error)
+    }
   }
 
   function formatTimestamp(ts: number): string {
@@ -65,10 +132,32 @@
     })
   }
 
+  function formatDuration(ms: number): string {
+    const mins = Math.round(ms / 60000)
+    if (mins < 60) return `${mins}m`
+    const hours = Math.floor(mins / 60)
+    const remaining = mins % 60
+    return remaining === 0 ? `${hours}h` : `${hours}h ${remaining}m`
+  }
+
+  function formatTokens(tokens: number): string {
+    if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`
+    if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`
+    return String(tokens)
+  }
+
+  function formatCost(cost: number): string {
+    return `$${cost.toFixed(2)}`
+  }
+
   function truncate(text: string | null | undefined, len: number): string {
     if (!text) return '—'
     if (text.length <= len) return text
     return text.slice(0, len - 3) + '...'
+  }
+
+  function truncateId(id: string): string {
+    return id.slice(0, 12) + '…'
   }
 </script>
 
@@ -87,6 +176,9 @@
   onmouseleave={handleMouseLeave}
 >
   <div class="block-header">
+    <div class="status-indicator">
+      <div class={`status-dot ${getStatusDotClass(block.status)}`}></div>
+    </div>
     <span class="block-title">{block.displayName}</span>
     {#if block.lineageLabel}
       <span class="lineage-pill">{block.lineageLabel}</span>
@@ -94,23 +186,10 @@
   </div>
 
   <div class="block-meta">
-    {#if block.isCompletedViaChamber}
-      <svg class="chamber-icon" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2L2 22h20L12 2z" />
-      </svg>
-    {:else}
-      <svg class="status-icon" viewBox="0 0 24 24" fill={getStatusColor(block.status)}>
-        {#if block.status === 'active' || block.status === 'idle'}
-          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-        {:else if block.status === 'error'}
-          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-        {:else}
-          <circle cx="12" cy="12" r="10" />
-        {/if}
-      </svg>
-    {/if}
-
     <span class="duration">{block.displayMeta}</span>
+    {#if block.isCompletedViaChamber}
+      <span class="chamber-badge">✓ Chamber</span>
+    {/if}
     {#if block.hasSubagentActivity}
       <span class="subagent-pill">subagents</span>
     {/if}
@@ -119,53 +198,131 @@
   {#if isHovering}
     <div 
       class="hover-card"
+      role="tooltip"
+      use:portal
+      class:floating-bar-active={block.status === 'active'}
+      class:floating-bar-idle-blink={block.status === 'idle'}
       class:direction-up={hoverPosition.direction === 'up'}
       class:direction-down={hoverPosition.direction === 'down'}
-      style={`left:${block.renderLeft}px;`}
+      style="left:{hoverPosition.left}px;top:{hoverPosition.top}px;"
+      onmouseenter={handleHoverCardEnter}
+      onmouseleave={handleHoverCardLeave}
     >
-      <div class="hover-title">{block.title}</div>
+      <div class="hover-card-inner">
+        <div class="hover-card-blur"></div>
+        <div class="hover-compact-row">
+          <div class="status-indicator large">
+            <div class={`status-dot ${getStatusDotClass(block.status)}`}></div>
+          </div>
+          <h3 class="hover-title">{block.title}</h3>
+          <div class="hover-stats">
+            <span class="stat tokens">{formatTokens(block.tokenTotal)}</span>
+            <span class="stat cost">{formatCost(block.costTotal)}</span>
+          </div>
+        </div>
 
-      <div class="hover-grid">
-        <div>
-          <div class="hover-label">Created</div>
-          <div class="hover-value">{formatTimestamp(block.startAt)}</div>
-        </div>
-        <div>
-          <div class="hover-label">Last Active</div>
-          <div class="hover-value">{formatTimestamp(block.endAt)}</div>
-        </div>
-        <div>
-          <div class="hover-label">Duration</div>
-          <div class="hover-value">{block.displayMeta}</div>
+        <div class="hover-details">
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">Session ID</span>
+              <button class="detail-value copy-btn" onclick={copySessionId}>
+                {truncateId(block.sessionId)}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="copy-icon">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
+            </div>
+
+            <div class="detail-item">
+              <span class="detail-label">Project</span>
+              <span class="detail-value">{block.projectName}</span>
+            </div>
+
+            <div class="detail-item">
+              <span class="detail-label">Created</span>
+              <span class="detail-value">{formatTimestamp(block.startAt)}</span>
+            </div>
+
+            <div class="detail-item">
+              <span class="detail-label">Last Active</span>
+              <span class="detail-value">{formatTimestamp(block.endAt)}</span>
+            </div>
+
+            <div class="detail-item">
+              <span class="detail-label">Duration</span>
+              <span class="detail-value">{formatDuration(block.endAt - block.startAt)}</span>
+            </div>
+
+            {#if block.segmentCount > 1}
+              <div class="detail-item">
+                <span class="detail-label">Segment</span>
+                <span class="detail-value">{block.segmentIndex + 1} of {block.segmentCount}</span>
+              </div>
+            {/if}
+
+            {#if block.directory}
+              <div class="detail-item full-width">
+                <span class="detail-label">Directory</span>
+                <span class="detail-value truncate" title={block.directory}>{block.directory}</span>
+              </div>
+            {/if}
+
+            {#if block.hostname}
+              <div class="detail-item">
+                <span class="detail-label">Hostname</span>
+                <span class="detail-value">{block.hostname}</span>
+              </div>
+            {/if}
+
+            {#if block.modelId}
+              <div class="detail-item full-width">
+                <span class="detail-label">Model</span>
+                <span class="detail-value model-badge">{block.modelId}</span>
+              </div>
+            {/if}
+          </div>
+
+          {#if block.isCompletedViaChamber}
+            <div class="hover-badge chamber">
+              <svg class="badge-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L2 22h20L12 2z" />
+              </svg>
+              Completed via Chamber
+            </div>
+          {/if}
+
+          {#if block.hasSubagentActivity}
+            <div class="hover-badge subagent">
+              <svg class="badge-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"></path>
+              </svg>
+              Has Subagent Activity
+            </div>
+          {/if}
+
+          {#if block.lastUserPrompt}
+            <div class="hover-preview user-preview">
+              <span class="preview-label">Last Prompt</span>
+              <p class="preview-copy">{block.lastUserPrompt}</p>
+            </div>
+          {/if}
+
+          {#if block.lastAssistantMessage}
+            <div class="hover-preview assistant-preview">
+              <span class="preview-label">Last Reply</span>
+              <p class="preview-copy">{block.lastAssistantMessage}</p>
+            </div>
+          {/if}
         </div>
       </div>
-
-      {#if block.isCompletedViaChamber}
-        <div class="hover-section" style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color);">
-          <div class="hover-label">Completed via Chamber</div>
-          <div class="hover-value">✓</div>
-        </div>
-      {/if}
-
-      {#if block.hasSubagentActivity}
-        <div class="hover-section" style="margin-top: 10px;">
-          <div class="hover-label">Subagent Activity</div>
-          <div class="hover-value">Yes</div>
-        </div>
-      {/if}
-
-      {#if block.segmentCount > 1}
-        <div class="hover-section" style="margin-top: 10px;">
-          <div class="hover-label">Session Segment</div>
-          <div class="hover-value">{block.segmentIndex + 1} of {block.segmentCount}</div>
-        </div>
-      {/if}
     </div>
   {/if}
 </div>
 
 <style>
-.timeline-block {
+  .timeline-block {
     position: absolute;
     min-width: 120px;
     max-width: 420px;
@@ -180,14 +337,13 @@
     gap: 5px;
     cursor: pointer;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    transition: box-shadow 0.18s ease, border-color 0.18s ease;
     overflow: hidden;
   }
 
-.timeline-block:hover,
+  .timeline-block:hover,
   .timeline-block:focus-visible {
     border-color: var(--border-highlight);
-    transform: translateY(-2px);
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
     z-index: 999 !important;
     outline: none;
@@ -210,7 +366,21 @@
   }
 
   .block-header {
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
   }
 
   .block-title {
@@ -228,17 +398,6 @@
     color: var(--text-muted);
     font-size: 10px;
     flex-wrap: wrap;
-  }
-
-  .status-icon,
-  .chamber-icon {
-    width: 10px;
-    height: 10px;
-    flex-shrink: 0;
-  }
-
-  .chamber-icon {
-    color: var(--color-ralph);
   }
 
   .duration {
@@ -262,69 +421,292 @@
     border-color: rgba(88, 166, 255, 0.25);
   }
 
+  .chamber-badge {
+    font-size: 9px;
+    color: var(--color-ralph);
+    flex-shrink: 0;
+  }
+
+  /* Frosted glass hover card */
   .hover-card {
     position: fixed;
-    min-width: 380px;
-    max-width: 520px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-highlight);
-    border-radius: 8px;
-    padding: 14px 16px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    width: min(460px, calc(100vw - 32px));
     z-index: 10000;
-    pointer-events: none;
+    pointer-events: auto;
     animation: fadeIn 0.15s ease-out;
   }
 
   .hover-card.direction-up {
-    bottom: calc(100% + 12px);
+    transform: translateX(-50%) translateY(calc(-100% - 8px));
   }
 
   .hover-card.direction-down {
-    top: calc(100% + 12px);
+    transform: translateX(-50%) translateY(8px);
+  }
+
+  .hover-card-inner {
+    position: relative;
+    background: rgba(19, 21, 26, 0.76);
+    border: 1px solid var(--border-highlight);
+    border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  /* Blur layer behind content to prevent text blur */
+  .hover-card-blur {
+    position: absolute;
+    inset: 0;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(19, 21, 26, 0.85);
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .hover-compact-row,
+  .hover-details {
+    position: relative;
+    z-index: 1;
+  }
+
+  .hover-card.floating-bar-active .hover-card-inner {
+    border-color: transparent;
+  }
+
+  .hover-card.floating-bar-active .hover-card-inner::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    padding: 2px;
+    background: conic-gradient(
+      from var(--spin-angle, 0deg),
+      #10b981,
+      transparent 40%,
+      transparent 60%,
+      #10b981
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: spin-border 2.5s linear infinite;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .hover-card.floating-bar-idle-blink .hover-card-inner {
+    animation: hover-idle-glow 3s ease-in-out infinite;
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes spin-border {
+    to { --spin-angle: 360deg; }
+  }
+
+  @property --spin-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  @keyframes hover-idle-glow {
+    0%, 100% { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); border-color: var(--border-highlight); }
+    50% { box-shadow: 0 12px 40px rgba(234, 179, 8, 0.3); border-color: rgba(234, 179, 8, 0.5); }
+  }
+
+  .hover-compact-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-color);
   }
 
   .hover-title {
     font-size: 13px;
     font-weight: 700;
     color: var(--text-main);
-    margin-bottom: 12px;
     line-height: 1.4;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .hover-section {
-    margin-bottom: 10px;
+  .hover-stats {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
   }
 
-  .hover-section:last-child {
-    margin-bottom: 0;
+  .hover-stats .stat {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
   }
 
-  .hover-label {
-    font-size: 10px;
+  .hover-stats .stat.tokens {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--accent-blue);
+  }
+
+  .hover-stats .stat.cost {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--color-success);
+  }
+
+  .hover-details {
+    padding: 12px 14px;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .detail-item.full-width {
+    grid-column: 1 / -1;
+  }
+
+  .detail-label {
+    font-size: 9px;
     font-weight: 600;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-bottom: 3px;
+    letter-spacing: 0.05em;
   }
 
-  .hover-value {
+  .detail-value {
     font-size: 12px;
     color: var(--text-main);
+    font-family: var(--font-mono);
   }
 
-  .hover-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
+  .detail-value.truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .detail-value.model-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: rgba(88, 166, 255, 0.12);
+    border: 1px solid rgba(88, 166, 255, 0.3);
+    border-radius: 999px;
+    color: var(--accent-blue);
+  }
+
+  .copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--accent-blue);
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: background 0.15s;
+  }
+
+  .copy-btn:hover {
+    background: rgba(88, 166, 255, 0.1);
+  }
+
+  .copy-icon {
+    width: 12px;
+    height: 12px;
+    opacity: 0.6;
+  }
+
+  .hover-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
     margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid var(--border-color);
+  }
+
+  .hover-preview {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .user-preview {
+    border-color: rgba(168, 85, 247, 0.2);
+    background: rgba(168, 85, 247, 0.08);
+  }
+
+  .assistant-preview {
+    border-color: rgba(34, 197, 94, 0.2);
+    background: rgba(34, 197, 94, 0.08);
+  }
+
+  .preview-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .preview-copy {
+    display: -webkit-box;
+    line-clamp: 3;
+    margin: 0;
+    overflow: hidden;
+    color: var(--text-main);
+    font-size: 12px;
+    line-height: 1.5;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .hover-badge.chamber {
+    background: rgba(198, 120, 221, 0.15);
+    color: var(--color-ralph);
+    border: 1px solid rgba(198, 120, 221, 0.3);
+  }
+
+  .hover-badge.subagent {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--accent-blue);
+    border: 1px solid rgba(88, 166, 255, 0.3);
+  }
+
+  .badge-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .status-indicator.large .status-dot {
+    width: 10px;
+    height: 10px;
   }
 </style>

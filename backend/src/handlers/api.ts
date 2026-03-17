@@ -135,13 +135,45 @@ export function createApiHandler(app: Hono, db: Database) {
     `).all() as { session_id: string; model_id: string | null }[]
     const modelMap = new Map(latestModels.map(r => [r.session_id, r.model_id]))
 
+    const latestUserPrompts = db.prepare(`
+      SELECT te.session_id, te.summary
+      FROM timeline_events te
+      INNER JOIN (
+        SELECT session_id, MAX(timestamp) as max_ts
+        FROM timeline_events
+        WHERE event_type = 'user'
+        GROUP BY session_id
+      ) latest ON te.session_id = latest.session_id AND te.timestamp = latest.max_ts
+      WHERE te.event_type = 'user'
+    `).all() as { session_id: string; summary: string | null }[]
+    const latestUserPromptMap = new Map(latestUserPrompts.map(r => [r.session_id, r.summary]))
+
+    const latestAssistantMessages = db.prepare(`
+      SELECT te.session_id, te.summary
+      FROM timeline_events te
+      INNER JOIN (
+        SELECT session_id, MAX(timestamp) as max_ts
+        FROM timeline_events
+        WHERE event_type IN ('message', 'error', 'question', 'permission')
+        GROUP BY session_id
+      ) latest ON te.session_id = latest.session_id AND te.timestamp = latest.max_ts
+      WHERE te.event_type IN ('message', 'error', 'question', 'permission')
+    `).all() as { session_id: string; summary: string | null }[]
+    const latestAssistantMessageMap = new Map(latestAssistantMessages.map(r => [r.session_id, r.summary]))
+
     // Compute effective status + attach model_id in single pass
     const processed = sessions.map(s => {
       let effectiveStatus = s.status
       if (s.status === 'active' && (now - s.updated_at) > STALE_THRESHOLD) {
         effectiveStatus = 'stale'
       }
-      return { ...s, status: effectiveStatus, model_id: modelMap.get(s.id) || null }
+      return {
+        ...s,
+        status: effectiveStatus,
+        model_id: modelMap.get(s.id) || null,
+        last_user_prompt: latestUserPromptMap.get(s.id) || null,
+        last_assistant_message: latestAssistantMessageMap.get(s.id) || null
+      }
     })
 
     // Attach notes_count to each session (already 1 query)

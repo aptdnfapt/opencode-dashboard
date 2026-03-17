@@ -50,7 +50,7 @@
 
 <div class="library-page">
   <header class="library-header">
-    <div class="header-title-group">
+    <div class="header-left">
       <h1 class="header-title">Session Library</h1>
       <div class="filter-badge">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -58,38 +58,39 @@
         </svg>
         {libraryStore.timelineModel.totalProjects} projects • {libraryStore.databaseRows.length} sessions
       </div>
-      <div class="time-filter-wrapper">
-        <div class="time-filter">
-          <select 
-            value={libraryStore.filters.timeRange}
-            onchange={(e) => libraryStore.setTimeRange((e.target as HTMLSelectElement).value as any)}
-          >
-            <option value="1h">Last 1 hour</option>
-            <option value="6h">Last 6 hours</option>
-            <option value="24h">Last 24 hours</option>
-            <option value="7d">Last 7 days</option>
-            <option value="30d">Last 30 days</option>
-            <option value="all">All time</option>
-          </select>
-        </div>
+    </div>
+
+    <div class="header-center">
+      <div class="time-filter">
+        <select 
+          value={libraryStore.filters.timeRange}
+          onchange={(e) => libraryStore.setTimeRange((e.target as HTMLSelectElement).value as any)}
+        >
+          <option value="1h">Last 1 hour</option>
+          <option value="6h">Last 6 hours</option>
+          <option value="24h">Last 24 hours</option>
+          <option value="7d">Last 7 days</option>
+          <option value="30d">Last 30 days</option>
+          <option value="all">All time</option>
+        </select>
       </div>
     </div>
 
-    <div class="view-toggle">
-      <button class="toggle-btn" class:active={libraryStore.activeView === 'timeline'} onclick={() => libraryStore.setView('timeline')}>
-        <svg viewBox="0 0 24 24"><path d="M3 3v18h18M3 10h18M3 16h18M7 6v12M13 6v12M19 6v12" stroke="currentColor" stroke-width="2" fill="none" /></svg>
-        Timeline
-      </button>
-      <button class="toggle-btn" class:active={libraryStore.activeView === 'database'} onclick={() => libraryStore.setView('database')}>
-        <svg viewBox="0 0 24 24"><path d="M3 4h18v16H3zM3 10h18M9 4v16" stroke="currentColor" stroke-width="2" fill="none" /></svg>
-        Database
-      </button>
+    <div class="header-right">
+      <LibraryFilters />
+
+      <div class="view-toggle">
+        <button class="toggle-btn" class:active={libraryStore.activeView === 'timeline'} onclick={() => libraryStore.setView('timeline')}>
+          <svg viewBox="0 0 24 24"><path d="M3 3v18h18M3 10h18M3 16h18M7 6v12M13 6v12M19 6v12" stroke="currentColor" stroke-width="2" fill="none" /></svg>
+          Timeline
+        </button>
+        <button class="toggle-btn" class:active={libraryStore.activeView === 'database'} onclick={() => libraryStore.setView('database')}>
+          <svg viewBox="0 0 24 24"><path d="M3 4h18v16H3zM3 10h18M9 4v16" stroke="currentColor" stroke-width="2" fill="none" /></svg>
+          Database
+        </button>
+      </div>
     </div>
   </header>
-
-  <div class="filters-section">
-    <LibraryFilters />
-  </div>
 
   <main class="library-content">
     {#if loading}
@@ -122,22 +123,38 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 32px;
+    padding: 12px 24px;
     background: var(--bg-primary);
     border-bottom: 1px solid var(--border-color);
-  }
-
-  .header-title-group {
-    display: flex;
-    align-items: center;
     gap: 16px;
   }
 
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  .header-center {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
   .header-title {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
     letter-spacing: -0.5px;
     color: var(--text-main);
+    white-space: nowrap;
   }
 
   .filter-badge {
@@ -150,6 +167,7 @@
     background: var(--bg-card);
     color: var(--text-muted);
     font-size: 11px;
+    white-space: nowrap;
   }
 
   .filter-badge svg {
@@ -157,20 +175,16 @@
     height: 12px;
   }
 
-  .time-filter-wrapper {
-    display: inline-flex;
-  }
-
   .time-filter select {
-    padding: 4px 10px;
-    border-radius: 4px;
+    padding: 6px 12px;
+    border-radius: 6px;
     border: 1px solid var(--border-color);
     background: var(--bg-card);
     color: var(--text-main);
-    font-size: 11px;
-    font-family: var(--font-mono);
+    font-size: 12px;
     cursor: pointer;
     outline: none;
+    white-space: nowrap;
   }
 
   .time-filter select:hover {
@@ -179,7 +193,7 @@
 
   .view-toggle {
     display: flex;
-    padding: 4px;
+    padding: 3px;
     border-radius: 6px;
     border: 1px solid var(--border-color);
     background: var(--bg-canvas);
@@ -189,7 +203,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 14px;
+    padding: 5px 12px;
     border: 0;
     border-radius: 4px;
     background: transparent;
@@ -197,6 +211,7 @@
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
+    white-space: nowrap;
   }
 
   .toggle-btn.active {
@@ -208,13 +223,6 @@
   .toggle-btn svg {
     width: 14px;
     height: 14px;
-  }
-
-  .filters-section {
-    padding: 16px 32px;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    justify-content: flex-end;
   }
 
   .library-content {
@@ -233,5 +241,19 @@
 
   .empty-state.error {
     color: var(--accent-red);
+  }
+
+  @media (max-width: 900px) {
+    .library-header {
+      flex-wrap: wrap;
+      padding: 12px 16px;
+    }
+    
+    .header-center {
+      order: 3;
+      width: 100%;
+      justify-content: center;
+      margin-top: 8px;
+    }
   }
 </style>

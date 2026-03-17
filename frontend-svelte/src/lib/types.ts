@@ -17,6 +17,9 @@ export interface Session {
   group_tag: string | null
   completed_at: number | null
   completed_reason: string | null
+  model_id?: string | null  // Latest model used (from token_usage)
+  last_user_prompt?: string | null
+  last_assistant_message?: string | null
 }
 
 export interface ProjectHold {

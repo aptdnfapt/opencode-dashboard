@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte'
-  import { libraryStore, type TimelineLane } from '$lib/library-store.svelte'
+  import { libraryStore, type TimelineLane, type LibraryTimeRange } from '$lib/library-store.svelte'
   import TagTrack from './TagTrack.svelte'
   import TimelineBlock from './TimelineBlock.svelte'
 
@@ -48,8 +48,8 @@
 
     return () => {
       timelineRef?.removeEventListener('mousedown', handleMouseDown)
-      timelineRef?.removeEventListener('mouseleave', handleMouseUp)
       timelineRef?.removeEventListener('mouseup', handleMouseUp)
+      timelineRef?.removeEventListener('mouseleave', handleMouseUp)
       timelineRef?.removeEventListener('mousemove', handleMouseMove)
     }
   })
@@ -77,6 +77,29 @@
     if (lane.type === 'tracked') return 'var(--color-success)'
     return 'var(--color-manual)'
   }
+
+  function getWatermarkSpacing(timeRange: LibraryTimeRange): number {
+    switch (timeRange) {
+      case '1h': return 400
+      case '6h': return 600
+      case '24h': return 800
+      case '7d': return 1000
+      case '30d': return 1400
+      case 'all': return 2000
+      default: return 600
+    }
+  }
+
+  function getWatermarkPositions(canvasWidth: number, spacing: number): number[] {
+    const positions: number[] = []
+    const startPos = 60
+    for (let pos = startPos; pos < canvasWidth; pos += spacing) {
+      positions.push(pos)
+    }
+    return positions
+  }
+
+  let watermarkPositions = $derived(getWatermarkPositions(libraryStore.timelineModel.canvasWidth, getWatermarkSpacing(libraryStore.filters.timeRange)))
 </script>
 
 <div class="timeline-view" bind:this={timelineRef}>
@@ -92,14 +115,18 @@
     <div class="tracks-shell">
       {#each libraryStore.timelineModel.tracks as track (track.projectId)}
         <section class="project-track" style={`min-height:${track.height}px;`}>
-          <div class="track-watermark">{track.projectName}</div>
+          {#each watermarkPositions as pos}
+            <div class="track-watermark" style={`left:${pos}px;`}>{track.projectName}</div>
+          {/each}
 
           <div class="track-lanes">
             {#each track.lanes as lane (lane.id)}
               <div class="lane-row" style={`height:${getLaneHeight(lane)}px;`}>
-                <div class="lane-watermark" style={`color:${getLaneWatermarkColor(lane)};`}>
-                  {getLaneWatermark(lane)}
-                </div>
+                {#each watermarkPositions as pos}
+                  <div class="lane-watermark" style={`left:${pos}px;color:${getLaneWatermarkColor(lane)};`}>
+                    {getLaneWatermark(lane)}
+                  </div>
+                {/each}
                 {#if lane.type !== 'tag'}
                   <div class="lane-divider"></div>
                 {/if}
@@ -136,6 +163,7 @@
     position: relative;
     min-height: 100%;
     padding-top: 44px;
+    overflow-x: hidden;
   }
 
   .time-axis {
@@ -173,7 +201,6 @@
 
   .track-watermark {
     position: absolute;
-    left: 60px;
     top: 50%;
     transform: translateY(-50%);
     font-size: 80px;
@@ -184,6 +211,7 @@
     pointer-events: none;
     white-space: nowrap;
     z-index: 0;
+    opacity: 0.08;
   }
 
   .track-lanes {
@@ -197,11 +225,11 @@
   .lane-row {
     position: relative;
     padding-left: 0;
+    overflow: hidden;
   }
 
   .lane-watermark {
     position: absolute;
-    left: 80px;
     top: 50%;
     transform: translateY(-50%);
     font-size: 32px;
@@ -211,7 +239,7 @@
     pointer-events: none;
     white-space: nowrap;
     z-index: 0;
-    opacity: 0.15;
+    opacity: 0.06;
   }
 
   .lane-divider {
@@ -233,12 +261,10 @@
   @media (max-width: 900px) {
     .track-watermark {
       font-size: 54px;
-      left: 20px;
     }
 
     .lane-watermark {
       font-size: 24px;
-      left: 20px;
     }
   }
 </style>

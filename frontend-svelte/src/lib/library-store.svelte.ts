@@ -38,6 +38,7 @@ export interface TimelineBlock {
   id: string
   sessionId: string
   projectId: string
+  projectName: string
   title: string
   status: Session['status']
   groupTag: string | null
@@ -58,6 +59,13 @@ export interface TimelineBlock {
   displayName: string
   displayMeta: string
   lineageLabel: string | null
+  tokenTotal: number
+  costTotal: number
+  directory: string | null
+  hostname: string
+  modelId: string | null
+  lastUserPrompt: string | null
+  lastAssistantMessage: string | null
 }
 
 export interface GroupedContainer {
@@ -533,6 +541,7 @@ class LibraryStore {
         id: `${session.id}::${index}`,
         sessionId: session.id,
         projectId: session.directory || 'unknown',
+        projectName: this.extractProjectName(session.directory || 'unknown'),
         title: session.title,
         status: session.status,
         groupTag: session.group_tag,
@@ -552,7 +561,14 @@ class LibraryStore {
         zIndex: 1,
         displayName: this.truncateTitle(session.title),
         displayMeta: lineageBits.join(' • '),
-        lineageLabel: segmentCount > 1 ? `continued ${index + 1}/${segmentCount}` : null
+        lineageLabel: segmentCount > 1 ? `continued ${index + 1}/${segmentCount}` : null,
+        tokenTotal: session.token_total || 0,
+        costTotal: session.cost_total || 0,
+        directory: session.directory,
+        hostname: session.hostname,
+        modelId: session.model_id || null,
+        lastUserPrompt: session.last_user_prompt || null,
+        lastAssistantMessage: session.last_assistant_message || null
       }
     })
   }
