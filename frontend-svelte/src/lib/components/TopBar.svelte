@@ -5,7 +5,8 @@
   
   // Nav items for top bar
   const navItems = [
-    { href: '/', label: 'Sessions', icon: '◉' },
+    { href: '/chamber', label: 'Chamber', icon: '◉' },
+    { href: '/', label: 'Library', icon: '◈' },
     { href: '/analytics', label: 'Analytics', icon: '◈' },
     { href: '/settings', label: 'Settings', icon: '◎' }
   ]
@@ -44,8 +45,13 @@
                    ? 'bg-[var(--bg-tertiary)] text-[var(--fg-primary)] shadow-[var(--shadow-sm)]' 
                    : 'text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)]/60 hover:text-[var(--fg-primary)]'}"
         >
-          <span class="mono text-xs opacity-50">{item.icon}</span>
-          <span>{item.label}</span>
+          {#if item.label === 'Chamber'}
+            <span class="mono text-xs opacity-50">{item.icon}</span>
+            <span>{item.label}</span>
+          {:else}
+            <span class="mono text-xs opacity-50">{item.icon}</span>
+            <span>{item.label}</span>
+          {/if}
         </a>
       {/each}
     </nav>

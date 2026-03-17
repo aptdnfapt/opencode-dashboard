@@ -15,6 +15,7 @@
   let isAuthenticated = $state(false)
   let isChecking = $state(true)
   let sidebarCollapsed = $state(false)
+  let isEmbed = $derived($page.url.searchParams.get('embed') === '1')
   
   // Load sidebar state from localStorage
   function loadSidebarState() {
@@ -88,6 +89,10 @@
 {:else if $page.url.pathname.startsWith('/login')}
   <!-- Login page - no layout -->
   {@render children()}
+{:else if isAuthenticated && isEmbed}
+  <main class="h-screen overflow-auto bg-[var(--bg-primary)]">
+    {@render children()}
+  </main>
 {:else if isAuthenticated}
   <!-- Main layout: TopBar + Sidebar + Content + StatusBar -->
   <div class="flex flex-col h-screen overflow-hidden bg-[var(--bg-primary)]">

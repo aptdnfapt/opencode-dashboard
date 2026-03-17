@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { goto } from '$app/navigation'
   import { store } from '$lib/store.svelte'
   import { getSessions, getAnalyticsSummary } from '$lib/api'
   import { formatTokens, formatCost } from '$lib/utils'
@@ -69,14 +70,18 @@
   function clearFilters() {
     store.clearFilters()
   }
+
+  function goToChamber() {
+    goto('/chamber')
+  }
 </script>
 
 <div class="p-6 h-full overflow-y-auto">
   <!-- Header -->
-  <div class="flex items-center justify-between mb-6">
+  <div class="flex items-center justify-between mb-6 gap-3">
     <div>
       <div class="flex items-center gap-3">
-        <h1 class="text-2xl font-bold text-[var(--fg-primary)]">Sessions</h1>
+        <h1 class="text-2xl font-bold text-[var(--fg-primary)]">Library</h1>
         {#if !loading && !error}
           <span class="text-xs font-medium mono px-2 py-0.5 rounded-full bg-[var(--accent-blue)]/15 text-[var(--accent-blue)]">
             {store.globalStats.total}
@@ -93,9 +98,18 @@
             Clear filters
           </button>
         {:else}
-          Monitor active OpenCode sessions
+          Explore session history
         {/if}
       </p>
+    </div>
+    <div class="inline-flex rounded-lg border border-[var(--border-subtle)] overflow-hidden">
+      <button
+        onclick={goToChamber}
+        class="px-3 py-1.5 text-sm bg-[var(--bg-secondary)] text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)]"
+      >
+        Chamber
+      </button>
+      <button class="px-3 py-1.5 text-sm bg-[var(--bg-tertiary)] text-[var(--fg-primary)]">Library</button>
     </div>
   </div>
 

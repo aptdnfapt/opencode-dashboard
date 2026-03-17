@@ -2,6 +2,7 @@
 // and visibility/network-aware reconnection (Svelte 5 runes)
 
 import { store } from './store.svelte'
+import { chamberStore } from './chamber-store.svelte'
 import type { WSMessage, Session, TimelineEvent } from './types'
 import {
   isTimelineWSData,
@@ -11,7 +12,8 @@ import {
   isIdleWSData,
   isErrorWSData,
   isAuthMessage,
-  isTrackedChangedWSData
+  isTrackedChangedWSData,
+  isHoldChangedWSData
 } from './types'
 import { playBing, playSubagentBing, queueAudio } from './audio'
 import { showNotification } from './notifications'
@@ -391,7 +393,7 @@ class WebSocketService {
 
       case 'session.updated':
         if (isSessionUpdatedWSData(data)) {
-          store.updateSession({
+          const update: Partial<Session> & { id: string } = {
             id: data.id,
             ...(data.title !== undefined && { title: data.title }),
             ...(data.hostname !== undefined && { hostname: data.hostname }),
@@ -405,7 +407,13 @@ class WebSocketService {
             ...(data.group_tag !== undefined && { group_tag: data.group_tag }),
             ...(data.completed_at !== undefined && { completed_at: data.completed_at }),
             ...(data.completed_reason !== undefined && { completed_reason: data.completed_reason })
-          })
+          }
+          store.updateSession(update)
+          // Sync with ChamberStore if session is tracked
+          const session = store.sessions.find(s => s.id === data.id)
+          if (session?.is_tracked) {
+            chamberStore.updateTracked(update)
+          }
         }
         break
 
@@ -513,17 +521,33 @@ class WebSocketService {
 
       case 'tracked.changed':
         if (isTrackedChangedWSData(data)) {
+          // Update main store
           store.updateSession({
             id: data.sessionId,
             is_tracked: data.isTracked ? 1 : 0,
             ...(data.groupTag !== undefined && { group_tag: data.groupTag })
           })
+          
+          // Update ChamberStore
+          if (data.isTracked) {
+            // Session was tracked - fetch full session and add to chamber
+            const session = store.sessions.find(s => s.id === data.sessionId)
+            if (session) {
+              chamberStore.addTracked({ ...session, is_tracked: 1 })
+            }
+          } else {
+            // Session was untracked - remove from chamber
+            chamberStore.removeTracked(data.sessionId)
+            // If completion happened remotely (/cc-done from plugin), refresh done feed
+            chamberStore.loadRecentDone().catch(() => {})
+          }
         }
         break
 
       case 'hold.changed':
-        // Store doesn't need hold state - it's project-level, not session-level
-        // Frontend components that care about holds will fetch from API
+        if (isHoldChangedWSData(data)) {
+          chamberStore.setHold(data.directory, data.isHeld)
+        }
         break
     }
   }
