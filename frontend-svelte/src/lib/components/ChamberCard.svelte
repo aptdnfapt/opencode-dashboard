@@ -14,7 +14,7 @@
   let { session }: Props = $props()
   let menuOpen = $state(false)
   let isHovering = $state(false)
-  let hoverPosition = $state({ top: 0, left: 0, direction: 'up' as 'up' | 'down' })
+  let hoverPosition = $state({ top: 0, left: 0, direction: 'left' as 'left' | 'right' })
   let hoverHideTimer: ReturnType<typeof setTimeout> | null = null
   const HOVER_CARD_WIDTH = 420
   const HOVER_CARD_HEIGHT = 560
@@ -80,17 +80,20 @@
     const rect = target.getBoundingClientRect()
     const viewportHeight = window.innerHeight
     const viewportWidth = window.innerWidth
-    const idealLeft = rect.left + rect.width / 2
-    const minLeft = HOVER_CARD_WIDTH / 2 + 16
-    const maxLeft = viewportWidth - HOVER_CARD_WIDTH / 2 - 16
-    const spaceAbove = rect.top
-    const spaceBelow = viewportHeight - rect.bottom
+    const spaceOnLeft = rect.left
+    const centerY = rect.top + rect.height / 2
+    const minTop = HOVER_CARD_HEIGHT / 2 + 16
+    const maxTop = viewportHeight - HOVER_CARD_HEIGHT / 2 - 16
 
-    hoverPosition.direction = spaceAbove > spaceBelow && spaceAbove > HOVER_CARD_HEIGHT / 2 ? 'up' : 'down'
-    hoverPosition.left = Math.max(minLeft, Math.min(maxLeft, idealLeft))
-    hoverPosition.top = hoverPosition.direction === 'up'
-      ? Math.max(rect.top, HOVER_CARD_HEIGHT + 16)
-      : Math.min(rect.bottom, viewportHeight - HOVER_CARD_HEIGHT - 16)
+    if (spaceOnLeft > HOVER_CARD_WIDTH + 32) {
+      hoverPosition.direction = 'left'
+      hoverPosition.left = rect.left
+    } else {
+      hoverPosition.direction = 'right'
+      hoverPosition.left = rect.right
+    }
+
+    hoverPosition.top = Math.max(minTop, Math.min(maxTop, centerY))
   }
 
   function showHoverCard(target: HTMLElement) {
