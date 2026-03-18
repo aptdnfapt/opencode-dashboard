@@ -6,12 +6,31 @@
 
   let { sessionId, onClose }: Props = $props()
 
+  let frameEl = $state<HTMLIFrameElement | null>(null)
+
+  function closeOrGoBack() {
+    const frameWindow = frameEl?.contentWindow
+    if (frameWindow) {
+      try {
+        const url = new URL(frameWindow.location.href)
+        if (url.searchParams.get('from') === 'sub' && frameWindow.history.length > 1) {
+          frameWindow.history.back()
+          return
+        }
+      } catch (err) {
+        console.warn('Failed to inspect session viewer state:', err)
+      }
+    }
+
+    onClose()
+  }
+
   function handleBackdropClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) onClose()
+    if (e.target === e.currentTarget) closeOrGoBack()
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onClose()
+    if (e.key === 'Escape') closeOrGoBack()
   }
 
   $effect(() => {
@@ -34,7 +53,7 @@
       <!-- macOS-style close button (traffic light style) -->
       <button
         type="button"
-        onclick={onClose}
+        onclick={closeOrGoBack}
         class="absolute top-2.5 left-3 z-20 w-3 h-3 rounded-full bg-[#ff5f57] hover:bg-red-500 active:bg-red-700 transition-colors cursor-pointer group"
         title="Close"
         aria-label="Close session viewer"
@@ -44,6 +63,7 @@
         </svg>
       </button>
       <iframe
+        bind:this={frameEl}
         title="Session Viewer"
         src={`/sessions/${sessionId}?embed=1`}
         class="h-full w-full border-0"

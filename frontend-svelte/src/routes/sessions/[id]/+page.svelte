@@ -1,13 +1,15 @@
 <script lang="ts">
+  import { goto } from '$app/navigation'
   import { page } from '$app/stores'
   import { onMount } from 'svelte'
-  import { getSession } from '$lib/api'
+  import { getSession, getSessions } from '$lib/api'
   import { formatRelativeTime, formatTokens, formatCost, getProjectName, getProjectColor, cn } from '$lib/utils'
   import type { Session, TimelineEvent } from '$lib/types'
   import StatusDot from '$lib/components/StatusDot.svelte'
   import { marked } from 'marked'
   import DOMPurify from 'dompurify'
   import { store } from '$lib/store.svelte'
+  import { libraryStore } from '$lib/library-store.svelte'
   import { ArrowLeft, Copy, Check, ChevronDown, ChevronRight, Cpu } from 'lucide-svelte'
   import SessionCard from '$lib/components/SessionCard.svelte'
   import NotesDrawer from '$lib/components/NotesDrawer.svelte'
@@ -33,18 +35,24 @@
 
   // Get session ID from route params
   let sessionId = $derived($page.params.id)
+  
+  let currentView = $derived($page.url.searchParams.get('view') === 'sub' ? 'sub' : 'main')
 
-  // Derive session from store for live WebSocket updates
-  let session = $derived(store.sessions.find(s => s.id === sessionId) ?? null)
+  // Derive session from store for live WebSocket updates (check both stores)
+  let session = $derived(store.sessions.find(s => s.id === sessionId) ?? libraryStore.sessions.find(s => s.id === sessionId) ?? null)
 
   // Derive parent session (for back button when viewing sub-agent)
   let parentSession = $derived(session?.parent_session_id
-    ? store.sessions.find(s => s.id === session.parent_session_id) ?? null
+    ? store.sessions.find(s => s.id === session.parent_session_id) ?? libraryStore.sessions.find(s => s.id === session.parent_session_id) ?? null
     : null
   )
 
   // Derive child sessions (subagents) for current session
-  let subagents = $derived(store.sessions.filter(s => s.parent_session_id === sessionId))
+  // Check both store and libraryStore since library uses libraryStore
+  let subagents = $derived([
+    ...store.sessions.filter(s => s.parent_session_id === sessionId),
+    ...libraryStore.sessions.filter(s => s.parent_session_id === sessionId && !store.sessions.some(ps => ps.id === s.id))
+  ])
 
   // Group timeline events into conversation turns
   let conversationTurns = $derived.by(() => {
@@ -383,6 +391,21 @@
     toolGroupExpanded = newExpanded
   }
 
+  async function setSessionView(view: 'main' | 'sub') {
+    showSubagentView = view === 'sub'
+    if (typeof window === 'undefined') return
+
+    const url = new URL(window.location.href)
+    if (view === 'sub') url.searchParams.set('view', 'sub')
+    else url.searchParams.delete('view')
+    await goto(`${url.pathname}${url.search}${url.hash}`, {
+      replaceState: true,
+      noScroll: true,
+      keepFocus: true,
+      invalidateAll: false
+    })
+  }
+
   // Load session data
   async function loadSession() {
     if (!sessionId) return
@@ -397,6 +420,20 @@
       apiTimeline = data.timeline
       // Also seed store timeline for merging with WebSocket updates
       store.setTimeline(sessionId, data.timeline)
+      
+      // Fetch subagent sessions if this is a parent session
+      if (data.session && !data.session.parent_session_id) {
+        try {
+          const subagentData = await getSessions({ parentSessionId: sessionId, limit: 100 })
+          for (const sub of subagentData.sessions) {
+            if (!store.sessions.find(s => s.id === sub.id)) {
+              store.addSession(sub)
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to load subagent sessions:', err)
+        }
+      }
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to load session'
     } finally {
@@ -448,6 +485,7 @@
       userScrolled = false
       showFloatingHeader = false
       toolGroupExpanded = new Set<string>()
+      showSubagentView = currentView === 'sub'
       loadSession()
     }
   })
@@ -492,6 +530,11 @@
       <div class="floating-island-body {getFloatingBarClass(displayStatus)}">
         <div class="floating-island-blur"></div>
         <div class="floating-compact-row">
+          {#if !isEmbed}
+            <a href={session.parent_session_id ? `/sessions/${session.parent_session_id}?view=sub${isEmbed ? '&embed=1' : ''}` : '/'} class="flex items-center gap-1 text-[var(--fg-muted)] hover:text-[var(--fg-secondary)] transition-colors shrink-0">
+              <ArrowLeft class="w-4 h-4" />
+            </a>
+          {/if}
           <div class={cn('flex items-center gap-2', getStatusColor(displayStatus))}>
             <div class={cn('w-2 h-2 rounded-full', getStatusDotColor(displayStatus), displayStatus !== 'stale' ? 'animate-pulse' : '')}></div>
             {#if session.parent_session_id}
@@ -532,25 +575,15 @@
       </div>
     </div>
 
-    <!-- Top bar: Back button + Main/Sub toggle (hidden in embed mode) -->
-    {#if !isEmbed}
-      <div class="sticky top-0 z-30 px-4 py-3 bg-[var(--bg-primary)] border-b border-[var(--border-subtle)]">
-        <div class="flex items-center justify-between" style="height: 32px;">
-          <a href={session.parent_session_id ? `/sessions/${session.parent_session_id}` : '/'} class="flex items-center gap-2 text-sm text-[var(--fg-secondary)] hover:text-[var(--fg-primary)] transition-colors shrink-0">
-            <ArrowLeft class="w-4 h-4" />
-            <span>{session.parent_session_id ? 'Back to parent' : 'Back to sessions'}</span>
-          </a>
-          {#if subagents.length > 0}
-            <div class="flex items-center bg-[var(--bg-secondary)] rounded-lg p-1 border border-[var(--border-subtle)] shrink-0">
-              <button onclick={() => showSubagentView = false} class={cn('flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors', !showSubagentView ? 'bg-[var(--accent-blue)]/20 text-[var(--accent-blue)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg-secondary)]')}><span>Main</span></button>
-              <button onclick={() => showSubagentView = true} class={cn('flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors', showSubagentView ? 'bg-[var(--accent-blue)]/20 text-[var(--accent-blue)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg-secondary)]')}><span>Sub</span><span class="mono text-xs opacity-75">({subagents.length})</span></button>
-            </div>
-          {:else}
-            <div class="shrink-0" style="width: 100px;"></div>
-          {/if}
-        </div>
+    <!-- Subagent toggle - positioned right of floating island -->
+    {#if subagents.length > 0}
+      <div class="fixed top-3 right-4 z-40 flex items-center bg-[var(--bg-secondary)]/90 backdrop-blur-sm rounded-lg p-1 border border-[var(--border-subtle)] shadow-lg">
+        <button onclick={() => setSessionView('main')} class={cn('px-3 py-1.5 text-sm font-medium rounded-md transition-colors', !showSubagentView ? 'bg-[var(--accent-blue)]/20 text-[var(--accent-blue)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg-secondary)]')}>Main</button>
+        <button onclick={() => setSessionView('sub')} class={cn('flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors', showSubagentView ? 'bg-[var(--accent-blue)]/20 text-[var(--accent-blue)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg-secondary)]')}><span>Sub</span><span class="mono text-xs opacity-75">({subagents.length})</span></button>
       </div>
-    {:else}
+    {/if}
+
+    {#if isEmbed}
       <div class="h-12"></div>
     {/if}
 
@@ -567,7 +600,7 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {#each subagents as subagent (subagent.id)}
-              <SessionCard session={subagent} />
+              <SessionCard session={subagent} linkSuffix={`?from=sub${isEmbed ? '&embed=1' : ''}`} />
             {/each}
           </div>
         </div>
@@ -971,13 +1004,13 @@
     color: var(--fg-secondary);
   }
 
-  /* Floating island - fixed position, floats over content */
+   /* Floating island - fixed position, floats over content but below NotesDrawer (z-40) */
   :global(.floating-island) {
     position: fixed;
     top: 12px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 50;
+    z-index: 35;
     width: calc(100% - 32px);
     max-width: 42rem;
     pointer-events: auto;

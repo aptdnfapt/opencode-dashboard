@@ -33,6 +33,7 @@ export async function getSessions(params?: {
   limit?: number
   since?: number
   until?: number
+  parentSessionId?: string
 }): Promise<{ sessions: Session[]; hasMore: boolean; nextCursor: string | null }> {
   const query = new URLSearchParams()
   if (params?.status) query.set('status', params.status)
@@ -43,6 +44,7 @@ export async function getSessions(params?: {
   if (params?.limit) query.set('limit', String(params.limit))
   if (typeof params?.since === 'number') query.set('since', String(params.since))
   if (typeof params?.until === 'number') query.set('until', String(params.until))
+  if (params?.parentSessionId) query.set('parentSessionId', params.parentSessionId)
 
   const qs = query.toString()
   return fetchAPI(`/api/sessions${qs ? `?${qs}` : ''}`)

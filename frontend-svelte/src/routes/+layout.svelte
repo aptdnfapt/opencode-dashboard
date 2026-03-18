@@ -55,7 +55,8 @@
 {:else if $page.url.pathname.startsWith('/login')}
   <!-- Login page - no layout -->
   {@render children()}
-{:else if isAuthenticated && isEmbed}
+{:else if isAuthenticated && (isEmbed || $page.url.pathname.startsWith('/sessions/'))}
+  <!-- Embed or session page - no TopBar, just content -->
   <main class="h-screen overflow-auto bg-[var(--bg-primary)]">
     {@render children()}
   </main>

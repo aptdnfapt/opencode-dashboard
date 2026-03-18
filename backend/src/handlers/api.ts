@@ -74,7 +74,8 @@ export function createApiHandler(app: Hono, db: Database) {
       cursor,
       limit: limitParam,
       since,
-      until
+      until,
+      parentSessionId
     } = c.req.query()
     const STALE_THRESHOLD = 60 * 1000 // 1 minute
     const now = Date.now()
@@ -109,6 +110,11 @@ export function createApiHandler(app: Hono, db: Database) {
     if (until) {
       sql += ' AND updated_at <= ?'
       params.push(parseInt(until, 10))
+    }
+    // Filter by parent session (for subagents)
+    if (parentSessionId) {
+      sql += ' AND parent_session_id = ?'
+      params.push(parentSessionId)
     }
     // Keyset cursor: fetch sessions older than the last seen updated_at
     if (cursor) {

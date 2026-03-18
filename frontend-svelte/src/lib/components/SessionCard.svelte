@@ -14,9 +14,10 @@
   interface Props {
     session: Session
     selected?: boolean
+    linkSuffix?: string  // Optional URL suffix (e.g. "?from=sub")
   }
   
-  let { session, selected = false }: Props = $props()
+  let { session, selected = false, linkSuffix = '' }: Props = $props()
   
   // Compute effective status: idle > 3min → stale (unless sub-agents are active)
   // Uses store.activeChildrenSet (O(1) lookup) instead of O(N) .some() scan
@@ -176,7 +177,7 @@
 
 <a
   bind:this={cardEl}
-  href="/sessions/{session.id}"
+  href="/sessions/{session.id}{linkSuffix}"
   class={cn(
     'flex flex-col w-full h-full text-left p-3 rounded-lg border transition-all duration-200',
     'hover:bg-[var(--bg-tertiary)] hover:border-[var(--border)]',
