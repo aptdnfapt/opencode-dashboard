@@ -2,9 +2,10 @@
   import type { Session } from '$lib/types'
   import { chamberStore } from '$lib/chamber-store.svelte'
   import { store } from '$lib/store.svelte'
-  import { formatRelativeTime, formatTokens, formatCost, cn } from '$lib/utils'
+  import { formatRelativeTime, formatTokens, formatCost, cn, getProjectName } from '$lib/utils'
   import { Archive, CheckCircle, X, GitBranch, StickyNote, Activity, Moon, AlertCircle, Clock } from 'lucide-svelte'
   import { markSessionDone, setSessionTracked, archiveSession } from '$lib/api'
+  import SessionHoverCard from '$lib/components/SessionHoverCard.svelte'
 
   interface Props {
     session: Session
@@ -12,6 +13,11 @@
 
   let { session }: Props = $props()
   let menuOpen = $state(false)
+  let isHovering = $state(false)
+  let hoverPosition = $state({ top: 0, left: 0, direction: 'up' as 'up' | 'down' })
+  let hoverHideTimer: ReturnType<typeof setTimeout> | null = null
+  const HOVER_CARD_WIDTH = 420
+  const HOVER_CARD_HEIGHT = 560
 
   // Compute effective status
   let displayStatus = $derived.by(() => {
@@ -63,6 +69,58 @@
   let StatusIcon = $derived(getStatusIcon(displayStatus))
   let statusColor = $derived(getStatusColor(displayStatus))
 
+  function clearHoverHideTimer() {
+    if (hoverHideTimer) {
+      clearTimeout(hoverHideTimer)
+      hoverHideTimer = null
+    }
+  }
+
+  function updateHoverPosition(target: HTMLElement) {
+    const rect = target.getBoundingClientRect()
+    const viewportHeight = window.innerHeight
+    const viewportWidth = window.innerWidth
+    const idealLeft = rect.left + rect.width / 2
+    const minLeft = HOVER_CARD_WIDTH / 2 + 16
+    const maxLeft = viewportWidth - HOVER_CARD_WIDTH / 2 - 16
+    const spaceAbove = rect.top
+    const spaceBelow = viewportHeight - rect.bottom
+
+    hoverPosition.direction = spaceAbove > spaceBelow && spaceAbove > HOVER_CARD_HEIGHT / 2 ? 'up' : 'down'
+    hoverPosition.left = Math.max(minLeft, Math.min(maxLeft, idealLeft))
+    hoverPosition.top = hoverPosition.direction === 'up'
+      ? Math.max(rect.top, HOVER_CARD_HEIGHT + 16)
+      : Math.min(rect.bottom, viewportHeight - HOVER_CARD_HEIGHT - 16)
+  }
+
+  function showHoverCard(target: HTMLElement) {
+    clearHoverHideTimer()
+    updateHoverPosition(target)
+    isHovering = true
+  }
+
+  function handleMouseEnter(event: MouseEvent) {
+    showHoverCard(event.currentTarget as HTMLElement)
+  }
+
+  function scheduleHoverHide() {
+    clearHoverHideTimer()
+    hoverHideTimer = setTimeout(() => { isHovering = false }, 120)
+  }
+
+  function handleMouseLeave() {
+    scheduleHoverHide()
+  }
+
+  function handleHoverCardEnter() {
+    clearHoverHideTimer()
+    isHovering = true
+  }
+
+  function handleHoverCardLeave() {
+    scheduleHoverHide()
+  }
+
   // Context menu actions
   async function handleDone(e: MouseEvent) {
     e.preventDefault()
@@ -110,6 +168,7 @@
   function openViewer() {
     chamberStore.setSelected(session.id)
   }
+
 </script>
 
 <!-- ChamberCard: card for Chamber live board with SessionCard-style layout -->
@@ -118,6 +177,8 @@
   tabindex="0"
   onclick={openViewer}
   onkeydown={(e) => e.key === 'Enter' && openViewer()}
+  onmouseenter={handleMouseEnter}
+  onmouseleave={handleMouseLeave}
   class={cn(
     'flex flex-col w-full text-left p-2.5 rounded-lg border transition-all duration-200 relative',
     'hover:bg-[var(--bg-hover)] hover:border-[var(--border)]',
@@ -241,6 +302,17 @@
   </div>
 </div>
 
+{#if isHovering}
+  <SessionHoverCard
+    {session}
+    left={hoverPosition.left}
+    top={hoverPosition.top}
+    placement={hoverPosition.direction}
+    onmouseenter={handleHoverCardEnter}
+    onmouseleave={handleHoverCardLeave}
+  />
+{/if}
+
 <style>
   /* Running: green spinning border */
   .chamber-running {
@@ -342,4 +414,5 @@
     0%, 100% { opacity: 0.4; }
     50% { opacity: 1; }
   }
+
 </style>

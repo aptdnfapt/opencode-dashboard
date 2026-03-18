@@ -1302,8 +1302,57 @@ export function createApiHandler(app: Hono, db: Database) {
       SELECT * FROM sessions 
       WHERE is_tracked = 1 
       ORDER BY updated_at DESC
-    `).all()
-    return c.json(sessions)
+    `).all() as Array<Record<string, unknown> & { id: string }>
+
+    const latestModels = db.prepare(`
+      SELECT tu.session_id, tu.model_id
+      FROM token_usage tu
+      INNER JOIN (
+        SELECT session_id, MAX(timestamp) as max_ts
+        FROM token_usage
+        GROUP BY session_id
+      ) latest ON tu.session_id = latest.session_id AND tu.timestamp = latest.max_ts
+    `).all() as { session_id: string; model_id: string | null }[]
+    const modelMap = new Map(latestModels.map(r => [r.session_id, r.model_id]))
+
+    const latestUserPrompts = db.prepare(`
+      SELECT te.session_id, te.summary
+      FROM timeline_events te
+      INNER JOIN (
+        SELECT session_id, MAX(timestamp) as max_ts
+        FROM timeline_events
+        WHERE event_type = 'user'
+        GROUP BY session_id
+      ) latest ON te.session_id = latest.session_id AND te.timestamp = latest.max_ts
+      WHERE te.event_type = 'user'
+    `).all() as { session_id: string; summary: string | null }[]
+    const latestUserPromptMap = new Map(latestUserPrompts.map(r => [r.session_id, r.summary]))
+
+    const latestAssistantMessages = db.prepare(`
+      SELECT te.session_id, te.summary
+      FROM timeline_events te
+      INNER JOIN (
+        SELECT session_id, MAX(timestamp) as max_ts
+        FROM timeline_events
+        WHERE event_type IN ('message', 'error', 'question', 'permission')
+        GROUP BY session_id
+      ) latest ON te.session_id = latest.session_id AND te.timestamp = latest.max_ts
+      WHERE te.event_type IN ('message', 'error', 'question', 'permission')
+    `).all() as { session_id: string; summary: string | null }[]
+    const latestAssistantMessageMap = new Map(latestAssistantMessages.map(r => [r.session_id, r.summary]))
+
+    const noteCounts = db.prepare(
+      'SELECT session_id, COUNT(*) as cnt FROM notes GROUP BY session_id'
+    ).all() as { session_id: string; cnt: number }[]
+    const noteCountMap = new Map(noteCounts.map(r => [r.session_id, r.cnt]))
+
+    return c.json(sessions.map((session) => ({
+      ...session,
+      model_id: modelMap.get(session.id) || null,
+      last_user_prompt: latestUserPromptMap.get(session.id) || null,
+      last_assistant_message: latestAssistantMessageMap.get(session.id) || null,
+      notes_count: noteCountMap.get(session.id) || 0
+    })))
   })
 
   // GET /api/chamber/recent-done - list recently completed chamber sessions
@@ -1314,8 +1363,57 @@ export function createApiHandler(app: Hono, db: Database) {
       WHERE completed_at IS NOT NULL 
       ORDER BY completed_at DESC 
       LIMIT ?
-    `).all(limit)
-    return c.json(sessions)
+    `).all(limit) as Array<Record<string, unknown> & { id: string }>
+
+    const latestModels = db.prepare(`
+      SELECT tu.session_id, tu.model_id
+      FROM token_usage tu
+      INNER JOIN (
+        SELECT session_id, MAX(timestamp) as max_ts
+        FROM token_usage
+        GROUP BY session_id
+      ) latest ON tu.session_id = latest.session_id AND tu.timestamp = latest.max_ts
+    `).all() as { session_id: string; model_id: string | null }[]
+    const modelMap = new Map(latestModels.map(r => [r.session_id, r.model_id]))
+
+    const latestUserPrompts = db.prepare(`
+      SELECT te.session_id, te.summary
+      FROM timeline_events te
+      INNER JOIN (
+        SELECT session_id, MAX(timestamp) as max_ts
+        FROM timeline_events
+        WHERE event_type = 'user'
+        GROUP BY session_id
+      ) latest ON te.session_id = latest.session_id AND te.timestamp = latest.max_ts
+      WHERE te.event_type = 'user'
+    `).all() as { session_id: string; summary: string | null }[]
+    const latestUserPromptMap = new Map(latestUserPrompts.map(r => [r.session_id, r.summary]))
+
+    const latestAssistantMessages = db.prepare(`
+      SELECT te.session_id, te.summary
+      FROM timeline_events te
+      INNER JOIN (
+        SELECT session_id, MAX(timestamp) as max_ts
+        FROM timeline_events
+        WHERE event_type IN ('message', 'error', 'question', 'permission')
+        GROUP BY session_id
+      ) latest ON te.session_id = latest.session_id AND te.timestamp = latest.max_ts
+      WHERE te.event_type IN ('message', 'error', 'question', 'permission')
+    `).all() as { session_id: string; summary: string | null }[]
+    const latestAssistantMessageMap = new Map(latestAssistantMessages.map(r => [r.session_id, r.summary]))
+
+    const noteCounts = db.prepare(
+      'SELECT session_id, COUNT(*) as cnt FROM notes GROUP BY session_id'
+    ).all() as { session_id: string; cnt: number }[]
+    const noteCountMap = new Map(noteCounts.map(r => [r.session_id, r.cnt]))
+
+    return c.json(sessions.map((session) => ({
+      ...session,
+      model_id: modelMap.get(session.id) || null,
+      last_user_prompt: latestUserPromptMap.get(session.id) || null,
+      last_assistant_message: latestAssistantMessageMap.get(session.id) || null,
+      notes_count: noteCountMap.get(session.id) || 0
+    })))
   })
 
   // PATCH /api/sessions/:id/track - set tracking state

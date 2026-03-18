@@ -4,7 +4,6 @@
   import { getProjectName, getProjectColor, cn } from '$lib/utils'
   import ChamberCard from '$lib/components/ChamberCard.svelte'
   import { VolumeX, Volume2 } from 'lucide-svelte'
-  import { crossfade } from 'svelte/transition'
 
   interface Props {
     row: {
@@ -15,14 +14,6 @@
   }
 
   let { row }: Props = $props()
-  let runningExpanded = $state(false)
-  let idleExpanded = $state(false)
-
-  // Crossfade for cards moving between zones
-  const [send, receive] = crossfade({
-    duration: 200,
-    fallback: () => ({ duration: 150 })
-  })
 
   // Separate sessions into running and idle zones
   let runningSessions = $derived.by(() => {
@@ -99,39 +90,15 @@
       <div class="text-[10px] uppercase tracking-wide text-emerald-500 mb-1 font-medium">
         Running
       </div>
-      <div 
-        class="relative"
-        role="group"
-        aria-label="Running sessions"
-        onmouseenter={() => runningExpanded = true}
-        onmouseleave={() => runningExpanded = false}
-      >
+      <div role="group" aria-label="Running sessions" class="cards-container">
         {#if runningSessions.length === 0}
           <div class="text-xs text-[var(--fg-muted)] italic py-2">No active</div>
-        {:else if runningSessions.length === 1}
-          <div in:receive={{ key: runningSessions[0].id }} out:send={{ key: runningSessions[0].id }}>
-            <ChamberCard session={runningSessions[0]} />
-          </div>
         {:else}
-          <div class="stack-shell">
-            <div class="stack-surface" class:is-expanded={runningExpanded}>
-              {#each runningSessions.slice(0, runningExpanded ? runningSessions.length : 3) as session, i (session.id)}
-                <div
-                  class="card-stack"
-                  in:receive={{ key: session.id }}
-                  out:send={{ key: session.id }}
-                  style={`--stack-index:${i}; --stack-z:${runningSessions.length - i};`}
-                >
-                  <ChamberCard {session} />
-                </div>
-              {/each}
+          {#each runningSessions as session (session.id)}
+            <div class="card-wrapper">
+              <ChamberCard {session} />
             </div>
-            {#if !runningExpanded && runningSessions.length > 3}
-              <div class="stack-more-indicator text-xs text-[var(--fg-muted)]">
-                +{runningSessions.length - 3} more
-              </div>
-            {/if}
-          </div>
+          {/each}
         {/if}
       </div>
     </div>
@@ -141,39 +108,15 @@
       <div class="text-[10px] uppercase tracking-wide text-amber-500 mb-1 font-medium">
         Idle
       </div>
-      <div 
-        class="relative"
-        role="group"
-        aria-label="Idle sessions"
-        onmouseenter={() => idleExpanded = true}
-        onmouseleave={() => idleExpanded = false}
-      >
+      <div role="group" aria-label="Idle sessions" class="cards-container">
         {#if idleSessions.length === 0}
           <div class="text-xs text-[var(--fg-muted)] italic py-2">No idle</div>
-        {:else if idleSessions.length === 1}
-          <div in:receive={{ key: idleSessions[0].id }} out:send={{ key: idleSessions[0].id }}>
-            <ChamberCard session={idleSessions[0]} />
-          </div>
         {:else}
-          <div class="stack-shell">
-            <div class="stack-surface" class:is-expanded={idleExpanded}>
-              {#each idleSessions.slice(0, idleExpanded ? idleSessions.length : 3) as session, i (session.id)}
-                <div
-                  class="card-stack"
-                  in:receive={{ key: session.id }}
-                  out:send={{ key: session.id }}
-                  style={`--stack-index:${i}; --stack-z:${idleSessions.length - i};`}
-                >
-                  <ChamberCard {session} />
-                </div>
-              {/each}
+          {#each idleSessions as session (session.id)}
+            <div class="card-wrapper">
+              <ChamberCard {session} />
             </div>
-            {#if !idleExpanded && idleSessions.length > 3}
-              <div class="stack-more-indicator text-xs text-[var(--fg-muted)]">
-                +{idleSessions.length - 3} more
-              </div>
-            {/if}
-          </div>
+          {/each}
         {/if}
       </div>
     </div>
@@ -181,49 +124,20 @@
 </div>
 
 <style>
-  .stack-shell {
+  .cards-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 4px;
+    min-height: 100px;
+  }
+
+  .card-wrapper {
+    flex: 1 1 180px;
+    min-width: 180px;
+    max-width: 100%;
     position: relative;
-    min-height: 122px;
-    padding-right: 20px;
-    overflow: visible;
-  }
-
-  .stack-surface {
-    position: relative;
-    min-height: 110px;
-    overflow: visible;
-  }
-
-  .card-stack {
-    position: absolute;
-    inset: 0 18px 0 0;
-    z-index: var(--stack-z);
-    transform: translate(calc(var(--stack-index) * 10px), calc(var(--stack-index) * 8px)) rotate(calc(var(--stack-index) * -1.4deg));
-    transform-origin: bottom left;
-    transition:
-      transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
-      z-index 0s 0.2s,
-      filter 0.3s ease;
-  }
-
-  .stack-surface.is-expanded .card-stack {
-    transform: translate(calc(var(--stack-index) * 58px), calc(var(--stack-index) * 10px)) rotate(calc(var(--stack-index) * 5deg));
-  }
-
-  .stack-surface.is-expanded .card-stack:hover {
-    z-index: 30;
-    transform: translate(calc(var(--stack-index) * 58px), calc((var(--stack-index) * 10px) - 18px)) rotate(calc(var(--stack-index) * 5deg)) scale(1.03);
-    filter: brightness(1.04);
-    transition:
-      transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
-      z-index 0s 0s,
-      filter 0.3s ease;
-  }
-
-  .stack-more-indicator {
-    position: absolute;
-    left: 8px;
-    bottom: -2px;
   }
 
   /* Zone transition: smooth fade + scale for cards moving between zones */
