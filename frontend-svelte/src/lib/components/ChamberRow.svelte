@@ -113,23 +113,21 @@
             <ChamberCard session={runningSessions[0]} />
           </div>
         {:else}
-          <!-- Stacked cards: pages in a book metaphor -->
-          <div class="relative">
-            {#each runningSessions.slice(0, runningExpanded ? runningSessions.length : 3) as session, i (session.id)}
-              <div 
-                class="card-stack"
-                in:receive={{ key: session.id }}
-                out:send={{ key: session.id }}
-                style={runningExpanded
-                  ? `margin-top: 8px; z-index: ${runningSessions.length - i}`
-                  : `transform: translateX(${i * 5}px) translateY(${i * 1}px) rotate(${-0.2 * i}deg); z-index: ${runningSessions.length - i}`
-                }
-              >
-                <ChamberCard {session} />
-              </div>
-            {/each}
+          <div class="stack-shell">
+            <div class="stack-surface" class:is-expanded={runningExpanded}>
+              {#each runningSessions.slice(0, runningExpanded ? runningSessions.length : 3) as session, i (session.id)}
+                <div
+                  class="card-stack"
+                  in:receive={{ key: session.id }}
+                  out:send={{ key: session.id }}
+                  style={`--stack-index:${i}; --stack-z:${runningSessions.length - i};`}
+                >
+                  <ChamberCard {session} />
+                </div>
+              {/each}
+            </div>
             {#if !runningExpanded && runningSessions.length > 3}
-              <div class="text-xs text-[var(--fg-muted)] mt-1 pl-2">
+              <div class="stack-more-indicator text-xs text-[var(--fg-muted)]">
                 +{runningSessions.length - 3} more
               </div>
             {/if}
@@ -157,23 +155,21 @@
             <ChamberCard session={idleSessions[0]} />
           </div>
         {:else}
-          <!-- Stacked cards: pages in a book metaphor -->
-          <div class="relative">
-            {#each idleSessions.slice(0, idleExpanded ? idleSessions.length : 3) as session, i (session.id)}
-              <div 
-                class="card-stack"
-                in:receive={{ key: session.id }}
-                out:send={{ key: session.id }}
-                style={idleExpanded
-                  ? `margin-top: 8px; z-index: ${idleSessions.length - i}`
-                  : `transform: translateX(${i * 5}px) translateY(${i * 1}px) rotate(${-0.2 * i}deg); z-index: ${idleSessions.length - i}`
-                }
-              >
-                <ChamberCard {session} />
-              </div>
-            {/each}
+          <div class="stack-shell">
+            <div class="stack-surface" class:is-expanded={idleExpanded}>
+              {#each idleSessions.slice(0, idleExpanded ? idleSessions.length : 3) as session, i (session.id)}
+                <div
+                  class="card-stack"
+                  in:receive={{ key: session.id }}
+                  out:send={{ key: session.id }}
+                  style={`--stack-index:${i}; --stack-z:${idleSessions.length - i};`}
+                >
+                  <ChamberCard {session} />
+                </div>
+              {/each}
+            </div>
             {#if !idleExpanded && idleSessions.length > 3}
-              <div class="text-xs text-[var(--fg-muted)] mt-1 pl-2">
+              <div class="stack-more-indicator text-xs text-[var(--fg-muted)]">
                 +{idleSessions.length - 3} more
               </div>
             {/if}
@@ -185,8 +181,49 @@
 </div>
 
 <style>
+  .stack-shell {
+    position: relative;
+    min-height: 122px;
+    padding-right: 20px;
+    overflow: visible;
+  }
+
+  .stack-surface {
+    position: relative;
+    min-height: 110px;
+    overflow: visible;
+  }
+
   .card-stack {
-    transition: transform 0.15s ease-out, margin 0.15s ease-out;
+    position: absolute;
+    inset: 0 18px 0 0;
+    z-index: var(--stack-z);
+    transform: translate(calc(var(--stack-index) * 10px), calc(var(--stack-index) * 8px)) rotate(calc(var(--stack-index) * -1.4deg));
+    transform-origin: bottom left;
+    transition:
+      transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+      z-index 0s 0.2s,
+      filter 0.3s ease;
+  }
+
+  .stack-surface.is-expanded .card-stack {
+    transform: translate(calc(var(--stack-index) * 58px), calc(var(--stack-index) * 10px)) rotate(calc(var(--stack-index) * 5deg));
+  }
+
+  .stack-surface.is-expanded .card-stack:hover {
+    z-index: 30;
+    transform: translate(calc(var(--stack-index) * 58px), calc((var(--stack-index) * 10px) - 18px)) rotate(calc(var(--stack-index) * 5deg)) scale(1.03);
+    filter: brightness(1.04);
+    transition:
+      transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+      z-index 0s 0s,
+      filter 0.3s ease;
+  }
+
+  .stack-more-indicator {
+    position: absolute;
+    left: 8px;
+    bottom: -2px;
   }
 
   /* Zone transition: smooth fade + scale for cards moving between zones */
