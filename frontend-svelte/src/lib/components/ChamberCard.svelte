@@ -2,8 +2,8 @@
   import type { Session } from '$lib/types'
   import { chamberStore } from '$lib/chamber-store.svelte'
   import { store } from '$lib/store.svelte'
-  import { formatRelativeTime, cn } from '$lib/utils'
-  import { Archive, CheckCircle, X } from 'lucide-svelte'
+  import { formatRelativeTime, formatTokens, formatCost, cn } from '$lib/utils'
+  import { Archive, CheckCircle, X, GitBranch, StickyNote, Activity, Moon, AlertCircle, Clock } from 'lucide-svelte'
   import { markSessionDone, setSessionTracked, archiveSession } from '$lib/api'
 
   interface Props {
@@ -24,13 +24,44 @@
     chamberStore.tracked.filter(s => s.parent_session_id === session.id)
   )
   let activeSubAgents = $derived(subAgents.filter(s => s.status === 'active').length)
+  let idleSubAgents = $derived(subAgents.filter(s => s.status !== 'active').length)
+
+  // Model name from session
+  let modelName = $derived((session as unknown as { model_id?: string | null }).model_id || null)
 
   let timeline = $derived(store.timelines.get(session.id) || [])
   let latestMessage = $derived.by(() => {
     const last = timeline[timeline.length - 1]
     if (!last?.summary) return ''
-    return last.summary.length > 72 ? `${last.summary.slice(0, 72)}...` : last.summary
+    return last.summary.length > 60 ? `${last.summary.slice(0, 60)}...` : last.summary
   })
+
+  // Status icon component mapping
+  function getStatusIcon(status: string) {
+    switch (status) {
+      case 'active': return Activity
+      case 'idle': return Moon
+      case 'idle-with-subagents': return Moon
+      case 'error': return AlertCircle
+      case 'stale': return Clock
+      default: return Activity
+    }
+  }
+
+  // Status color classes
+  function getStatusColor(status: string) {
+    switch (status) {
+      case 'active': return 'text-emerald-500'
+      case 'idle': return 'text-amber-500'
+      case 'idle-with-subagents': return 'text-blue-500'
+      case 'error': return 'text-rose-500'
+      case 'stale': return 'text-zinc-500'
+      default: return 'text-zinc-400'
+    }
+  }
+
+  let StatusIcon = $derived(getStatusIcon(displayStatus))
+  let statusColor = $derived(getStatusColor(displayStatus))
 
   // Context menu actions
   async function handleDone(e: MouseEvent) {
@@ -81,34 +112,37 @@
   }
 </script>
 
-<!-- ChamberCard: compact card for Chamber live board -->
+<!-- ChamberCard: card for Chamber live board with SessionCard-style layout -->
 <div
   role="button"
   tabindex="0"
   onclick={openViewer}
   onkeydown={(e) => e.key === 'Enter' && openViewer()}
   class={cn(
-    'block w-full p-2 rounded-lg border transition-all duration-150 relative',
-    'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)]',
-    displayStatus === 'active' && 'border-emerald-500/50 chamber-running',
-    displayStatus === 'idle' && 'border-amber-500/50 chamber-idle',
-    displayStatus === 'idle-with-subagents' && 'border-blue-500/50 chamber-blue-idle',
-    displayStatus === 'error' && 'border-rose-500/50 chamber-error',
-    displayStatus === 'stale' && 'border-zinc-500/50',
-    session.needs_attention ? 'ring-1 ring-amber-400' : ''
+    'flex flex-col w-full text-left p-2.5 rounded-lg border transition-all duration-200 relative',
+    'hover:bg-[var(--bg-hover)] hover:border-[var(--border)]',
+    displayStatus === 'active' && 'bg-[var(--bg-secondary)] border-emerald-500/50 chamber-running',
+    displayStatus === 'idle' && 'bg-[var(--bg-secondary)] border-amber-500/50 chamber-idle',
+    displayStatus === 'idle-with-subagents' && 'bg-[var(--bg-secondary)] border-blue-500/50 chamber-blue-idle',
+    displayStatus === 'error' && 'bg-[var(--bg-secondary)] border-rose-500/50 chamber-error',
+    displayStatus === 'stale' && 'bg-[var(--bg-secondary)] border-zinc-500/50',
+    session.needs_attention ? 'ring-1 ring-amber-400 attention-ring' : ''
   )}
 >
-  <!-- Header: title + menu -->
-  <div class="flex items-center justify-between gap-2 mb-1">
-    <span class="text-sm font-medium truncate text-[var(--fg-primary)]">
-      {session.title || 'Untitled'}
-    </span>
-    <div class="relative">
+  <!-- Header: status icon + title + menu -->
+  <div class="flex items-start justify-between gap-2 mb-1.5">
+    <div class="flex items-center gap-1.5 min-w-0">
+      <StatusIcon class="w-3.5 h-3.5 shrink-0 {statusColor}" />
+      <span class="font-medium text-xs truncate text-[var(--fg-primary)]">
+        {session.title || 'Untitled'}
+      </span>
+    </div>
+    <div class="relative shrink-0">
       <button
         type="button"
         onclick={toggleMenu}
         title="Session actions"
-        class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--fg-muted)] hover:text-[var(--fg-secondary)] transition-colors"
+        class="p-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--fg-muted)] hover:text-[var(--fg-secondary)] transition-colors"
       >
         <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="5" r="1"/>
@@ -126,7 +160,7 @@
           <button
             type="button"
             onclick={handleDone}
-            class="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+            class="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
           >
             <CheckCircle class="w-3.5 h-3.5" />
             Mark Done
@@ -134,7 +168,7 @@
           <button
             type="button"
             onclick={handleRemove}
-            class="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+            class="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
           >
             <X class="w-3.5 h-3.5" />
             Remove
@@ -142,7 +176,7 @@
           <button
             type="button"
             onclick={handleArchive}
-            class="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+            class="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
           >
             <Archive class="w-3.5 h-3.5" />
             Archive
@@ -152,39 +186,59 @@
     </div>
   </div>
 
-  <!-- Status indicator -->
-  <div class="flex items-center gap-2 text-[10px] text-[var(--fg-muted)] mb-1">
-    {#if displayStatus === 'active'}
-      <span class="text-emerald-500 animate-pulse">Running</span>
-    {:else if displayStatus === 'idle'}
-      <span class="text-amber-500">Idle</span>
-    {:else if displayStatus === 'idle-with-subagents'}
-      <span class="text-blue-500">Idle + {activeSubAgents} active sub</span>
-    {:else if displayStatus === 'error'}
-      <span class="text-rose-500">Error</span>
-    {:else}
-      <span>Stale</span>
-    {/if}
-    {#if session.needs_attention}
-      <span class="text-amber-400">• Needs Attention</span>
-    {/if}
-  </div>
-
-  <!-- Footer: time -->
-  <div class="text-[10px] text-[var(--fg-muted)] mono">
-    {formatRelativeTime(session.updated_at)}
-  </div>
-
-  {#if latestMessage}
-    <div class="mt-1 text-[11px] leading-4 text-[var(--fg-secondary)] line-clamp-2 text-left">
-      {latestMessage}
+  {#if session.needs_attention}
+    <div class="mb-1.5">
+      <span class="shrink-0 px-1.5 py-0.5 text-[9px] font-medium rounded bg-[var(--accent-amber)]/20 text-[var(--accent-amber)]">
+        ATTENTION
+      </span>
     </div>
   {/if}
 
-  <!-- Attention ring (if needed) -->
-  {#if session.needs_attention}
-    <div class="absolute inset-0 rounded-lg ring-1 ring-amber-400 animate-pulse pointer-events-none"></div>
+  <!-- Meta: hostname + model + subagents + notes -->
+  <div class="flex items-center gap-1.5 text-[10px] text-[var(--fg-secondary)] mb-1.5 flex-wrap">
+    <span class="mono truncate">{session.hostname}</span>
+    {#if modelName}
+      <span class="text-[var(--fg-muted)]">•</span>
+      <span class="mono text-[var(--accent-blue)]">{modelName}</span>
+    {/if}
+    {#if subAgents.length > 0}
+      <span class="text-[var(--fg-muted)]">•</span>
+      <span class="inline-flex items-center gap-0.5 mono">
+        <GitBranch class="w-2.5 h-2.5 text-[var(--fg-secondary)]" />
+        {#if activeSubAgents > 0}
+          <span class="text-emerald-500">{activeSubAgents}↑</span>
+        {/if}
+        {#if idleSubAgents > 0}
+          <span class="text-[var(--fg-muted)]">{idleSubAgents}✓</span>
+        {/if}
+      </span>
+    {/if}
+    {#if session.notes_count && session.notes_count > 0}
+      <span class="text-[var(--fg-muted)]">•</span>
+      <span class="inline-flex items-center gap-0.5 mono text-[var(--accent-amber)]">
+        <StickyNote class="w-2.5 h-2.5" />
+        <span>{session.notes_count}</span>
+      </span>
+    {/if}
+  </div>
+
+  <!-- Message preview -->
+  {#if latestMessage}
+    <div class="mb-1.5 h-4 overflow-hidden">
+      <p class="text-[10px] truncate text-[var(--fg-secondary)]">
+        {latestMessage}
+      </p>
+    </div>
   {/if}
+
+  <!-- Footer: tokens + cost + time -->
+  <div class="flex items-center justify-between text-[10px] mt-auto">
+    <div class="flex items-center gap-2 text-[var(--fg-muted)]">
+      <span class="mono">{formatTokens(session.token_total || 0)} tok</span>
+      <span class="mono">{formatCost(session.cost_total || 0)}</span>
+    </div>
+    <span class="mono text-[var(--fg-muted)]">{formatRelativeTime(session.updated_at)}</span>
+  </div>
 </div>
 
 <style>
@@ -272,5 +326,20 @@
   @keyframes chamber-error-glow {
     0%, 100% { box-shadow: 0 0 4px rgba(239, 68, 68, 0.3); }
     50% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+  }
+
+  /* Attention ring pulse */
+  .attention-ring::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 0 0 1px var(--accent-amber), 0 0 8px rgba(210, 153, 34, 0.3);
+    pointer-events: none;
+    animation: attention-glow 2.5s ease-in-out infinite;
+  }
+  @keyframes attention-glow {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
   }
 </style>

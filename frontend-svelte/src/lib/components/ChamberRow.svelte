@@ -18,9 +18,10 @@
   let runningExpanded = $state(false)
   let idleExpanded = $state(false)
 
+  // Crossfade for cards moving between zones
   const [send, receive] = crossfade({
-    duration: 180,
-    fallback: () => ({ duration: 120 })
+    duration: 200,
+    fallback: () => ({ duration: 150 })
   })
 
   // Separate sessions into running and idle zones
@@ -108,7 +109,9 @@
         {#if runningSessions.length === 0}
           <div class="text-xs text-[var(--fg-muted)] italic py-2">No active</div>
         {:else if runningSessions.length === 1}
-          <ChamberCard session={runningSessions[0]} />
+          <div in:receive={{ key: runningSessions[0].id }} out:send={{ key: runningSessions[0].id }}>
+            <ChamberCard session={runningSessions[0]} />
+          </div>
         {:else}
           <!-- Stacked cards: pages in a book metaphor -->
           <div class="relative">
@@ -150,7 +153,9 @@
         {#if idleSessions.length === 0}
           <div class="text-xs text-[var(--fg-muted)] italic py-2">No idle</div>
         {:else if idleSessions.length === 1}
-          <ChamberCard session={idleSessions[0]} />
+          <div in:receive={{ key: idleSessions[0].id }} out:send={{ key: idleSessions[0].id }}>
+            <ChamberCard session={idleSessions[0]} />
+          </div>
         {:else}
           <!-- Stacked cards: pages in a book metaphor -->
           <div class="relative">
@@ -182,5 +187,14 @@
 <style>
   .card-stack {
     transition: transform 0.15s ease-out, margin 0.15s ease-out;
+  }
+
+  /* Zone transition: smooth fade + scale for cards moving between zones */
+  :global(.chamber-zone-transition) {
+    animation: zone-move 0.25s ease-out;
+  }
+  @keyframes zone-move {
+    0% { opacity: 0.6; transform: scale(0.98); }
+    100% { opacity: 1; transform: scale(1); }
   }
 </style>
