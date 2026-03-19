@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { Session } from '$lib/types'
   import { chamberStore } from '$lib/chamber-store.svelte'
   import { formatRelativeTime, getProjectName, getProjectColor } from '$lib/utils'
   import SessionHoverCard from '$lib/components/SessionHoverCard.svelte'
+  import { getFloatingPosition, type FloatingPosition } from '$lib/actions/floating'
 
   let allDirs = $derived(
     [...new Set(chamberStore.recentDone.map(s => s.directory).filter(Boolean))] as string[]
@@ -12,15 +12,11 @@
     chamberStore.setSelected(sessionId)
   }
 
-  let isHovering = $state<{ sessionId: string | null; top: number; left: number; direction: 'left' | 'right' }>({
-    sessionId: null,
-    top: 0,
-    left: 0,
-    direction: 'left'
-  })
+  let isHovering = $state<{ sessionId: string | null }>({ sessionId: null })
+  let floatingPosition = $state<FloatingPosition>({ x: 0, y: 0, placement: 'left' })
   let hoverHideTimer: ReturnType<typeof setTimeout> | null = null
-  const HOVER_CARD_WIDTH = 440
-  const HOVER_CARD_HEIGHT = 560
+  let buttonRefs = $state<Map<string, HTMLButtonElement>>(new Map())
+  let hoverCardRef = $state<HTMLDivElement | null>(null)
 
   let hoverSession = $derived.by(() => {
     if (!isHovering.sessionId) return null
@@ -34,34 +30,26 @@
     }
   }
 
-  function updateHoverPosition(target: HTMLElement) {
-    const rect = target.getBoundingClientRect()
-    const viewportHeight = window.innerHeight
-    const viewportWidth = window.innerWidth
-    const spaceOnLeft = rect.left
-    const centerY = rect.top + rect.height / 2
-    const minTop = HOVER_CARD_HEIGHT / 2 + 16
-    const maxTop = viewportHeight - HOVER_CARD_HEIGHT / 2 - 16
-
-    if (spaceOnLeft > HOVER_CARD_WIDTH + 32) {
-      isHovering.direction = 'left'
-      isHovering.left = rect.left
-      isHovering.top = Math.max(minTop, Math.min(maxTop, centerY))
-    } else {
-      isHovering.direction = 'right'
-      isHovering.left = rect.right
-      isHovering.top = Math.max(minTop, Math.min(maxTop, centerY))
-    }
+  async function updateFloatingPosition(sessionId: string) {
+    const buttonEl = buttonRefs.get(sessionId)
+    if (!buttonEl || !hoverCardRef) return
+    const pos = await getFloatingPosition(buttonEl, hoverCardRef, {
+      placement: 'left-start',
+      offset: 8,
+      padding: 8
+    })
+    floatingPosition = pos
   }
 
-  function showHoverCard(target: HTMLElement, sessionId: string) {
+  function showHoverCard(sessionId: string) {
     clearHoverHideTimer()
-    updateHoverPosition(target)
     isHovering.sessionId = sessionId
   }
 
   function handleMouseEnter(event: MouseEvent, sessionId: string) {
-    showHoverCard(event.currentTarget as HTMLElement, sessionId)
+    const target = event.currentTarget as HTMLButtonElement
+    buttonRefs.set(sessionId, target)
+    showHoverCard(sessionId)
   }
 
   function scheduleHoverHide() {
@@ -81,6 +69,12 @@
     scheduleHoverHide()
   }
 
+  // Update position when hover becomes visible
+  $effect(() => {
+    if (isHovering.sessionId) {
+      updateFloatingPosition(isHovering.sessionId)
+    }
+  })
 </script>
 
 <div class="p-4">
@@ -138,9 +132,10 @@
 {#if isHovering.sessionId && hoverSession}
   <SessionHoverCard
     session={hoverSession}
-    left={isHovering.left}
-    top={isHovering.top}
-    placement={isHovering.direction}
+    bind:floatingEl={hoverCardRef}
+    x={floatingPosition.x}
+    y={floatingPosition.y}
+    placement={floatingPosition.placement}
     onmouseenter={handleHoverCardEnter}
     onmouseleave={handleHoverCardLeave}
   />

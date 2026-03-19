@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { TimelineBlock as TimelineBlockModel } from '$lib/library-store.svelte'
+  import { getFloatingPosition, type FloatingPosition } from '$lib/actions/floating'
 
   interface Props {
     block: TimelineBlockModel
@@ -8,9 +9,10 @@
 
   let { block, onClick }: Props = $props()
   let isHovering = $state(false)
-  let hoverPosition = $state({ top: 0, left: 0, direction: 'up' as 'up' | 'down' })
+  let floatingPosition = $state<FloatingPosition>({ x: 0, y: 0, placement: 'top' })
   let hoverHideTimer: ReturnType<typeof setTimeout> | null = null
-  const HOVER_CARD_WIDTH = 460
+  let blockRef = $state<HTMLDivElement | null>(null)
+  let hoverCardRef = $state<HTMLDivElement | null>(null)
 
   function getStatusColor(status: string) {
     switch (status) {
@@ -63,7 +65,6 @@
 
   function portal(node: HTMLElement) {
     document.body.appendChild(node)
-
     return {
       destroy() {
         node.remove()
@@ -71,27 +72,23 @@
     }
   }
 
-  function updateHoverPosition(target: HTMLElement) {
-    const rect = target.getBoundingClientRect()
-    const viewportHeight = window.innerHeight
-    const viewportWidth = window.innerWidth
-    const idealLeft = rect.left + rect.width / 2
-    const minLeft = HOVER_CARD_WIDTH / 2 + 16
-    const maxLeft = viewportWidth - HOVER_CARD_WIDTH / 2 - 16
-
-    hoverPosition.direction = rect.top > viewportHeight - rect.bottom ? 'up' : 'down'
-    hoverPosition.left = Math.max(minLeft, Math.min(maxLeft, idealLeft))
-    hoverPosition.top = hoverPosition.direction === 'up' ? rect.top : rect.bottom
+  async function updateFloatingPosition() {
+    if (!blockRef || !hoverCardRef) return
+    const pos = await getFloatingPosition(blockRef, hoverCardRef, {
+      placement: 'top',
+      offset: 8,
+      padding: 8
+    })
+    floatingPosition = pos
   }
 
-  function showHoverCard(target: HTMLElement) {
+  function showHoverCard() {
     clearHoverHideTimer()
-    updateHoverPosition(target)
     isHovering = true
   }
 
-  function handleMouseEnter(event: MouseEvent) {
-    showHoverCard(event.currentTarget as HTMLElement)
+  function handleMouseEnter() {
+    showHoverCard()
   }
 
   function scheduleHoverHide() {
@@ -159,9 +156,17 @@
   function truncateId(id: string): string {
     return id.slice(0, 12) + '…'
   }
+
+  // Update position when hover becomes visible
+  $effect(() => {
+    if (isHovering && blockRef && hoverCardRef) {
+      updateFloatingPosition()
+    }
+  })
 </script>
 
 <div
+  bind:this={blockRef}
   class="timeline-block"
   class:chamber-done={block.isCompletedViaChamber}
   class:is-overlapping={block.overlapCount > 1}
@@ -197,14 +202,13 @@
 
   {#if isHovering}
     <div 
+      bind:this={hoverCardRef}
       class="hover-card"
-      role="tooltip"
-      use:portal
       class:floating-bar-active={block.status === 'active'}
       class:floating-bar-idle-blink={block.status === 'idle'}
-      class:direction-up={hoverPosition.direction === 'up'}
-      class:direction-down={hoverPosition.direction === 'down'}
-      style="left:{hoverPosition.left}px;top:{hoverPosition.top}px;"
+      role="tooltip"
+      use:portal
+      style="left:{floatingPosition.x}px;top:{floatingPosition.y}px;"
       onmouseenter={handleHoverCardEnter}
       onmouseleave={handleHoverCardLeave}
     >
@@ -430,18 +434,10 @@
   /* Frosted glass hover card */
   .hover-card {
     position: fixed;
-    width: min(460px, calc(100vw - 32px));
+    width: min(460px, calc(100vw - 16px));
     z-index: 10000;
     pointer-events: auto;
     animation: fadeIn 0.15s ease-out;
-  }
-
-  .hover-card.direction-up {
-    transform: translateX(-50%) translateY(calc(-100% - 8px));
-  }
-
-  .hover-card.direction-down {
-    transform: translateX(-50%) translateY(8px);
   }
 
   .hover-card-inner {
@@ -482,24 +478,18 @@
     inset: -2px;
     border-radius: inherit;
     padding: 2px;
-    background: conic-gradient(
-      from var(--spin-angle, 0deg),
-      #10b981,
-      transparent 40%,
-      transparent 60%,
-      #10b981
-    );
+    background: conic-gradient(from var(--float-angle, 0deg), #10b981, transparent 30%, transparent 70%, #10b981);
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
-    animation: spin-border 2.5s linear infinite;
+    animation: spin-float 2s linear infinite;
     pointer-events: none;
     z-index: -1;
   }
 
   .hover-card.floating-bar-idle-blink .hover-card-inner {
-    animation: hover-idle-glow 3s ease-in-out infinite;
+    animation: float-idle-blink 3s ease-in-out infinite;
   }
 
   @keyframes fadeIn {
@@ -507,19 +497,19 @@
     to { opacity: 1; }
   }
 
-  @keyframes spin-border {
-    to { --spin-angle: 360deg; }
+  @keyframes spin-float {
+    to { --float-angle: 360deg; }
   }
 
-  @property --spin-angle {
+  @keyframes float-idle-blink {
+    0%, 100% { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); }
+    50% { box-shadow: 0 12px 40px rgba(234, 179, 8, 0.3); }
+  }
+
+  @property --float-angle {
     syntax: '<angle>';
     initial-value: 0deg;
     inherits: false;
-  }
-
-  @keyframes hover-idle-glow {
-    0%, 100% { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); border-color: var(--border-highlight); }
-    50% { box-shadow: 0 12px 40px rgba(234, 179, 8, 0.3); border-color: rgba(234, 179, 8, 0.5); }
   }
 
   .hover-compact-row {
@@ -530,11 +520,15 @@
     border-bottom: 1px solid var(--border-color);
   }
 
+  .status-indicator.large .status-dot {
+    width: 10px;
+    height: 10px;
+  }
+
   .hover-title {
     font-size: 13px;
     font-weight: 700;
     color: var(--text-main);
-    line-height: 1.4;
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -545,7 +539,7 @@
   .hover-stats {
     display: flex;
     gap: 8px;
-    flex-shrink: 0;
+    align-items: center;
   }
 
   .hover-stats .stat {
@@ -648,6 +642,23 @@
     margin-top: 10px;
   }
 
+  .hover-badge.chamber {
+    background: rgba(198, 120, 221, 0.15);
+    color: var(--color-ralph);
+    border: 1px solid rgba(198, 120, 221, 0.3);
+  }
+
+  .hover-badge.subagent {
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--accent-blue);
+    border: 1px solid rgba(88, 166, 255, 0.3);
+  }
+
+  .badge-icon {
+    width: 14px;
+    height: 14px;
+  }
+
   .hover-preview {
     margin-top: 10px;
     padding: 10px 12px;
@@ -678,7 +689,6 @@
 
   .preview-copy {
     display: -webkit-box;
-    line-clamp: 3;
     margin: 0;
     overflow: hidden;
     color: var(--text-main);
@@ -686,27 +696,6 @@
     line-height: 1.5;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
-  }
-
-  .hover-badge.chamber {
-    background: rgba(198, 120, 221, 0.15);
-    color: var(--color-ralph);
-    border: 1px solid rgba(198, 120, 221, 0.3);
-  }
-
-  .hover-badge.subagent {
-    background: rgba(88, 166, 255, 0.15);
-    color: var(--accent-blue);
-    border: 1px solid rgba(88, 166, 255, 0.3);
-  }
-
-  .badge-icon {
-    width: 14px;
-    height: 14px;
-  }
-
-  .status-indicator.large .status-dot {
-    width: 10px;
-    height: 10px;
+    line-clamp: 3;
   }
 </style>

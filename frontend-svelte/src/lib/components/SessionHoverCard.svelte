@@ -8,23 +8,24 @@
 
   interface Props {
     session: Session
-    left: number
-    top: number
-    placement?: 'up' | 'down' | 'left' | 'right'
+    x: number
+    y: number
+    placement?: 'left' | 'right' | 'top' | 'bottom'
+    floatingEl?: HTMLDivElement | null
     onmouseenter?: (event: MouseEvent) => void
     onmouseleave?: (event: MouseEvent) => void
   }
 
   let {
     session,
-    left,
-    top,
-    placement = 'down',
+    x,
+    y,
+    placement = 'left',
+    floatingEl = $bindable(),
     onmouseenter,
     onmouseleave
   }: Props = $props()
 
-  const HOVER_CARD_WIDTH = 440
   let fetchedTimeline = $state<TimelineEvent[] | null>(null)
   let fetchedSession = $state<Session | null>(null)
   let fetchError = $state(false)
@@ -41,10 +42,13 @@
   let projectName = $derived(session.directory ? getProjectName(session.directory) : 'Unknown')
   let timeline = $derived((store.timelines.get(session.id) || []).length > 0 ? (store.timelines.get(session.id) || []) : (fetchedTimeline || []))
 
-  let latestMessage = $derived.by(() => {
-    const last = timeline[timeline.length - 1]
-    if (!last?.summary) return ''
-    return last.summary.length > 60 ? `${last.summary.slice(0, 60)}...` : last.summary
+  // Last 3 tool calls (most recent first)
+  let lastToolCalls = $derived.by(() => {
+    const toolEvents = timeline
+      .filter((e: TimelineEvent) => e.event_type === 'tool' && e.tool_name)
+      .slice(-3)
+      .reverse()
+    return toolEvents as { tool_name: string; summary: string }[]
   })
 
   let lastUserPrompt = $derived.by(() => {
@@ -108,6 +112,11 @@
     return id.slice(0, 12) + '...'
   }
 
+  function truncateSummary(summary: string, maxLen: number = 100): string {
+    if (!summary) return ''
+    return summary.length > maxLen ? summary.slice(0, maxLen) + '...' : summary
+  }
+
   function getStatusDotClass(status: string): string {
     if (status === 'active') return 'bg-emerald-500 animate-pulse'
     if (status === 'idle') return 'bg-amber-500'
@@ -138,20 +147,18 @@
 </script>
 
 <div
+  bind:this={floatingEl}
   class="hover-card"
-  class:direction-up={placement === 'up'}
-  class:direction-down={placement === 'down'}
-  class:direction-left={placement === 'left'}
-  class:direction-right={placement === 'right'}
   class:state-active={displayStatus === 'active'}
   class:state-idle={displayStatus === 'idle'}
   class:state-blue-idle={displayStatus === 'idle-with-subagents'}
   class:state-error={displayStatus === 'error'}
   role="tooltip"
   use:portal
-  style="left:{left}px;top:{top}px;--hover-card-width:{HOVER_CARD_WIDTH}px;"
-  {onmouseenter}
-  {onmouseleave}
+  style="left:{x}px;top:{y}px;"
+  data-placement={placement}
+  onmouseenter={onmouseenter}
+  onmouseleave={onmouseleave}
 >
   <div class="hover-card-inner">
     <div class="hover-card-blur"></div>
@@ -292,10 +299,20 @@
         </div>
       {/if}
 
-      {#if latestMessage}
-        <div class="hover-preview">
-          <span class="preview-label">Latest Activity</span>
-          <p class="preview-copy">{latestMessage}</p>
+      {#if lastToolCalls.length > 0}
+        <div class="hover-preview tool-calls-preview">
+          <span class="preview-label">Last Tool Calls</span>
+          {#each lastToolCalls as event}
+            <div class="tool-call-row">
+              <span class="tool-name">{event.tool_name}</span>
+              <span class="tool-summary">{truncateSummary(event.summary, 100)}</span>
+            </div>
+          {/each}
+        </div>
+      {:else if !lastUserPrompt && !lastAssistantMessage}
+        <div class="hover-preview tool-calls-preview">
+          <span class="preview-label">Last Tool Calls</span>
+          <p class="preview-copy text-muted">No recent tool calls</p>
         </div>
       {/if}
     </div>
@@ -305,26 +322,10 @@
 <style>
   .hover-card {
     position: fixed;
-    width: min(var(--hover-card-width), calc(100vw - 32px));
+    width: min(440px, calc(100vw - 16px));
     z-index: 10000;
     pointer-events: auto;
     animation: fade-in 0.15s ease-out;
-  }
-
-  .hover-card.direction-up {
-    transform: translateX(-50%) translateY(calc(-100% - 8px));
-  }
-
-  .hover-card.direction-down {
-    transform: translateX(-50%) translateY(8px);
-  }
-
-  .hover-card.direction-left {
-    transform: translateX(calc(-100% - 8px)) translateY(-50%);
-  }
-
-  .hover-card.direction-right {
-    transform: translateX(8px) translateY(-50%);
   }
 
   .hover-card-inner {
@@ -534,6 +535,7 @@
   }
   .user-preview { border-color: rgba(168, 85, 247, 0.2); background: rgba(168, 85, 247, 0.08); }
   .assistant-preview { border-color: rgba(34, 197, 94, 0.2); background: rgba(34, 197, 94, 0.08); }
+  .tool-calls-preview { border-color: rgba(88, 166, 255, 0.2); background: rgba(88, 166, 255, 0.08); }
   .preview-label {
     display: block;
     margin-bottom: 4px;
@@ -553,5 +555,27 @@
     line-height: 1.5;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
+  }
+  .preview-copy.text-muted { color: var(--text-muted, #71717a); font-style: italic; }
+
+  .tool-call-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 0;
+  }
+  .tool-call-row:not(:last-child) {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .tool-name {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent-blue, #58a6ff);
+    font-family: var(--font-mono, monospace);
+  }
+  .tool-summary {
+    font-size: 11px;
+    color: var(--text-secondary, #a1a1aa);
+    line-height: 1.4;
   }
 </style>
