@@ -28,7 +28,8 @@
   --bg-card-hover: #262a33;
   --border-color: #2b303b;
   --border-highlight: #374151;
-  --text-watermark: rgba(255, 255, 255, 0.03);
+  --text-watermark: rgba(255, 255, 255, 0.15);
+  --text-watermark-outline: rgba(255, 255, 255, 0.08);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* Layered shadows — colored tint, not pure black */
@@ -70,7 +71,8 @@
   --bg-card-hover: #f3f4f6;
   --border-color: #e5e7eb;
   --border-highlight: #d1d5db;
-  --text-watermark: rgba(0, 0, 0, 0.03);
+  --text-watermark: rgba(0, 0, 0, 0.12);
+  --text-watermark-outline: rgba(0, 0, 0, 0.06);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -106,7 +108,8 @@
     --bg-card-hover: #f3f4f6;
     --border-color: #e5e7eb;
     --border-highlight: #d1d5db;
-    --text-watermark: rgba(0, 0, 0, 0.03);
+    --text-watermark: rgba(0, 0, 0, 0.12);
+  --text-watermark-outline: rgba(0, 0, 0, 0.06);
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 }

@@ -90,6 +90,19 @@
     }
   }
 
+  const CHAR_WIDTH = 48
+
+  function getTrackWatermarkPositions(canvasWidth: number, spacing: number, projectName: string): number[] {
+    const positions: number[] = []
+    const startPos = 80
+    const textWidth = projectName.length * CHAR_WIDTH
+    const effectiveSpacing = Math.max(spacing, textWidth + 200)
+    for (let pos = startPos; pos < canvasWidth; pos += effectiveSpacing) {
+      positions.push(pos)
+    }
+    return positions
+  }
+
   function getWatermarkPositions(canvasWidth: number, spacing: number): number[] {
     const positions: number[] = []
     const startPos = 60
@@ -99,7 +112,9 @@
     return positions
   }
 
-  let watermarkPositions = $derived(getWatermarkPositions(libraryStore.timelineModel.canvasWidth, getWatermarkSpacing(libraryStore.filters.timeRange)))
+  let watermarkPositions = $derived(
+    getWatermarkPositions(libraryStore.timelineModel.canvasWidth, getWatermarkSpacing(libraryStore.filters.timeRange))
+  )
 </script>
 
 <div class="timeline-view" bind:this={timelineRef}>
@@ -115,7 +130,7 @@
     <div class="tracks-shell">
       {#each libraryStore.timelineModel.tracks as track (track.projectId)}
         <section class="project-track" style={`min-height:${track.height}px;`}>
-          {#each watermarkPositions as pos}
+          {#each getTrackWatermarkPositions(libraryStore.timelineModel.canvasWidth, getWatermarkSpacing(libraryStore.filters.timeRange), track.projectName) as pos}
             <div class="track-watermark" style={`left:${pos}px;`}>{track.projectName}</div>
           {/each}
 
@@ -203,15 +218,15 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    font-size: 80px;
-    font-weight: 800;
-    color: var(--text-watermark);
+    font-size: 72px;
+    font-weight: 700;
+    color: transparent;
+    -webkit-text-stroke: 2px var(--text-watermark);
     text-transform: uppercase;
-    letter-spacing: 2px;
+    letter-spacing: 4px;
     pointer-events: none;
     white-space: nowrap;
     z-index: 0;
-    opacity: 0.08;
   }
 
   .track-lanes {
@@ -234,12 +249,13 @@
     transform: translateY(-50%);
     font-size: 32px;
     font-weight: 700;
+    color: transparent;
+    -webkit-text-stroke: 1.5px currentColor;
     text-transform: uppercase;
     letter-spacing: 1px;
     pointer-events: none;
     white-space: nowrap;
-    z-index: 0;
-    opacity: 0.06;
+    z-index: 2;
   }
 
   .lane-divider {
@@ -260,7 +276,8 @@
 
   @media (max-width: 900px) {
     .track-watermark {
-      font-size: 54px;
+      font-size: 48px;
+      -webkit-text-stroke: 1.5px var(--text-watermark);
     }
 
     .lane-watermark {

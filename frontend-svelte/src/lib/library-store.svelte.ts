@@ -421,7 +421,7 @@ class LibraryStore {
   private computeTimelineModel(): TimelineModel {
     const sessionMap = new Map(this.filteredSessions.map((session) => [session.id, session]))
     const topLevelSessions = this.filteredSessions.filter(
-      (session) => !session.parent_session_id || !sessionMap.has(session.parent_session_id)
+      (session) => !session.parent_session_id
     )
 
     const blocks = topLevelSessions.flatMap((session) => this.createBlocksForSession(session))
