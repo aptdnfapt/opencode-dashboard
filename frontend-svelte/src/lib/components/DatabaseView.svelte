@@ -102,11 +102,13 @@
     padding: 14px 16px;
     border-bottom: 1px solid var(--border-color);
     color: var(--text-main);
+    transition: background-color 0.5s ease;
   }
 
   .db-table tr:hover td {
     background: var(--bg-card-hover);
     cursor: pointer;
+    transition: background-color 0s;
   }
 
   .icon { width: 14px; height: 14px; }

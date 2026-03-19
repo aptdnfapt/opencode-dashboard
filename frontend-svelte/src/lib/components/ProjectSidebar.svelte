@@ -94,7 +94,7 @@
       <!-- All Projects option -->
       <button
         onclick={() => selectProject(null)}
-        class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors
+        class="project-tab w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm
                {selectedDirectory === '' 
                  ? 'bg-[var(--bg-tertiary)] text-[var(--fg-primary)]' 
                  : 'text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--fg-primary)]'}"
@@ -116,7 +116,7 @@
       {#each projects as project (project.directory)}
         <button
           onclick={() => selectProject(project.directory)}
-          class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors
+          class="project-tab w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm
                  {selectedDirectory === project.directory 
                    ? 'bg-[var(--bg-tertiary)] text-[var(--fg-primary)]' 
                    : 'text-[var(--fg-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--fg-primary)]'}"
@@ -143,5 +143,15 @@
           No projects found
         </div>
       {/if}
-  </div>
+   </div>
 </aside>
+
+<style>
+  .project-tab {
+    transition: background-color 0.5s ease, color 0.3s ease;
+  }
+
+  .project-tab:hover {
+    transition: background-color 0s;
+  }
+</style>

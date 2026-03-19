@@ -180,7 +180,7 @@
   onmouseenter={handleMouseEnter}
   onmouseleave={handleMouseLeave}
   class={cn(
-    'flex flex-col w-full text-left p-2.5 rounded-lg border transition-all duration-200 relative',
+    'chamber-card flex flex-col w-full text-left p-2.5 rounded-lg border relative',
     'hover:bg-[var(--bg-hover)] hover:border-[var(--border)]',
     displayStatus === 'active' && 'bg-[var(--bg-secondary)] border-emerald-500/50 chamber-running',
     displayStatus === 'idle' && 'bg-[var(--bg-secondary)] border-amber-500/50 chamber-idle',
@@ -414,5 +414,14 @@
   @keyframes attention-glow {
     0%, 100% { opacity: 0.4; }
     50% { opacity: 1; }
+  }
+
+  /* Fade wave effect on hover */
+  .chamber-card {
+    transition: background-color 0.5s ease, border-color 0.5s ease;
+  }
+
+  .chamber-card:hover {
+    transition: background-color 0s, border-color 0s;
   }
 </style>

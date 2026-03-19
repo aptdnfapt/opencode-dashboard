@@ -44,6 +44,32 @@ export async function getFloatingPosition(
 }
 
 /**
+ * Compute floating position for side-only placement (no top/bottom fallback)
+ * Useful for sidebar hover cards that should only appear left/right
+ */
+export async function getFloatingPositionSideOnly(
+  reference: HTMLElement,
+  floating: HTMLElement,
+  config: FloatingConfig = {}
+): Promise<FloatingPosition> {
+  const { x, y, placement } = await computePosition(reference, floating, {
+    placement: config.placement || 'left-start',
+    middleware: [
+      offset(config.offset ?? 8),
+      flip({ 
+        fallbackPlacements: ['left-start', 'right-start'],
+        padding: config.padding ?? 8 
+      }),
+      shift({ padding: config.padding ?? 8 })
+    ]
+  })
+  
+  const basePlacement = placement.split('-')[0] as 'left' | 'right' | 'top' | 'bottom'
+  
+  return { x, y, placement: basePlacement }
+}
+
+/**
  * Setup auto-updating position (handles scroll/resize while open)
  * Returns cleanup function to stop updates
  */

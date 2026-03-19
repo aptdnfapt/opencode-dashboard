@@ -2,7 +2,7 @@
   import { chamberStore } from '$lib/chamber-store.svelte'
   import { formatRelativeTime, getProjectName, getProjectColor } from '$lib/utils'
   import SessionHoverCard from '$lib/components/SessionHoverCard.svelte'
-  import { getFloatingPosition, type FloatingPosition } from '$lib/actions/floating'
+  import { getFloatingPositionSideOnly, type FloatingPosition } from '$lib/actions/floating'
 
   let allDirs = $derived(
     [...new Set(chamberStore.recentDone.map(s => s.directory).filter(Boolean))] as string[]
@@ -33,7 +33,7 @@
   async function updateFloatingPosition(sessionId: string) {
     const buttonEl = buttonRefs.get(sessionId)
     if (!buttonEl || !hoverCardRef) return
-    const pos = await getFloatingPosition(buttonEl, hoverCardRef, {
+    const pos = await getFloatingPositionSideOnly(buttonEl, hoverCardRef, {
       placement: 'left-start',
       offset: 8,
       padding: 8
@@ -100,7 +100,7 @@
           onclick={() => openViewer(session.id)}
           onmouseenter={(e) => handleMouseEnter(e, session.id)}
           onmouseleave={handleMouseLeave}
-          class="block p-2 rounded border transition-colors bg-[var(--bg-tertiary)] border-[var(--border-subtle)] hover:border-[var(--border)] hover:bg-[var(--bg-hover)] w-full min-w-0"
+          class="done-item block p-2 rounded border bg-[var(--bg-secondary)] border-[var(--border-subtle)] hover:bg-[#2a2a2a] w-full min-w-0"
         >
           <div class="flex items-start justify-between gap-2 mb-1">
             <span class="text-sm font-medium truncate text-[var(--fg-primary)] max-w-[60%]">
@@ -140,3 +140,15 @@
     onmouseleave={handleHoverCardLeave}
   />
 {/if}
+
+<style>
+  .done-item {
+    transition: background-color 0.6s ease;
+    cursor: pointer;
+  }
+
+  .done-item:hover {
+    background-color: #2a2a2a;
+    transition: background-color 0s;
+  }
+</style>
