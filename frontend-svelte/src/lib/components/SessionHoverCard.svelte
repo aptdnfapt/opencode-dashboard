@@ -67,8 +67,8 @@
     return latestAssistant?.summary || null
   })
 
+  // Always fetch timeline if not in store (needed for tool calls display)
   $effect(() => {
-    if (session.last_user_prompt || session.last_assistant_message) return
     if ((store.timelines.get(session.id) || []).length > 0) return
     if (fetchedTimeline || fetchError) return
 
