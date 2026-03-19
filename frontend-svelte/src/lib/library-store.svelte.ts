@@ -202,6 +202,29 @@ class LibraryStore {
     this.sessions = [...sessions].sort((a, b) => b.updated_at - a.updated_at)
   }
 
+  addSession(session: Session) {
+    const idx = this.sessions.findIndex(s => s.id === session.id)
+    if (idx >= 0) {
+      this.sessions = this.sessions.map((s, i) => i === idx ? { ...s, ...session } : s)
+    } else {
+      this.sessions = [session, ...this.sessions].sort((a, b) => b.updated_at - a.updated_at)
+    }
+  }
+
+  updateSession(partial: Partial<Session> & { id: string }) {
+    const idx = this.sessions.findIndex(s => s.id === partial.id)
+    if (idx >= 0) {
+      this.sessions = this.sessions.map((s, i) => i === idx ? { ...s, ...partial } : s)
+    }
+  }
+
+  removeSession(sessionId: string) {
+    this.sessions = this.sessions.filter(s => s.id !== sessionId)
+    const newMap = new Map(this.activityMap)
+    newMap.delete(sessionId)
+    this.activityMap = newMap
+  }
+
   setActivities(activities: LibraryActivitySummary[], gapMinutes = DEFAULT_SEGMENT_GAP_MINUTES) {
     this.activityGapMinutes = gapMinutes
     this.activityMap = new Map(activities.map((item) => [item.sessionId, item]))

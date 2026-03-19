@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import { goto } from '$app/navigation'
   import { chamberStore } from '$lib/chamber-store.svelte'
+  import { store } from '$lib/store.svelte'
   import ChamberRow from '$lib/components/ChamberRow.svelte'
   import ChamberDoneList from '$lib/components/ChamberDoneList.svelte'
   import SessionViewer from '$lib/components/SessionViewer.svelte'
@@ -15,10 +16,21 @@
   }
 
   onMount(async () => {
-    await Promise.all([
+    const [,] = await Promise.all([
       chamberStore.load(),
       chamberStore.loadRecentDone()
     ])
+    // Seed main store with chamber sessions for WS lookups
+    for (const s of chamberStore.tracked) {
+      if (!store.sessions.find(ss => ss.id === s.id)) {
+        store.addSession(s)
+      }
+    }
+    for (const s of chamberStore.recentDone) {
+      if (!store.sessions.find(ss => ss.id === s.id)) {
+        store.addSession(s)
+      }
+    }
   })
 </script>
 

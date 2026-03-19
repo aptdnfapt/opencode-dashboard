@@ -3,6 +3,7 @@
 
 import { store } from './store.svelte'
 import { chamberStore } from './chamber-store.svelte'
+import { libraryStore } from './library-store.svelte'
 import type { WSMessage, Session, TimelineEvent } from './types'
 import {
   isTimelineWSData,
@@ -388,6 +389,10 @@ class WebSocketService {
             completed_reason: data.completed_reason ?? null
           }
           store.addSession(session)
+          libraryStore.addSession(session)
+          if (session.is_tracked) {
+            chamberStore.addTracked(session)
+          }
         }
         break
 
@@ -409,11 +414,17 @@ class WebSocketService {
             ...(data.completed_reason !== undefined && { completed_reason: data.completed_reason })
           }
           store.updateSession(update)
-          // Sync with ChamberStore if session is tracked
-          const session = store.sessions.find(s => s.id === data.id)
-          if (session?.is_tracked) {
-            chamberStore.updateTracked(update)
-          }
+          libraryStore.updateSession(update)
+          chamberStore.updateTracked(update)
+        }
+        break
+
+      case 'session.deleted':
+        if (data && typeof data === 'object' && 'id' in data && typeof (data as any).id === 'string') {
+          const deletedId = (data as { id: string }).id
+          store.removeSession(deletedId)
+          libraryStore.removeSession(deletedId)
+          chamberStore.removeTracked(deletedId)
         }
         break
 
@@ -432,6 +443,21 @@ class WebSocketService {
             model_id: data.modelId ?? null
           }
           store.addTimelineEvent(event.session_id, event)
+          
+          // Update last_user_prompt / last_assistant_message for live hover cards
+          if (data.summary) {
+            if (eventType === 'user') {
+              const update = { id: data.sessionId, last_user_prompt: data.summary }
+              store.updateSession(update)
+              libraryStore.updateSession(update)
+              chamberStore.updateTracked(update)
+            } else if (eventType === 'message' || eventType === 'error' || eventType === 'question' || eventType === 'permission') {
+              const update = { id: data.sessionId, last_assistant_message: data.summary }
+              store.updateSession(update)
+              libraryStore.updateSession(update)
+              chamberStore.updateTracked(update)
+            }
+          }
         }
         break
 
@@ -441,6 +467,8 @@ class WebSocketService {
             id: data.sessionId,
             needs_attention: data.needsAttention ? 1 : 0
           })
+          chamberStore.updateTracked({ id: data.sessionId, needs_attention: data.needsAttention ? 1 : 0 })
+          libraryStore.updateSession({ id: data.sessionId, needs_attention: data.needsAttention ? 1 : 0 })
           
           // Gate: only tracked sessions can alert (for Chamber)
           // Held sessions suppress sound/OS notifications but UI still updates
@@ -469,6 +497,8 @@ class WebSocketService {
             id: data.sessionId,
             status: 'idle'
           })
+          chamberStore.updateTracked({ id: data.sessionId, status: 'idle' })
+          libraryStore.updateSession({ id: data.sessionId, status: 'idle' })
           
           // Gate: only tracked sessions can alert (for Chamber)
           // Held sessions suppress sound/OS notifications but UI still updates
@@ -497,6 +527,8 @@ class WebSocketService {
             id: data.sessionId,
             status: 'error'
           })
+          chamberStore.updateTracked({ id: data.sessionId, status: 'error' })
+          libraryStore.updateSession({ id: data.sessionId, status: 'error' })
 
           // Gate: only tracked sessions can alert (for Chamber)
           // Held sessions suppress sound/OS notifications but UI still updates
@@ -528,12 +560,41 @@ class WebSocketService {
             ...(data.groupTag !== undefined && { group_tag: data.groupTag })
           })
           
+          // Update library store
+          libraryStore.updateSession({
+            id: data.sessionId,
+            is_tracked: data.isTracked ? 1 : 0,
+            ...(data.groupTag !== undefined && { group_tag: data.groupTag })
+          })
+          
           // Update ChamberStore
           if (data.isTracked) {
-            // Session was tracked - fetch full session and add to chamber
-            const session = store.sessions.find(s => s.id === data.sessionId)
+            // Session was tracked - try to get full session from any store
+            let session = store.sessions.find(s => s.id === data.sessionId)
+            if (!session) {
+              session = libraryStore.sessions.find(s => s.id === data.sessionId)
+            }
             if (session) {
-              chamberStore.addTracked({ ...session, is_tracked: 1 })
+              chamberStore.addTracked({ ...session, is_tracked: 1, group_tag: data.groupTag ?? session.group_tag })
+            } else {
+              // Session not loaded yet - add minimal placeholder that fetch will replace
+              chamberStore.addTracked({
+                id: data.sessionId,
+                title: 'Loading...',
+                hostname: 'unknown',
+                directory: null,
+                parent_session_id: null,
+                status: 'active',
+                created_at: Date.now(),
+                updated_at: Date.now(),
+                needs_attention: 0,
+                token_total: 0,
+                cost_total: 0,
+                is_tracked: 1,
+                group_tag: data.groupTag ?? null,
+                completed_at: null,
+                completed_reason: null
+              })
             }
           } else {
             // Session was untracked - remove from chamber

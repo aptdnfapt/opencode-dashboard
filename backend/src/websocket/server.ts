@@ -2,7 +2,7 @@
 // WebSocket manager - handles client connections and broadcasting
 
 interface BroadcastMessage {
-  type: 'session.created' | 'session.updated' | 'timeline' | 'attention' | 'idle' | 'error' | 'tracked.changed' | 'hold.changed'
+  type: 'session.created' | 'session.updated' | 'session.deleted' | 'timeline' | 'attention' | 'idle' | 'error' | 'tracked.changed' | 'hold.changed'
   data: Record<string, unknown>
 }
 

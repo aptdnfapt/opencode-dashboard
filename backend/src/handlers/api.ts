@@ -946,6 +946,8 @@ export function createApiHandler(app: Hono, db: Database) {
     if (!session) return c.json({ error: 'Session not found' }, 404)
 
     db.prepare('UPDATE sessions SET status = ?, needs_attention = 0 WHERE id = ?').run('stale', id)
+    const updated = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id)
+    wsManager.broadcastSessionUpdated(updated as Record<string, unknown>)
     return c.json({ success: true, id })
   })
 
@@ -973,6 +975,8 @@ export function createApiHandler(app: Hono, db: Database) {
     }
     // Delete the session itself
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
+    // Broadcast session deletion
+    wsManager.broadcast({ type: 'session.deleted', data: { id } })
 
     return c.json({ success: true, id })
   })
@@ -987,6 +991,8 @@ export function createApiHandler(app: Hono, db: Database) {
     }
     
     db.prepare('UPDATE sessions SET status = ? WHERE id = ?').run('archived', id)
+    const updated = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id)
+    wsManager.broadcastSessionUpdated(updated as Record<string, unknown>)
     
     return c.json({ success: true, id, status: 'archived' })
   })
@@ -1001,6 +1007,8 @@ export function createApiHandler(app: Hono, db: Database) {
     }
     
     db.prepare('UPDATE sessions SET status = ? WHERE id = ?').run('idle', id)
+    const updated = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id)
+    wsManager.broadcastSessionUpdated(updated as Record<string, unknown>)
     
     return c.json({ success: true, id, status: 'idle' })
   })

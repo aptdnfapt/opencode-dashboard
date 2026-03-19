@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import { getAllSessions, getLibraryActivityRange } from '$lib/api'
   import { libraryStore } from '$lib/library-store.svelte'
+  import { store } from '$lib/store.svelte'
   import DatabaseView from '$lib/components/DatabaseView.svelte'
   import LibraryFilters from '$lib/components/LibraryFilters.svelte'
   import SessionViewer from '$lib/components/SessionViewer.svelte'
@@ -25,6 +26,12 @@
       ])
       libraryStore.setSessions(sessions)
       libraryStore.setActivities(activity.activities, Math.round(activity.splitGapMs / 60000))
+      // Seed main store with library sessions for WS lookups
+      for (const s of sessions) {
+        if (!store.sessions.find(ss => ss.id === s.id)) {
+          store.addSession(s)
+        }
+      }
     } catch (error) {
       errorMessage = error instanceof Error ? error.message : 'Failed to load Library'
       console.warn('Failed to load Library', error)

@@ -297,6 +297,7 @@ export interface AuthWSData {
 export type WSMessage =
   | { type: 'session.created'; data: SessionCreatedWSData }
   | { type: 'session.updated'; data: SessionUpdatedWSData }
+  | { type: 'session.deleted'; data: { id: string } }
   | { type: 'timeline'; data: TimelineWSData }
   | { type: 'attention'; data: AttentionWSData }
   | { type: 'idle'; data: IdleWSData }
