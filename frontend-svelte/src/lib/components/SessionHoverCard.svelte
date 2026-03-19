@@ -42,8 +42,16 @@
   let projectName = $derived(session.directory ? getProjectName(session.directory) : 'Unknown')
   let timeline = $derived((store.timelines.get(session.id) || []).length > 0 ? (store.timelines.get(session.id) || []) : (fetchedTimeline || []))
 
-  // Last 3 tool calls (most recent first)
+  // Last 3 tool calls - use pre-computed field from backend (instant, no fetch needed)
   let lastToolCalls = $derived.by(() => {
+    // Priority: session field > fetched session > fallback to timeline
+    if (session.last_tool_calls && session.last_tool_calls.length > 0) {
+      return session.last_tool_calls
+    }
+    if (fetchedSession?.last_tool_calls && fetchedSession.last_tool_calls.length > 0) {
+      return fetchedSession.last_tool_calls
+    }
+    // Fallback: derive from timeline (for backward compatibility)
     const toolEvents = timeline
       .filter((e: TimelineEvent) => e.event_type === 'tool' && e.tool_name)
       .slice(-3)

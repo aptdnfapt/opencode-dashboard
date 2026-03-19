@@ -20,6 +20,7 @@ export interface Session {
   model_id?: string | null  // Latest model used (from token_usage)
   last_user_prompt?: string | null
   last_assistant_message?: string | null
+  last_tool_calls?: { tool_name: string; summary: string }[] | null
 }
 
 export interface ProjectHold {

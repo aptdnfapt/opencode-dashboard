@@ -5,6 +5,28 @@ import type { Database } from 'bun:sqlite'
 import { generateSpeech, isTTSReady, verifySignedUrl, generateSignedUrl } from '../services/tts'
 import { wsManager } from '../websocket/server'
 
+// Helper: Get last 3 tool calls per session (pre-computed for hover cards)
+function getToolCallsMap(db: Database, sessionIds: string[]): Map<string, { tool_name: string; summary: string }[]> {
+  if (sessionIds.length === 0) return new Map()
+  
+  const placeholders = sessionIds.map(() => '?').join(',')
+  const rows = db.prepare(`
+    SELECT session_id, tool_name, summary
+    FROM timeline_events
+    WHERE event_type = 'tool' AND tool_name IS NOT NULL AND session_id IN (${placeholders})
+    ORDER BY session_id, timestamp DESC
+  `).all(...sessionIds) as { session_id: string; tool_name: string; summary: string | null }[]
+  
+  const map = new Map<string, { tool_name: string; summary: string }[]>()
+  for (const row of rows) {
+    const existing = map.get(row.session_id) || []
+    if (existing.length < 3) {
+      map.set(row.session_id, [...existing, { tool_name: row.tool_name, summary: row.summary || '' }])
+    }
+  }
+  return map
+}
+
 export function createApiHandler(app: Hono, db: Database) {
   // GET /api/tts/test - get signed URL for TTS (for testing)
   app.get('/api/tts/test', (c: Context) => {
@@ -167,6 +189,23 @@ export function createApiHandler(app: Hono, db: Database) {
     `).all() as { session_id: string; summary: string | null }[]
     const latestAssistantMessageMap = new Map(latestAssistantMessages.map(r => [r.session_id, r.summary]))
 
+    // Get last 3 tool calls per session
+    const lastToolCalls = db.prepare(`
+      SELECT session_id, tool_name, summary, timestamp
+      FROM timeline_events
+      WHERE event_type = 'tool' AND tool_name IS NOT NULL
+      ORDER BY session_id, timestamp DESC
+    `).all() as { session_id: string; tool_name: string; summary: string | null; timestamp: number }[]
+    
+    // Group by session_id and take last 3 (most recent first)
+    const toolCallsMap = new Map<string, { tool_name: string; summary: string }[]>()
+    for (const row of lastToolCalls) {
+      const existing = toolCallsMap.get(row.session_id) || []
+      if (existing.length < 3) {
+        toolCallsMap.set(row.session_id, [...existing, { tool_name: row.tool_name, summary: row.summary || '' }])
+      }
+    }
+
     // Compute effective status + attach model_id in single pass
     const processed = sessions.map(s => {
       let effectiveStatus = s.status
@@ -178,7 +217,8 @@ export function createApiHandler(app: Hono, db: Database) {
         status: effectiveStatus,
         model_id: modelMap.get(s.id) || null,
         last_user_prompt: latestUserPromptMap.get(s.id) || null,
-        last_assistant_message: latestAssistantMessageMap.get(s.id) || null
+        last_assistant_message: latestAssistantMessageMap.get(s.id) || null,
+        last_tool_calls: toolCallsMap.get(s.id) || null
       }
     })
 
@@ -1349,6 +1389,9 @@ export function createApiHandler(app: Hono, db: Database) {
     `).all() as { session_id: string; summary: string | null }[]
     const latestAssistantMessageMap = new Map(latestAssistantMessages.map(r => [r.session_id, r.summary]))
 
+    // Get last 3 tool calls for tracked sessions
+    const toolCallsMap = getToolCallsMap(db, sessions.map(s => s.id as string))
+
     const noteCounts = db.prepare(
       'SELECT session_id, COUNT(*) as cnt FROM notes GROUP BY session_id'
     ).all() as { session_id: string; cnt: number }[]
@@ -1359,6 +1402,7 @@ export function createApiHandler(app: Hono, db: Database) {
       model_id: modelMap.get(session.id) || null,
       last_user_prompt: latestUserPromptMap.get(session.id) || null,
       last_assistant_message: latestAssistantMessageMap.get(session.id) || null,
+      last_tool_calls: toolCallsMap.get(session.id as string) || null,
       notes_count: noteCountMap.get(session.id) || 0
     })))
   })
@@ -1410,6 +1454,9 @@ export function createApiHandler(app: Hono, db: Database) {
     `).all() as { session_id: string; summary: string | null }[]
     const latestAssistantMessageMap = new Map(latestAssistantMessages.map(r => [r.session_id, r.summary]))
 
+    // Get last 3 tool calls for recent-done sessions
+    const toolCallsMap = getToolCallsMap(db, sessions.map(s => s.id as string))
+
     const noteCounts = db.prepare(
       'SELECT session_id, COUNT(*) as cnt FROM notes GROUP BY session_id'
     ).all() as { session_id: string; cnt: number }[]
@@ -1420,6 +1467,7 @@ export function createApiHandler(app: Hono, db: Database) {
       model_id: modelMap.get(session.id) || null,
       last_user_prompt: latestUserPromptMap.get(session.id) || null,
       last_assistant_message: latestAssistantMessageMap.get(session.id) || null,
+      last_tool_calls: toolCallsMap.get(session.id as string) || null,
       notes_count: noteCountMap.get(session.id) || 0
     })))
   })

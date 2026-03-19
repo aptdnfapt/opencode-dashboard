@@ -444,7 +444,7 @@ class WebSocketService {
           }
           store.addTimelineEvent(event.session_id, event)
           
-          // Update last_user_prompt / last_assistant_message for live hover cards
+          // Update last_user_prompt / last_assistant_message / last_tool_calls for live hover cards
           if (data.summary) {
             if (eventType === 'user') {
               const update = { id: data.sessionId, last_user_prompt: data.summary }
@@ -453,6 +453,18 @@ class WebSocketService {
               chamberStore.updateTracked(update)
             } else if (eventType === 'message' || eventType === 'error' || eventType === 'question' || eventType === 'permission') {
               const update = { id: data.sessionId, last_assistant_message: data.summary }
+              store.updateSession(update)
+              libraryStore.updateSession(update)
+              chamberStore.updateTracked(update)
+            } else if (eventType === 'tool' && data.toolName) {
+              // Prepend tool call to last_tool_calls (keep max 3)
+              const session = store.sessions.find(s => s.id === data.sessionId)
+              const existing = session?.last_tool_calls || []
+              const newToolCalls = [
+                { tool_name: data.toolName, summary: data.summary },
+                ...existing.slice(0, 2)
+              ].slice(0, 3)
+              const update = { id: data.sessionId, last_tool_calls: newToolCalls }
               store.updateSession(update)
               libraryStore.updateSession(update)
               chamberStore.updateTracked(update)
